@@ -1,0 +1,65 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Stores basic user profile information.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "Firebase Auth UID of the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "Verified email of the user."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Last update timestamp."
+        }
+      },
+      "required": ["uid", "email"]
+    },
+    "AppState": {
+      "title": "AppState",
+      "description": "Stores a specific slice of the user's application state.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The user ID this state belongs to."
+        },
+        "stateKey": {
+          "type": "string",
+          "description": "The key identifier of the state slice (e.g., profile, sekolah, tigab, menu, foodCost, tkpi, customLogo)."
+        },
+        "data": {
+          "type": "string",
+          "description": "The JSON-stringified state data value."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Timestamp when this state slice was last updated."
+        }
+      },
+      "required": ["userId", "stateKey", "data", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Main user account record."
+    },
+    "/users/{userId}/states/{stateKey}": {
+      "schema": "AppState",
+      "description": "Sub-collection storing serialized application states to prevent cache clear losses."
+    }
+  }
+}
