@@ -7,20 +7,45 @@ import React, { useState } from "react";
 import { FoodCostDay, TKPIItem, MasterMenu, HariPM } from "../types";
 import { calculateDay, formatRupiah, getCountsForDay } from "../utils/calc";
 import { TARGET_AKG_LIMITS } from "../tkpiData";
-import { PieChart, ListOrdered, PiggyBank, CalendarRange, TrendingDown, TrendingUp, AlertTriangle } from "lucide-react";
+import { PieChart, ListOrdered, PiggyBank, CalendarRange, TrendingDown, TrendingUp, AlertTriangle, Printer, Download, Image as ImageIcon } from "lucide-react";
+import { downloadElementAsImage } from "../lib/printUtils";
 
 interface DashboardOutputsProps {
   foodCostDays: FoodCostDay[];
   tkpiList: TKPIItem[];
   masterMenu: MasterMenu;
   harianPM: HariPM[];
+  kopLine1: string;
+  setKopLine1: (val: string) => void;
+  kopLine2: string;
+  setKopLine2: (val: string) => void;
+  kopLine3: string;
+  setKopLine3: (val: string) => void;
+  kopLine4: string;
+  setKopLine4: (val: string) => void;
+  leftLogo: string;
+  setLeftLogo: (val: string) => void;
+  rightLogo: string;
+  setRightLogo: (val: string) => void;
 }
 
 export default function DashboardOutputs({
   foodCostDays,
   tkpiList,
   masterMenu,
-  harianPM
+  harianPM,
+  kopLine1,
+  setKopLine1,
+  kopLine2,
+  setKopLine2,
+  kopLine3,
+  setKopLine3,
+  kopLine4,
+  setKopLine4,
+  leftLogo,
+  setLeftLogo,
+  rightLogo,
+  setRightLogo
 }: DashboardOutputsProps) {
   const [activeOutputTab, setActiveOutputTab] = useState<"rekap" | "nota">("rekap");
   const [targetBudgetPorsiBesar, setTargetBudgetPorsiBesar] = useState<number>(10000); // Default IDR 10,000 for Porsi Besar
@@ -29,6 +54,9 @@ export default function DashboardOutputs({
   const [saldoAwal3B, setSaldoAwal3B] = useState<number>(15000000); // 15 juta
   const [selectedNotaDay, setSelectedNotaDay] = useState<number>(1);
   const [selectedDashboardDay, setSelectedDashboardDay] = useState<number>(1);
+  const [viewMode, setViewMode] = useState<"edit" | "print">("edit");
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [printDocType, setPrintDocType] = useState<"rekap" | "nota">("rekap");
 
   // Selected dashboard day counts
   const currentDayCounts = getCountsForDay(harianPM, selectedDashboardDay);
@@ -186,8 +214,28 @@ export default function DashboardOutputs({
 
   return (
     <div id="outputs-view-container" className="space-y-6">
-      {/* Dashboard PM & Day Selector Panel */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
+      {/* Tab Switcher: Edit vs Cetak */}
+      <div className="flex border-b border-slate-200 no-print">
+        <button
+          type="button"
+          onClick={() => setViewMode("edit")}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${viewMode === "edit" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+        >
+          📝 Kustomisasi & Dashboard Interaktif
+        </button>
+        <button
+          type="button"
+          onClick={() => setViewMode("print")}
+          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${viewMode === "print" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+        >
+          🖨️ Pratinjau & Cetak Dokumen (A4)
+        </button>
+      </div>
+
+      {viewMode === "edit" && (
+        <div className="space-y-6">
+          {/* Dashboard PM & Day Selector Panel */}
+          <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-5">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
           <div className="flex items-start gap-3">
             <div className="text-[#4F46E5] shrink-0 mt-0.5">
@@ -765,6 +813,286 @@ export default function DashboardOutputs({
                   </div>
                 </div>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )}
+
+      {/* --- PRATINJAU CETAK KOP & EKSPOR --- */}
+      {viewMode === "print" && (
+        <div className="space-y-6">
+          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 no-print">
+            <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-2 border-b border-slate-100 gap-3">
+              <div className="space-y-1">
+                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat &amp; Cetak / Ekspor</h4>
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs font-bold text-slate-500">Pilih Dokumen:</span>
+                  <select
+                    value={printDocType}
+                    onChange={(e) => setPrintDocType(e.target.value as any)}
+                    className="bg-slate-100 border border-slate-200 rounded px-2.5 py-1 text-xs font-bold text-indigo-600 focus:outline-none"
+                  >
+                    <option value="rekap">RAB 12 Hari &amp; Rekap Gizi</option>
+                    <option value="nota">Nota Rincian Bahan (Hari Ke-{selectedNotaDay})</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start sm:self-auto">
+                <button
+                  id="btn-do-download-img"
+                  type="button"
+                  disabled={!!isDownloading}
+                  onClick={() => downloadElementAsImage("print-area-rab-harian", printDocType === "rekap" ? "RAB_12_Hari_Rekap_Gizi" : "Nota_Rincian_Bahan_Hari_" + selectedNotaDay, setIsDownloading)}
+                  className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  {isDownloading === "Memproses gambar..." || isDownloading === "Mengunduh gambar..." ? isDownloading : "Unduh Gambar (PNG)"}
+                </button>
+                <button
+                  id="btn-do-print"
+                  type="button"
+                  onClick={() => window.print()}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+                >
+                  <Printer className="w-4 h-4" />
+                  Cetak / Simpan PDF (A4 Portrait)
+                </button>
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 1</label>
+                <input
+                  type="text"
+                  value={kopLine1}
+                  onChange={(e) => setKopLine1(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 2</label>
+                <input
+                  type="text"
+                  value={kopLine2}
+                  onChange={(e) => setKopLine2(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 3</label>
+                <input
+                  type="text"
+                  value={kopLine3}
+                  onChange={(e) => setKopLine3(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 4</label>
+                <input
+                  type="text"
+                  value={kopLine4}
+                  onChange={(e) => setKopLine4(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center no-print overflow-x-auto">
+            <div 
+              id="print-area-rab-harian" 
+              className="bg-white p-8 border border-slate-400 shadow-md w-full max-w-[210mm] min-w-[210mm] font-sans text-slate-950 print:text-black print:border-none print:shadow-none print:p-0 print:m-0 space-y-8"
+            >
+              {/* Kop Surat Header */}
+              <div className="relative flex items-center justify-between pb-3 border-b-2 border-black w-full" style={{ minHeight: '90px' }}>
+                {/* Left Logo */}
+                <div className="flex flex-col items-center justify-center w-20 h-20 shrink-0 relative">
+                  <img 
+                    src={leftLogo} 
+                    alt="Logo Kiri" 
+                    className="w-16 h-16 object-contain" 
+                    referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = "/src/assets/images/logo_sppg_1782256222616.jpg";
+                    }}
+                  />
+                </div>
+
+                {/* Centered Kop Text */}
+                <div className="text-center font-sans tracking-wide leading-snug px-4 flex-1">
+                  <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none" style={{ fontSize: '14pt' }}>{kopLine1}</div>
+                  <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none mt-1" style={{ fontSize: '13pt' }}>{kopLine2}</div>
+                  <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none mt-1" style={{ fontSize: '13pt' }}>{kopLine3}</div>
+                  <div className="italic text-slate-800 print:text-black font-sans mt-1.5" style={{ fontSize: '10pt' }}>{kopLine4}</div>
+                </div>
+
+                {/* Right Logo */}
+                <div className="flex flex-col items-center justify-center w-20 h-20 shrink-0 relative">
+                  {rightLogo ? (
+                    <img 
+                      src={rightLogo} 
+                      alt="Logo Kanan" 
+                      className="w-16 h-16 object-contain" 
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div className="w-16 h-16 border border-dashed border-slate-300 rounded flex items-center justify-center text-[8px] text-slate-400 font-bold uppercase no-print">
+                      Logo Kanan
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {printDocType === "rekap" ? (
+                <div className="space-y-6">
+                  {/* Title */}
+                  <div className="text-center space-y-1">
+                    <h3 className="font-black text-black uppercase tracking-wide" style={{ fontSize: '13pt' }}>
+                      LAPORAN REKAPITULASI RAB &amp; ANALISIS KECUKUPAN GIZI
+                    </h3>
+                    <p className="text-xs font-bold text-slate-700 uppercase">
+                      MONITORING PROGRAM SPPG SIKLUS 12 HARI
+                    </p>
+                  </div>
+
+                  {/* 12-day Table for print */}
+                  <table className="w-full text-left text-[9px] border-collapse border border-slate-300">
+                    <thead>
+                      <tr className="bg-slate-100 font-bold text-slate-700 uppercase border border-slate-300">
+                        <th className="border border-slate-300 p-1.5 text-center">Hari</th>
+                        <th className="border border-slate-300 p-1.5">Menu Utama</th>
+                        <th className="border border-slate-300 p-1.5 text-right">Energi</th>
+                        <th className="border border-slate-300 p-1.5 text-right">Protein</th>
+                        <th className="border border-slate-300 p-1.5 text-right">Lemak</th>
+                        <th className="border border-slate-300 p-1.5 text-right">KH</th>
+                        <th className="border border-slate-300 p-1.5 text-right">Serat</th>
+                        <th className="border border-slate-300 p-1.5 text-right">P.Kecil</th>
+                        <th className="border border-slate-300 p-1.5 text-right">P.Besar</th>
+                        <th className="border border-slate-300 p-1.5 text-right">RAB Harian</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {calculatedDays.map(({ dayNum, schoolResult, menuName }) => {
+                        return (
+                          <tr key={dayNum} className="text-slate-800 font-medium">
+                            <td className="border border-slate-300 p-1.5 text-center font-mono font-bold">H{dayNum}</td>
+                            <td className="border border-slate-300 p-1.5 truncate max-w-[120px]">{menuName}</td>
+                            <td className="border border-slate-300 p-1.5 text-right font-mono">{(schoolResult.nutrisiPorsiBesar.energi || 0).toFixed(0)} kkal</td>
+                            <td className="border border-slate-300 p-1.5 text-right font-mono">{(schoolResult.nutrisiPorsiBesar.protein || 0).toFixed(1)}g</td>
+                            <td className="border border-slate-300 p-1.5 text-right font-mono">{(schoolResult.nutrisiPorsiBesar.lemak || 0).toFixed(1)}g</td>
+                            <td className="border border-slate-300 p-1.5 text-right font-mono">{(schoolResult.nutrisiPorsiBesar.kh || 0).toFixed(1)}g</td>
+                            <td className="border border-slate-300 p-1.5 text-right font-mono">{(schoolResult.nutrisiPorsiBesar.serat || 0).toFixed(1)}g</td>
+                            <td className="border border-slate-300 p-1.5 text-right font-mono">{formatRupiah(schoolResult.costPerPorsiKecil)}</td>
+                            <td className="border border-slate-300 p-1.5 text-right font-mono">{formatRupiah(schoolResult.costPerPorsiBesar)}</td>
+                            <td className="border border-slate-300 p-1.5 text-right font-mono font-bold">{formatRupiah(schoolResult.subtotalBesarCost + schoolResult.subtotalKecilCost)}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+
+                  {/* Summary row */}
+                  <div className="flex justify-between items-center pt-3 border-t-2 border-slate-800">
+                    <span className="text-xs font-bold uppercase text-slate-700">Total Proyeksi Belanja Kumulatif 12 Hari:</span>
+                    <span className="text-sm font-black text-black font-mono">
+                      {formatRupiah(calculatedDays.reduce((acc, d) => acc + (d.schoolResult.subtotalBesarCost + d.schoolResult.subtotalKecilCost) + (d.threeBResult.subtotalBesarCost + d.threeBResult.subtotalKecilCost), 0))}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6">
+                  {/* Title */}
+                  <div className="text-center space-y-1">
+                    <h3 className="font-black text-black uppercase tracking-wide" style={{ fontSize: '13pt' }}>
+                      LAPORAN NOTA RINCIAN BAHAN MAKANAN &amp; ANGGARAN
+                    </h3>
+                    <p className="text-xs font-bold text-slate-700 uppercase">
+                      HARI KE-{selectedNotaDay} | MENU: {(masterMenu.usiaSekolah[selectedNotaDay - 1]?.namaMenu || "Menu Sehat Standar").toUpperCase()}
+                    </p>
+                  </div>
+
+                  {/* Two columns: Usia Sekolah vs 3B */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Usia Sekolah */}
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-800 border-b pb-1">Usia Sekolah (Siswa)</h4>
+                      <table className="w-full text-left text-[9px] border-collapse border border-slate-300">
+                        <thead className="bg-slate-50 font-bold">
+                          <tr>
+                            <th className="border border-slate-300 p-1">Bahan</th>
+                            <th className="border border-slate-300 p-1 text-right">Netto</th>
+                            <th className="border border-slate-300 p-1 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {currentNotaSekolah.map((item, idx) => (
+                            <tr key={idx}>
+                              <td className="border border-slate-300 p-1 truncate max-w-[80px]">{item.nama}</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono">{item.totalKg.toFixed(3)} Kg</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono">{formatRupiah(item.totalKg * item.hargaSatuan)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="text-right text-[9px] font-bold pt-1">
+                        Total Sekolah: {formatRupiah(currentNotaSekolah.reduce((acc, i) => acc + (i.totalKg * i.hargaSatuan), 0))}
+                      </div>
+                    </div>
+
+                    {/* Kelompok 3B */}
+                    <div className="space-y-2">
+                      <h4 className="text-[10px] font-bold uppercase tracking-wider text-slate-800 border-b pb-1">Kelompok 3B (MP-ASI)</h4>
+                      <table className="w-full text-left text-[9px] border-collapse border border-slate-300">
+                        <thead className="bg-slate-50 font-bold">
+                          <tr>
+                            <th className="border border-slate-300 p-1">Bahan</th>
+                            <th className="border border-slate-300 p-1 text-right">Netto</th>
+                            <th className="border border-slate-300 p-1 text-right">Total</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {currentNota3B.map((item, idx) => (
+                            <tr key={idx}>
+                              <td className="border border-slate-300 p-1 truncate max-w-[80px]">{item.nama}</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono">{item.totalKg.toFixed(3)} Kg</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono">{formatRupiah(item.totalKg * item.hargaSatuan)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      <div className="text-right text-[9px] font-bold pt-1">
+                        Total 3B: {formatRupiah(currentNota3B.reduce((acc, i) => acc + (i.totalKg * i.hargaSatuan), 0))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Subsidy report */}
+                  <div className="bg-slate-50 p-3 rounded-lg border border-slate-200 text-[10px] space-y-1">
+                    <div className="flex justify-between font-bold">
+                      <span>PAGU ALOKASI HARIAN USIA SEKOLAH:</span>
+                      <span className="font-mono">{formatRupiah(saldoAwalUsiaSekolah)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold">
+                      <span>PAGU ALOKASI HARIAN KELOMPOK 3B:</span>
+                      <span className="font-mono">{formatRupiah(saldoAwal3B)}</span>
+                    </div>
+                    <div className="flex justify-between font-bold text-slate-800 border-t pt-1 mt-1">
+                      <span>TOTAL BELANJA HARIAN GABUNGAN:</span>
+                      <span className="font-mono text-rose-800">
+                        {formatRupiah(
+                          currentNotaSekolah.reduce((acc, i) => acc + (i.totalKg * i.hargaSatuan), 0) +
+                          currentNota3B.reduce((acc, i) => acc + (i.totalKg * i.hargaSatuan), 0)
+                        )}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </div>

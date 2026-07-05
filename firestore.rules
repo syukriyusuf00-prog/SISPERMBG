@@ -27,6 +27,12 @@ service cloud.firestore {
       return resource.data;
     }
 
+    function isAdmin() {
+      return isSignedIn() && 
+        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.peran == 'ADMIN';
+    }
+
     // 3. User Profile Validation Helper
     function isValidUserProfile(userId, data) {
       return data.uid == userId
@@ -38,26 +44,39 @@ service cloud.firestore {
 
     // 4. Secure Collections Matching
     match /users/{userId} {
-      allow get: if isOwner(userId);
+      allow get: if isOwner(userId) || isAdmin();
+      allow list: if isAdmin();
       
       allow create: if isOwner(userId) 
         && isValidId(userId)
+        && (
+          (request.auth.token.email == 'syukriyusuf82@gmail.com' && incoming().peran == 'ADMIN' && incoming().statusPersetujuan == 'aktif') ||
+          (request.auth.token.email != 'syukriyusuf82@gmail.com' && incoming().peran == 'USER' && incoming().statusPersetujuan == 'menunggu')
+        )
         && incoming().keys().hasAll(['uid', 'email', 'createdAt', 'updatedAt'])
-        && incoming().keys().size() == 4
         && isValidUserProfile(userId, incoming());
         
-      allow update: if isOwner(userId)
+      allow update: if isAdmin() || (
+        isOwner(userId)
         && incoming().uid == existing().uid
         && incoming().createdAt == existing().createdAt
         && incoming().updatedAt == request.time
-        && incoming().email is string
-        && incoming().email.size() <= 256;
+        && incoming().email == existing().email
+        && (
+          (request.auth.token.email == 'syukriyusuf82@gmail.com' && incoming().peran == 'ADMIN' && incoming().statusPersetujuan == 'aktif') ||
+          (
+            incoming().peran == existing().peran 
+            && incoming().statusPersetujuan == existing().statusPersetujuan
+            && incoming().berakhirPada == existing().berakhirPada
+          )
+        )
+      );
         
-      allow delete: if false; // User accounts cannot be deleted directly from client
+      allow delete: if isAdmin();
 
       // Sub-collection for user state slices (profile, sekolah, tigab, menu, foodCost, tkpi, customLogo)
       match /states/{stateKey} {
-        allow get, list: if isOwner(userId);
+        allow get, list: if isOwner(userId) || isAdmin();
         
         allow create: if isOwner(userId)
           && isValidId(stateKey)
@@ -66,7 +85,6 @@ service cloud.firestore {
           && incoming().userId == userId
           && incoming().stateKey == stateKey
           && incoming().data is string
-          // Secure range check: maximum of 512,000 characters (~500KB) to prevent Denial of Wallet bloating
           && incoming().data.size() <= 512000
           && incoming().updatedAt == request.time;
 
@@ -77,7 +95,7 @@ service cloud.firestore {
           && incoming().data.size() <= 512000
           && incoming().updatedAt == request.time;
           
-        allow delete: if isOwner(userId);
+        allow delete: if isOwner(userId) || isAdmin();
       }
     }
   }

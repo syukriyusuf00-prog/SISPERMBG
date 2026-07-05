@@ -19,6 +19,7 @@ import DashboardOutputs from "./components/DashboardOutputs";
 import NotaPesananLogistikTab from "./components/NotaPesananLogistikTab";
 import RujukanJuknisTab from "./components/RujukanJuknisTab";
 import HandbookTab from "./components/HandbookTab";
+import AdminPanel from "./components/AdminPanel";
 
 // Icons & Animation
 import {
@@ -48,7 +49,11 @@ import {
   Cloud,
   CloudOff,
   RefreshCw,
-  LogOut
+  Clock,
+  Lock,
+  LogOut,
+  AlertCircle,
+  Zap
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAuth } from "./context/AuthContext.tsx";
@@ -103,14 +108,50 @@ export default function App() {
     return localStorage.getItem("sisper_custom_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg";
   });
 
+  // Synchronized KOP Surat & Logos
+  const [kopLine1, setKopLine1] = useState(() => localStorage.getItem("kop_line1") || "BADAN GIZI NASIONAL");
+  const [kopLine2, setKopLine2] = useState(() => localStorage.getItem("kop_line2") || "SATUAN PELAYANAN PEMENUHAN GIZI");
+  const [kopLine3, setKopLine3] = useState(() => localStorage.getItem("kop_line3") || "SPPG MUNA BARAT SAWERIGADI ONDOKE");
+  const [kopLine4, setKopLine4] = useState(() => localStorage.getItem("kop_line4") || "Alamat : Jln. Poros Lagadi-Tondasi, Desa Ondoke, Kec. Sawerigadi, Kab. Muna Barat");
+  const [kopLeftLogo, setKopLeftLogo] = useState(() => localStorage.getItem("kop_left_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg");
+  const [kopRightLogo, setKopRightLogo] = useState(() => localStorage.getItem("kop_right_logo") || "");
+
+  // Synchronized Sandbox Gizi (Cek Gizi) items
+  const [cekGiziItems, setCekGiziItems] = useState<any[]>(() => {
+    const saved = localStorage.getItem("sisper_cek_gizi_items");
+    return saved ? JSON.parse(saved) : [
+      { id: "item_1", namaMenu: "Menu Uji Coba", tkpiId: "beras_giling", berat: 80, urt: "1 piring" },
+      { id: "item_2", namaMenu: "Menu Uji Coba", tkpiId: "daging_ayam_tanpa_kulit", berat: 60, urt: "1 potong" },
+      { id: "item_3", namaMenu: "Menu Uji Coba", tkpiId: "wortel_segar", berat: 30, urt: "1/2 gelas" }
+    ];
+  });
+
   const { 
     user, 
+    userProfile,
+    loading,
     isCloudActive, 
     saveStateToCloud, 
     loadStateFromCloud, 
     signInWithGoogle, 
-    signOutUser 
+    signOutUser,
+    registerUser,
+    refreshUserProfile,
+    authError,
+    setAuthError,
+    simulateAdminLogin
   } = useAuth();
+
+  // Registration Form States
+  const [regNama, setRegNama] = useState("");
+  const [regProfesi, setRegProfesi] = useState("Ahli Gizi");
+  const [regNamaSPPG, setRegNamaSPPG] = useState("");
+  const [regNoHp, setRegNoHp] = useState("");
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  // Admin Panel states
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [cloudStatusMessage, setCloudStatusMessage] = useState<string>("Mode Lokal");
 
@@ -129,6 +170,13 @@ export default function App() {
           const cloudFoodCost = await loadStateFromCloud("foodCost");
           const cloudTkpi = await loadStateFromCloud("tkpi");
           const cloudCustomLogo = await loadStateFromCloud("customLogo");
+          const cloudKopLine1 = await loadStateFromCloud("kopLine1");
+          const cloudKopLine2 = await loadStateFromCloud("kopLine2");
+          const cloudKopLine3 = await loadStateFromCloud("kopLine3");
+          const cloudKopLine4 = await loadStateFromCloud("kopLine4");
+          const cloudKopLeftLogo = await loadStateFromCloud("kopLeftLogo");
+          const cloudKopRightLogo = await loadStateFromCloud("kopRightLogo");
+          const cloudCekGiziItems = await loadStateFromCloud("cekGiziItems");
 
           // Restore existing cloud states
           if (cloudProfile) setProfile(cloudProfile);
@@ -139,6 +187,13 @@ export default function App() {
           if (cloudFoodCost) setFoodCostDays(cloudFoodCost);
           if (cloudTkpi) setTkpiList(cloudTkpi);
           if (cloudCustomLogo) setCustomLogo(cloudCustomLogo);
+          if (cloudKopLine1) setKopLine1(cloudKopLine1);
+          if (cloudKopLine2) setKopLine2(cloudKopLine2);
+          if (cloudKopLine3) setKopLine3(cloudKopLine3);
+          if (cloudKopLine4) setKopLine4(cloudKopLine4);
+          if (cloudKopLeftLogo) setKopLeftLogo(cloudKopLeftLogo);
+          if (cloudKopRightLogo) setKopRightLogo(cloudKopRightLogo);
+          if (cloudCekGiziItems) setCekGiziItems(cloudCekGiziItems);
           
           // Seed new cloud database if empty
           if (!cloudProfile) await saveStateToCloud("profile", profile);
@@ -149,6 +204,13 @@ export default function App() {
           if (!cloudFoodCost) await saveStateToCloud("foodCost", foodCostDays);
           if (!cloudTkpi) await saveStateToCloud("tkpi", tkpiList);
           if (!cloudCustomLogo) await saveStateToCloud("customLogo", customLogo);
+          if (!cloudKopLine1) await saveStateToCloud("kopLine1", kopLine1);
+          if (!cloudKopLine2) await saveStateToCloud("kopLine2", kopLine2);
+          if (!cloudKopLine3) await saveStateToCloud("kopLine3", kopLine3);
+          if (!cloudKopLine4) await saveStateToCloud("kopLine4", kopLine4);
+          if (!cloudKopLeftLogo) await saveStateToCloud("kopLeftLogo", kopLeftLogo);
+          if (!cloudKopRightLogo) await saveStateToCloud("kopRightLogo", kopRightLogo);
+          if (!cloudCekGiziItems) await saveStateToCloud("cekGiziItems", cekGiziItems);
           
           setCloudStatusMessage("Awan Aktif");
         } catch (error) {
@@ -228,6 +290,62 @@ export default function App() {
       return () => clearTimeout(timer);
     }
   }, [tkpiList, isCloudActive, isCloudLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("kop_line1", kopLine1);
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("kopLine1", kopLine1), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [kopLine1, isCloudActive, isCloudLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("kop_line2", kopLine2);
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("kopLine2", kopLine2), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [kopLine2, isCloudActive, isCloudLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("kop_line3", kopLine3);
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("kopLine3", kopLine3), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [kopLine3, isCloudActive, isCloudLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("kop_line4", kopLine4);
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("kopLine4", kopLine4), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [kopLine4, isCloudActive, isCloudLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("kop_left_logo", kopLeftLogo);
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("kopLeftLogo", kopLeftLogo), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [kopLeftLogo, isCloudActive, isCloudLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("kop_right_logo", kopRightLogo);
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("kopRightLogo", kopRightLogo), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [kopRightLogo, isCloudActive, isCloudLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("sisper_cek_gizi_items", JSON.stringify(cekGiziItems));
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("cekGiziItems", cekGiziItems), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [cekGiziItems, isCloudActive, isCloudLoading]);
 
   // Recipient totals (using Day 1 as default baseline display)
   const defaultDayCounts = getCountsForDay(harianPM, 1);
@@ -515,6 +633,360 @@ export default function App() {
     return namaMatch || sumberMatch || kategoriMatch;
   });
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative font-sans">
+        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-emerald-400"></div>
+        <p className="mt-4 text-xs font-semibold text-slate-400">Memuat Sistem GiziSync...</p>
+      </div>
+    );
+  }
+
+  // If user is not logged in, show beautiful GiziSync / SISPERMBG Login screen
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans">
+        {/* Decorative ambient backgrounds */}
+        <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        
+        <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl relative z-10 flex flex-col items-center text-center space-y-6">
+          {/* Logo brand matching Gambar Nomor 3 */}
+          <div className="bg-white px-5 py-2.5 rounded-full inline-flex items-center shadow-lg font-sans text-[20px] font-black tracking-wide">
+            <span className="text-[#0D6D41] font-bold">Gizi</span>
+            <span className="text-[#2088C2] font-bold">Sync</span>
+            <span className="text-[#A2B4FF] mx-1.5 font-normal">|</span>
+            <span className="text-[#0D6D41] text-[15px] font-bold">Nutrition</span>
+            <span className="text-[#626FFF] text-[15px] ml-1 font-bold">Synchronized</span>
+          </div>
+
+          <div className="space-y-1.5">
+            <h1 className="text-lg font-extrabold tracking-tight text-white">Sistem Perencanaan Makan</h1>
+            <p className="text-emerald-400 font-bold text-xs uppercase tracking-widest">Bergizi Gratis (SISPERMBG)</p>
+          </div>
+
+          <div className="w-full border-t border-slate-800 my-2"></div>
+
+          <div className="text-slate-400 text-xs text-left space-y-3.5 w-full">
+            <div className="flex items-start gap-3">
+              <span className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md font-bold text-[10px] shrink-0">✓</span>
+              <p><strong>Akses Multi-Tenant Terisolasi</strong>: Data harian, menu, dan rancangan pangan Anda aman terisolasi.</p>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md font-bold text-[10px] shrink-0">✓</span>
+              <p><strong>Rujukan TKPI 2020 Bersama</strong>: Akses database pangan terpadu nasional siap pakai.</p>
+            </div>
+            <div className="flex items-start gap-3">
+              <span className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md font-bold text-[10px] shrink-0">✓</span>
+              <p><strong>Otomatisasi Juknis 2025</strong>: Sesuai regulasi terbaru porsi gizi Satuan Pelayanan.</p>
+            </div>
+          </div>
+
+          <div className="w-full pt-2">
+            <button
+              type="button"
+              onClick={signInWithGoogle}
+              className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-900 font-bold rounded-2xl transition duration-150 shadow-md flex items-center justify-center gap-2.5 border border-slate-200 cursor-pointer"
+            >
+              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
+                <path
+                  fill="#4285F4"
+                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                />
+                <path
+                  fill="#34A853"
+                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
+                />
+                <path
+                  fill="#FBBC05"
+                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
+                />
+                <path
+                  fill="#EA4335"
+                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
+                />
+              </svg>
+              <span>Masuk dengan Google</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={simulateAdminLogin}
+              className="w-full mt-3 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold rounded-2xl transition duration-150 text-xs border border-slate-700 cursor-pointer flex items-center justify-center gap-2"
+            >
+              <Zap className="w-3.5 h-3.5 text-[#E6004C]" />
+              <span>Gunakan Sesi Demo (Bypass Login)</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If user profile is not registered in Firestore, show Registration Form
+  if (userProfile?.isNotRegistered) {
+    const handleRegisterSubmit = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!regNama || !regNamaSPPG || !regNoHp) {
+        alert("Mohon lengkapi seluruh kolom pendaftaran!");
+        return;
+      }
+      setIsRegistering(true);
+      try {
+        await registerUser({
+          namaLengkap: regNama,
+          profesi: regProfesi,
+          namaSPPG: regNamaSPPG,
+          noHp: regNoHp
+        });
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsRegistering(false);
+      }
+    };
+
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl relative z-10 space-y-6">
+          <div className="text-center space-y-1">
+            <h2 className="text-xl font-extrabold text-white">Formulir Pendaftaran</h2>
+            <p className="text-xs text-slate-400">Lengkapi data di bawah untuk memproses verifikasi tenant Anda</p>
+          </div>
+
+          <form onSubmit={handleRegisterSubmit} className="space-y-4 text-xs text-slate-200">
+            <div className="space-y-1 text-left">
+              <label className="font-bold text-slate-400">Email Akun (Google):</label>
+              <input
+                type="text"
+                disabled
+                value={user.email || ""}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-slate-400 font-semibold focus:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1 text-left">
+              <label className="font-bold text-slate-300">Nama Lengkap (Sesuai KTP/Profesi):</label>
+              <input
+                type="text"
+                required
+                value={regNama}
+                onChange={(e) => setRegNama(e.target.value)}
+                placeholder="Contoh: dr. Syukri Yusuf, M.Gizi"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1 text-left">
+              <label className="font-bold text-slate-300">Profesi / Jabatan Anda:</label>
+              <select
+                value={regProfesi}
+                onChange={(e) => setRegProfesi(e.target.value)}
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none cursor-pointer"
+              >
+                <option value="Ahli Gizi">Ahli Gizi / Nutritionist</option>
+                <option value="Pengelola SPPG">Pengelola Satuan Pelayanan (SPPG)</option>
+                <option value="Kepala SPPG">Kepala Satuan Pelayanan</option>
+                <option value="Tenaga Akuntansi">Tenaga Akuntansi / Keuangan</option>
+                <option value="Staf Operasional">Staf Operasional Lapangan</option>
+                <option value="Lainnya">Lainnya</option>
+              </select>
+            </div>
+
+            <div className="space-y-1 text-left">
+              <label className="font-bold text-slate-300">Nama SPPG / Instansi Anda:</label>
+              <input
+                type="text"
+                required
+                value={regNamaSPPG}
+                onChange={(e) => setRegNamaSPPG(e.target.value)}
+                placeholder="Contoh: SPPG Muna Barat Sawerigadi"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="space-y-1 text-left">
+              <label className="font-bold text-slate-300">No. WhatsApp / Handphone Aktif:</label>
+              <input
+                type="text"
+                required
+                value={regNoHp}
+                onChange={(e) => setRegNoHp(e.target.value)}
+                placeholder="Contoh: 081234567890"
+                className="w-full px-3 py-2 bg-slate-800 border border-slate-700 rounded-xl text-white font-medium focus:ring-1 focus:ring-emerald-500 focus:outline-none"
+              />
+            </div>
+
+            <div className="pt-2 flex gap-3">
+              <button
+                type="button"
+                onClick={signOutUser}
+                className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="submit"
+                disabled={isRegistering}
+                className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-500 text-slate-950 font-extrabold rounded-xl transition cursor-pointer shadow-md shadow-emerald-500/10 disabled:opacity-50"
+              >
+                {isRegistering ? "Memproses..." : "Daftar & Ajukan Verifikasi"}
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // Check if active period has expired
+  const isExpired = (() => {
+    if (!userProfile?.berakhirPada) return false;
+    try {
+      const now = new Date();
+      const localYear = now.getFullYear();
+      const localMonth = String(now.getMonth() + 1).padStart(2, '0');
+      const localDay = String(now.getDate()).padStart(2, '0');
+      const todayStr = `${localYear}-${localMonth}-${localDay}`;
+      return todayStr > userProfile.berakhirPada;
+    } catch (e) {
+      console.error(e);
+      return false;
+    }
+  })();
+
+  // If user profile access has expired
+  if (isExpired) {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans select-none">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl relative z-10 text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="p-4 bg-rose-500/10 text-rose-500 rounded-full inline-block mx-auto animate-pulse">
+            <Clock className="w-10 h-10 text-rose-500" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-extrabold text-white">Masa Login Berakhir</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Mohon maaf, masa login/aktif akun Anda dengan email <strong className="text-rose-400">{user.email}</strong> telah berakhir pada <strong className="text-rose-400">{userProfile.berakhirPada}</strong>.
+            </p>
+          </div>
+
+          <div className="bg-rose-950/30 p-3.5 border border-rose-900 rounded-xl text-[10px] text-rose-300 leading-relaxed">
+            Akses Anda telah dinonaktifkan secara otomatis. Silakan hubungi Administrator Utama di email <strong className="text-white">Syukriyusuf82@gmail.com</strong> untuk melakukan perpanjangan masa aktif atau aktivasi ulang tenant Anda.
+          </div>
+
+          <div className="pt-2 flex gap-3">
+            <button
+              onClick={signOutUser}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition cursor-pointer text-xs flex-1"
+            >
+              Keluar & Ganti Akun
+            </button>
+            <button
+              onClick={refreshUserProfile}
+              className="px-4 py-2 bg-rose-600 hover:bg-rose-500 text-white font-bold rounded-xl transition cursor-pointer text-xs flex-1 flex items-center justify-center gap-1.5"
+            >
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+              Segarkan Status
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is pending approval
+  if (userProfile?.statusPersetujuan === "menunggu") {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl relative z-10 text-center space-y-6 animate-in fade-in zoom-in-95 duration-200">
+          <div className="p-4 bg-amber-500/10 text-amber-400 rounded-full inline-block mx-auto animate-pulse">
+            <Clock className="w-10 h-10" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-extrabold text-white">Menunggu Verifikasi Admin</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Pendaftaran Anda dengan email <strong className="text-amber-400">{user.email}</strong> berhasil disimpan. Akun Anda sedang menunggu persetujuan dan pengaktifan oleh Admin Utama agar data Anda dapat terisolasi dengan aman.
+            </p>
+          </div>
+
+          <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800 text-left text-[11px] space-y-1.5 text-slate-300">
+            <div><span className="font-bold text-slate-500">Nama Lengkap:</span> {userProfile.namaLengkap}</div>
+            <div><span className="font-bold text-slate-500">Profesi:</span> {userProfile.profesi}</div>
+            <div><span className="font-bold text-slate-500">SPPG/Instansi:</span> {userProfile.namaSPPG}</div>
+            <div><span className="font-bold text-slate-500">No. HP:</span> {userProfile.noHp}</div>
+          </div>
+
+          <div className="bg-indigo-950/50 p-3.5 border border-indigo-900 rounded-xl text-[10px] text-indigo-300 leading-relaxed">
+            Silakan hubungi Admin Utama di email <strong className="text-white">Syukriyusuf82@gmail.com</strong> untuk mempercepat aktivasi Satuan Pelayanan Anda.
+          </div>
+
+          <div className="pt-2 flex gap-3">
+            <button
+              onClick={signOutUser}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition cursor-pointer text-xs"
+            >
+              Keluar Akun
+            </button>
+            <button
+              onClick={refreshUserProfile}
+              className="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-extrabold rounded-xl transition cursor-pointer text-xs flex items-center justify-center gap-1.5 shadow-md shadow-amber-500/10"
+            >
+              <RefreshCw className="w-3.5 h-3.5" />
+              Segarkan Status
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // If user is blocked / diblokir
+  if (userProfile?.statusPersetujuan === "diblokir") {
+    return (
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans">
+        <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute bottom-0 right-0 w-96 h-96 bg-rose-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl relative z-10 text-center space-y-6">
+          <div className="p-4 bg-rose-500/10 text-rose-500 rounded-full inline-block mx-auto">
+            <Lock className="w-10 h-10" />
+          </div>
+
+          <div className="space-y-2">
+            <h2 className="text-xl font-extrabold text-white">Akses Akun Dinonaktifkan</h2>
+            <p className="text-xs text-slate-400 leading-relaxed">
+              Mohon maaf, akun Anda dengan email <strong className="text-rose-400">{user.email}</strong> saat ini ditangguhkan atau dinonaktifkan oleh Administrator Utama.
+            </p>
+          </div>
+
+          <div className="bg-rose-950/30 p-3.5 border border-rose-900 rounded-xl text-[10px] text-rose-300 leading-relaxed">
+            Silakan hubungi Admin Utama di email <strong className="text-white">Syukriyusuf82@gmail.com</strong> untuk informasi pengaktifan kembali tenant Anda.
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={signOutUser}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition cursor-pointer text-xs"
+            >
+              Keluar & Ganti Akun
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div id="sisper-app-root" className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col">
       {/* HEADER BANNER */}
@@ -549,9 +1021,13 @@ export default function App() {
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <span className="bg-emerald-500 text-[20px] font-extrabold px-4 py-1 rounded-full text-slate-950 tracking-wider uppercase">
-                  Selamat Datang..
-                </span>
+                <div className="bg-white px-3.5 py-1.5 rounded-full inline-flex items-center shadow-md font-sans text-[15px] font-black tracking-wide leading-none select-none">
+                  <span className="text-[#0D6D41] font-extrabold">Gizi</span>
+                  <span className="text-[#2088C2] font-extrabold">Sync</span>
+                  <span className="text-[#A2B4FF] mx-1 font-normal text-sm">|</span>
+                  <span className="text-[#0D6D41] text-[11px] font-extrabold">Nutrition</span>
+                  <span className="text-[#626FFF] text-[11px] ml-0.5 font-extrabold">Synchronized</span>
+                </div>
               </div>
               <h1 className="text-2xl font-extrabold text-white tracking-tight mt-0.5">
                 SISPERMBG <span className="font-light text-slate-300">| Sistem Perencanaan Makan Bergizi Gratis</span>
@@ -562,61 +1038,46 @@ export default function App() {
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-2.5">
-            {/* Cloud Sync Status & Login Block */}
-            <div className="flex items-center gap-2 bg-slate-900/40 border border-white/10 p-1.5 rounded-xl">
-              {isCloudActive ? (
-                <>
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 text-xs font-bold text-emerald-400">
-                    {isCloudLoading ? (
-                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Cloud className="w-3.5 h-3.5" />
-                    )}
-                    <span className="hidden sm:inline truncate max-w-[120px]" title={user?.email || ""}>
-                      {user?.email?.split("@")[0]}
-                    </span>
-                    <span className="text-[10px] bg-emerald-500/10 px-1.5 py-0.5 rounded-md text-emerald-300 uppercase">
-                      {isCloudLoading ? "Sync" : "Awan"}
-                    </span>
+          <div className="flex items-center gap-4">
+            {isCloudActive ? (
+              <div className="flex flex-col items-end relative select-none">
+                <span className="text-[9px] text-slate-400 font-extrabold tracking-wider uppercase leading-none mb-1">
+                  PENGGUNA AKTIF
+                </span>
+                <div className="flex items-center gap-2 bg-rose-50/90 border border-rose-100/80 px-3 py-1.5 rounded-2xl shadow-sm">
+                  {/* Avatar with Dentist/Nutritionist emoji */}
+                  <div className="w-6 h-6 rounded-full bg-[#E5F6F0] border border-[#CBEFE3] flex items-center justify-center text-xs shrink-0 select-none shadow-inner">
+                    👩‍⚕️
                   </div>
+                  <span className="text-[#E6004C] font-extrabold text-xs tracking-tight">
+                    {user?.email?.split("@")[0] || "syukriyusuf82"}
+                  </span>
                   <button
-                    id="btn-header-logout"
                     type="button"
                     onClick={signOutUser}
-                    title="Keluar / Putuskan Sinkronisasi Awan"
-                    className="p-1.5 bg-white/5 hover:bg-rose-500/20 text-slate-400 hover:text-rose-300 rounded-lg transition"
+                    title="Keluar Akun"
+                    className="p-1 hover:bg-rose-100/60 rounded-lg text-[#E6004C] transition duration-150 ml-0.5 inline-flex items-center justify-center"
                   >
                     <LogOut className="w-3.5 h-3.5" />
                   </button>
-                </>
-              ) : (
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col items-end relative select-none">
+                <span className="text-[9px] text-slate-400 font-extrabold tracking-wider uppercase leading-none mb-1">
+                  SINKRONISASI
+                </span>
                 <button
-                  id="btn-header-login"
                   type="button"
                   disabled={isCloudLoading}
                   onClick={signInWithGoogle}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-white/10 hover:bg-white/15 text-white text-xs font-bold rounded-lg transition border border-white/5 disabled:opacity-50"
-                  title="Masuk dengan Google untuk mengaktifkan Sinkronisasi Awan"
+                  className="flex items-center gap-2 bg-slate-100 hover:bg-slate-200 border border-slate-200 px-3.5 py-1.5 rounded-xl shadow-sm text-xs text-slate-700 font-extrabold transition disabled:opacity-50"
                 >
-                  <CloudOff className="w-3.5 h-3.5 text-slate-400" />
-                  <span>Cloud Sync</span>
+                  <Cloud className="w-3.5 h-3.5 text-[#3B4FEB] animate-pulse" />
+                  <span>Masuk dengan Google</span>
                 </button>
-              )}
-            </div>
-
-            <button
-              id="btn-header-reset"
-              type="button"
-              onClick={handleResetData}
-              className="text-xs bg-white/10 hover:bg-white/15 text-slate-300 font-semibold py-2 px-3.5 rounded-xl border border-white/10 transition flex items-center gap-1.5"
-            >
-              Setel Ulang Demo
-            </button>
-            <div className="bg-emerald-500 text-slate-950 font-black text-xs py-2 px-4 rounded-xl flex items-center gap-1.5 shadow-sm">
-              <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse"></span>
-              {grandTotalRecipients} Penerima Manfaat Aktif
-            </div>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -644,9 +1105,12 @@ export default function App() {
                 <button
                   key={tab.id}
                   id={`tab-nav-${tab.id}`}
-                  onClick={() => setActiveTab(tab.id)}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    setIsAdminPanelOpen(false);
+                  }}
                   className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition duration-150 ${
-                    activeTab === tab.id
+                    activeTab === tab.id && !isAdminPanelOpen
                       ? "bg-white text-slate-900 shadow-sm"
                       : "text-slate-600 hover:text-slate-950 hover:bg-white/50"
                   }`}
@@ -656,6 +1120,21 @@ export default function App() {
                 </button>
               );
             })}
+
+            {userProfile?.peran === "ADMIN" && (
+              <button
+                id="tab-nav-admin"
+                onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition duration-150 border ${
+                  isAdminPanelOpen
+                    ? "bg-rose-600 text-white border-rose-600 shadow-sm"
+                    : "bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-100 hover:border-rose-200"
+                }`}
+              >
+                <Lock className={`w-4 h-4 ${isAdminPanelOpen ? "text-white" : "text-rose-500 animate-pulse"}`} />
+                Panel Admin
+              </button>
+            )}
           </nav>
 
           {/* Minimal info */}
@@ -675,17 +1154,33 @@ export default function App() {
       </section>
 
       {/* ACTIVE SCREEN CONTENT */}
-      <main className={`flex-grow p-6 ${activeTab === "notalogistik" ? "max-w-full px-4 md:px-8" : activeTab === "foodcost" ? "max-w-[1600px]" : "max-w-7xl"} w-full mx-auto overflow-y-auto`}>
-        {activeTab === "dashboard" && (
-          <div className="space-y-6">
-            <DashboardOutputs
-              foodCostDays={foodCostDays}
-              tkpiList={tkpiList}
-              masterMenu={masterMenu}
-              harianPM={harianPM}
-            />
-          </div>
-        )}
+      <main className={`flex-grow p-6 ${isAdminPanelOpen ? "max-w-full" : activeTab === "notalogistik" ? "max-w-full px-4 md:px-8" : activeTab === "foodcost" ? "max-w-[1600px]" : "max-w-7xl"} w-full mx-auto overflow-y-auto`}>
+        {isAdminPanelOpen ? (
+          <AdminPanel onClose={() => setIsAdminPanelOpen(false)} />
+        ) : (
+          <>
+            {activeTab === "dashboard" && (
+              <div className="space-y-6">
+                <DashboardOutputs
+                  foodCostDays={foodCostDays}
+                  tkpiList={tkpiList}
+                  masterMenu={masterMenu}
+                  harianPM={harianPM}
+                  kopLine1={kopLine1}
+                  setKopLine1={setKopLine1}
+                  kopLine2={kopLine2}
+                  setKopLine2={setKopLine2}
+                  kopLine3={kopLine3}
+                  setKopLine3={setKopLine3}
+                  kopLine4={kopLine4}
+                  setKopLine4={setKopLine4}
+                  leftLogo={kopLeftLogo}
+                  setLeftLogo={setKopLeftLogo}
+                  rightLogo={kopRightLogo}
+                  setRightLogo={setKopRightLogo}
+                />
+              </div>
+            )}
 
         {activeTab === "notalogistik" && (
           <NotaPesananLogistikTab
@@ -694,6 +1189,18 @@ export default function App() {
             tkpiList={tkpiList}
             harianPM={harianPM}
             masterMenu={masterMenu}
+            kopLine1={kopLine1}
+            setKopLine1={setKopLine1}
+            kopLine2={kopLine2}
+            setKopLine2={setKopLine2}
+            kopLine3={kopLine3}
+            setKopLine3={setKopLine3}
+            kopLine4={kopLine4}
+            setKopLine4={setKopLine4}
+            leftLogo={kopLeftLogo}
+            setLeftLogo={setKopLeftLogo}
+            rightLogo={kopRightLogo}
+            setRightLogo={setKopRightLogo}
           />
         )}
 
@@ -709,7 +1216,24 @@ export default function App() {
         )}
 
         {activeTab === "menu" && (
-          <MasterMenuTab menu={masterMenu} onChange={setMasterMenu} profile={profile} customLogo={customLogo} />
+          <MasterMenuTab 
+            menu={masterMenu} 
+            onChange={setMasterMenu} 
+            profile={profile} 
+            customLogo={customLogo} 
+            kopLine1={kopLine1}
+            setKopLine1={setKopLine1}
+            kopLine2={kopLine2}
+            setKopLine2={setKopLine2}
+            kopLine3={kopLine3}
+            setKopLine3={setKopLine3}
+            kopLine4={kopLine4}
+            setKopLine4={setKopLine4}
+            leftLogo={kopLeftLogo}
+            setLeftLogo={setKopLeftLogo}
+            rightLogo={kopRightLogo}
+            setRightLogo={setKopRightLogo}
+          />
         )}
 
         {activeTab === "foodcost" && (
@@ -721,11 +1245,39 @@ export default function App() {
             onFoodCostDaysChange={setFoodCostDays}
             profile={profile}
             customLogo={customLogo}
+            kopLine1={kopLine1}
+            setKopLine1={setKopLine1}
+            kopLine2={kopLine2}
+            setKopLine2={setKopLine2}
+            kopLine3={kopLine3}
+            setKopLine3={setKopLine3}
+            kopLine4={kopLine4}
+            setKopLine4={setKopLine4}
+            leftLogo={kopLeftLogo}
+            setLeftLogo={setKopLeftLogo}
+            rightLogo={kopRightLogo}
+            setRightLogo={setKopRightLogo}
           />
         )}
 
         {activeTab === "cekgizi" && (
-          <CekGiziTab tkpiList={tkpiList} />
+          <CekGiziTab 
+            tkpiList={tkpiList} 
+            items={cekGiziItems}
+            setItems={setCekGiziItems}
+            kopLine1={kopLine1}
+            setKopLine1={setKopLine1}
+            kopLine2={kopLine2}
+            setKopLine2={setKopLine2}
+            kopLine3={kopLine3}
+            setKopLine3={setKopLine3}
+            kopLine4={kopLine4}
+            setKopLine4={setKopLine4}
+            leftLogo={kopLeftLogo}
+            setLeftLogo={setKopLeftLogo}
+            rightLogo={kopRightLogo}
+            setRightLogo={setKopRightLogo}
+          />
         )}
 
         {activeTab === "juknis" && (
@@ -1210,21 +1762,89 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === "handbook" && (
-          <HandbookTab />
+            {activeTab === "handbook" && (
+              <HandbookTab />
+            )}
+          </>
         )}
       </main>
 
       {/* FOOTER */}
-      <footer className="bg-slate-900 border-t border-slate-800 text-slate-400 text-xs py-5 px-6 text-center mt-auto shrink-0 flex flex-col sm:flex-row items-center justify-between gap-3 max-w-full">
-        <div className="flex items-center gap-1">
-          <span className="font-extrabold text-white">Syukri Odhe|Ahli Gizi</span>
-          <span>• Sistem Perencanaan Menu Makan Bergizi Gratis</span>
+      <footer className="bg-white border-t border-slate-200 text-slate-600 text-xs py-4 px-6 mt-auto shrink-0 flex flex-col md:flex-row items-center justify-between gap-4 max-w-full shadow-[0_-4px_12px_-4px_rgba(0,0,0,0.05)] select-none">
+        <div className="flex flex-col items-center md:items-start gap-1">
+          <div className="flex items-center gap-1.5 text-slate-800 text-xs font-bold">
+            <span className="font-extrabold text-slate-950">Syukri Odhe | Ahli Gizi</span>
+            <span className="text-slate-300">|</span>
+            <span className="text-slate-600 font-medium">Sistem Perencanaan Menu Makan Bergizi Gratis</span>
+          </div>
+          <span className="italic text-[10px] text-slate-400">
+            Dirancang untuk {profile.namaLembaga} • Juknis BGN No. 401.1/2025
+          </span>
         </div>
-        <span className="italic text-[11px] text-slate-500">
-          Dirancang untuk {profile.namaLembaga} • Juknis BGN No. 401.1/2025
-        </span>
       </footer>
+
+      {/* AUTH ERROR IFRAME WARNING MODAL */}
+      {authError && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 font-sans select-none">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-rose-100/60 animate-in fade-in zoom-in duration-200 text-left">
+            <div className="flex items-center gap-3 text-rose-600 mb-4">
+              <div className="p-3 bg-rose-50 rounded-2xl text-rose-500 shrink-0">
+                <AlertCircle className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-extrabold text-slate-900 text-base leading-snug">Otentikasi Google Terkendala</h3>
+                <p className="text-[10px] text-rose-500 font-extrabold tracking-wider uppercase">Kebijakan Proteksi Iframe Browser</p>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-slate-600 text-xs leading-relaxed">
+              <p>
+                Browser Anda memblokir Google Sign-In pop-up karena aplikasi berjalan di dalam <strong>Iframe Google AI Studio</strong> (proteksi keamanan pihak ketiga).
+              </p>
+
+              <div className="bg-[#FFF4F7]/80 border border-rose-100/50 p-3.5 rounded-2xl text-slate-700">
+                <p className="font-bold text-[#E6004C] mb-1 flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#E6004C]"></span>
+                  Solusi Utama (Sangat Direkomendasikan):
+                </p>
+                <p className="text-[11px] text-slate-600 pl-3 leading-snug">
+                  Klik tombol <strong>"Buka di Tab Baru" (Open in New Tab)</strong> di sudut kanan atas layar pratinjau AI Studio Anda untuk menjalankan sistem secara mandiri dengan lancar.
+                </p>
+              </div>
+
+              <div className="bg-slate-50 border border-slate-200/60 p-3.5 rounded-2xl">
+                <p className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-700"></span>
+                  Bypass Sesi Demo (Instan):
+                </p>
+                <p className="text-[11px] mb-3 text-slate-500 pl-3 leading-snug">
+                  Gunakan simulasi admin lokal jika Anda hanya ingin menguji panel kontrol, sinkronisasi menu, dan database dengan cepat di dalam iframe.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    simulateAdminLogin();
+                  }}
+                  className="w-full py-2.5 px-3 bg-[#E6004C] hover:bg-[#c0003f] text-white text-xs font-black rounded-xl transition shadow-md flex items-center justify-center gap-2"
+                >
+                  <Zap className="w-3.5 h-3.5" />
+                  <span>Aktifkan Sesi Demo syukriyusuf82</span>
+                </button>
+              </div>
+            </div>
+
+            <div className="mt-5 pt-3 border-t border-slate-100 flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => setAuthError(null)}
+                className="py-2 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

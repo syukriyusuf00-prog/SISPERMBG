@@ -7,7 +7,8 @@ import React, { useState } from "react";
 import { TKPIItem, BahanMakananInput, FoodCostDay, MasterMenu, HariPM } from "../types";
 import { calculateDay, formatRupiah, getCountsForDay } from "../utils/calc";
 import SearchableTkpiDropdown from "./SearchableTkpiDropdown";
-import { Plus, Trash2, HelpCircle, Sparkles, AlertTriangle, CheckCircle2, ChevronRight, Calculator, Info, Sliders, Printer, Download, FileSpreadsheet, Edit3, RefreshCw } from "lucide-react";
+import { Plus, Trash2, HelpCircle, Sparkles, AlertTriangle, CheckCircle2, ChevronRight, Calculator, Info, Sliders, Printer, Download, FileSpreadsheet, Edit3, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { downloadElementAsImage } from "../lib/printUtils";
 import { TARGET_AKG_LIMITS } from "../tkpiData";
 import * as XLSX from "xlsx";
 import { DEFAULT_SASARAN_LIST } from "../initialData";
@@ -20,6 +21,18 @@ interface FoodCostTabProps {
   onFoodCostDaysChange: (updated: FoodCostDay[]) => void;
   profile?: any;
   customLogo?: string;
+  kopLine1: string;
+  setKopLine1: (val: string) => void;
+  kopLine2: string;
+  setKopLine2: (val: string) => void;
+  kopLine3: string;
+  setKopLine3: (val: string) => void;
+  kopLine4: string;
+  setKopLine4: (val: string) => void;
+  leftLogo: string;
+  setLeftLogo: (val: string) => void;
+  rightLogo: string;
+  setRightLogo: (val: string) => void;
 }
 
 const formatThousandSeparator = (value: number | string | undefined | null): string => {
@@ -95,12 +108,25 @@ export default function FoodCostTab({
   harianPM,
   onFoodCostDaysChange,
   profile,
-  customLogo
+  customLogo,
+  kopLine1,
+  setKopLine1,
+  kopLine2,
+  setKopLine2,
+  kopLine3,
+  setKopLine3,
+  kopLine4,
+  setKopLine4,
+  leftLogo,
+  setLeftLogo,
+  rightLogo,
+  setRightLogo
 }: FoodCostTabProps) {
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [selectedGroup, setSelectedGroup] = useState<"sekolah" | "tigaB" | "custom">("sekolah");
   const [selectedType, setSelectedType] = useState<"Basah" | "Alergi" | "Kering" | "MP-ASI">("Basah");
   const [viewMode, setViewMode] = useState<"edit" | "print">("edit");
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
   // State for Calculator Modal
   const [activeCalcField, setActiveCalcField] = useState<{
@@ -340,12 +366,6 @@ export default function FoodCostTab({
     }
   };
 
-  // Kop Surat Customizable fields (persisted in localStorage, syncing with MasterMenu)
-  const [kopLine1, setKopLine1] = useState(() => localStorage.getItem("kop_line1") || "BADAN GIZI NASIONAL");
-  const [kopLine2, setKopLine2] = useState(() => localStorage.getItem("kop_line2") || "SATUAN PELAYANAN PEMENUHAN GIZI");
-  const [kopLine3, setKopLine3] = useState(() => localStorage.getItem("kop_line3") || "SPPG MUNA BARAT SAWERIGADI ONDOKE");
-  const [kopLine4, setKopLine4] = useState(() => localStorage.getItem("kop_line4") || "Alamat : Jln. Poros Lagadi-Todasi, Desa Ondoke, Kecamatan Sawerigadi, Kab. Muna Barat");
-
   // Customizable column headers
   const [headerPotong, setHeaderPotong] = useState(() => localStorage.getItem("fc_header_potong") || "Potong");
   const [headerEkor, setHeaderEkor] = useState(() => localStorage.getItem("fc_header_ekor") || "Ekor");
@@ -360,14 +380,6 @@ export default function FoodCostTab({
     if (tableDensity === "spacious") return "p-2";
     return "p-1"; // normal
   };
-
-  // Save custom kop to localStorage on modification
-  React.useEffect(() => {
-    localStorage.setItem("kop_line1", kopLine1);
-    localStorage.setItem("kop_line2", kopLine2);
-    localStorage.setItem("kop_line3", kopLine3);
-    localStorage.setItem("kop_line4", kopLine4);
-  }, [kopLine1, kopLine2, kopLine3, kopLine4]);
 
   // Selected AKG reference templates
   const [besarAkgType, setBesarAkgType] = useState<string>("sd_besar");
@@ -2436,6 +2448,8 @@ export default function FoodCostTab({
             color: black !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           .no-print, header, nav, footer, .sidebar, button, .tab-bar, #select-fc-day, #select-fc-group, #select-fc-type {
             display: none !important;
@@ -2445,16 +2459,59 @@ export default function FoodCostTab({
             width: 100% !important;
             position: absolute !important;
             left: 0 !important;
+            right: 0 !important;
             top: 0 !important;
-            margin: 0 !important;
+            margin: 0 auto !important;
             padding: 0 !important;
+            zoom: 70% !important; /* Auto scale down to ensure fitting in standard A4 landscape */
           }
+          /* Centered block layout */
+          #print-area-food-cost > div {
+            margin: 0 auto !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            display: flex !important;
+            flex-direction: column !important;
+            align-items: center !important;
+            justify-content: center !important;
+          }
+          /* Enforce compact layout and prevent spill */
+          #print-area-food-cost table {
+            width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: collapse !important;
+            margin: 0 auto !important;
+          }
+          #print-area-food-cost th, #print-area-food-cost td {
+            font-size: 8px !important;
+            padding: 2px 3px !important;
+            line-height: 1.15 !important;
+            word-wrap: break-word !important;
+            white-space: normal !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            border: 1px solid black !important;
+          }
+          /* Set proportionate percentages for high-density column layout to prevent overflow */
+          #print-area-food-cost th.w-\\[110px\\], #print-area-food-cost td.w-\\[110px\\] { width: 5.5% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[160px\\], #print-area-food-cost td.w-\\[160px\\] { width: 9% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[56px\\], #print-area-food-cost td.w-\\[56px\\] { width: 3.5% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[64px\\], #print-area-food-cost td.w-\\[64px\\] { width: 4% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[72px\\], #print-area-food-cost td.w-\\[72px\\] { width: 4.5% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[48px\\], #print-area-food-cost td.w-\\[48px\\] { width: 3% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[115px\\], #print-area-food-cost td.w-\\[115px\\] { width: 6% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[155px\\], #print-area-food-cost td.w-\\[155px\\] { width: 8% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[130px\\], #print-area-food-cost td.w-\\[130px\\] { width: 7% !important; min-width: auto !important; }
+          #print-area-food-cost th.w-\\[145px\\], #print-area-food-cost td.w-\\[145px\\] { width: 8% !important; min-width: auto !important; }
+
           input, select {
             border: none !important;
             background: transparent !important;
             box-shadow: none !important;
             outline: none !important;
             padding: 0 !important;
+            font-size: inherit !important;
+            color: black !important;
           }
         }
       `}} />
@@ -3512,6 +3569,16 @@ export default function FoodCostTab({
                   Unduh Excel (.XLSX)
                 </button>
                 <button
+                  id="btn-fc-download-img"
+                  type="button"
+                  disabled={!!isDownloading}
+                  onClick={() => downloadElementAsImage("print-area-food-cost", `Food_Cost_Hari_${selectedDay}_${selectedType}`, setIsDownloading)}
+                  className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  {isDownloading === "Memproses gambar..." || isDownloading === "Mengunduh gambar..." ? isDownloading : "Unduh Gambar (PNG)"}
+                </button>
+                <button
                   id="btn-fc-print"
                   type="button"
                   onClick={() => window.print()}
@@ -3573,11 +3640,12 @@ export default function FoodCostTab({
             >
               {/* SHEET 1: PORSI BESAR PAGE */}
               <div className="space-y-6 print:break-after-page">
-                <div className="relative flex items-center justify-center pb-3 border-b-2 border-black w-full" style={{ minHeight: '80px' }}>
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2">
+                <div className="relative flex items-center justify-between pb-3 border-b-2 border-black w-full" style={{ minHeight: '90px' }}>
+                  {/* Left Logo Container */}
+                  <div className="flex flex-col items-center justify-center w-20 h-20 shrink-0 relative">
                     <img 
-                      src={logoSrc} 
-                      alt="Logo" 
+                      src={leftLogo} 
+                      alt="Logo Kiri" 
                       className="w-16 h-16 object-contain" 
                       referrerPolicy="no-referrer"
                       onError={(e) => {
@@ -3585,12 +3653,29 @@ export default function FoodCostTab({
                       }}
                     />
                   </div>
-                  
-                  <div className="text-center font-sans tracking-wide leading-snug px-16 w-full" style={{ fontSize: '14pt' }}>
-                    <div className="font-extrabold uppercase text-slate-900 print:text-black">{kopLine1}</div>
-                    <div className="font-bold uppercase text-slate-900 print:text-black mt-0.5" style={{ fontSize: '13pt' }}>{kopLine2}</div>
-                    <div className="font-extrabold uppercase text-slate-900 print:text-black mt-0.5" style={{ fontSize: '13pt' }}>{kopLine3}</div>
-                    <div className="italic text-slate-600 print:text-black mt-0.5" style={{ fontSize: '10pt' }}>{kopLine4}</div>
+
+                  {/* Centered Kop Text */}
+                  <div className="text-center font-sans tracking-wide leading-snug px-4 flex-1">
+                    <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none" style={{ fontSize: '14pt' }}>{kopLine1}</div>
+                    <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none mt-1" style={{ fontSize: '13pt' }}>{kopLine2}</div>
+                    <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none mt-1" style={{ fontSize: '13pt' }}>{kopLine3}</div>
+                    <div className="italic text-slate-800 print:text-black font-sans mt-1.5" style={{ fontSize: '10pt' }}>{kopLine4}</div>
+                  </div>
+
+                  {/* Right Logo Container */}
+                  <div className="flex flex-col items-center justify-center w-20 h-20 shrink-0 relative">
+                    {rightLogo ? (
+                      <img 
+                        src={rightLogo} 
+                        alt="Logo Kanan" 
+                        className="w-16 h-16 object-contain" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 border border-dashed border-slate-300 rounded flex items-center justify-center text-[8px] text-slate-400 font-bold uppercase no-print">
+                        Logo Kanan
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -3608,11 +3693,12 @@ export default function FoodCostTab({
 
               {/* SHEET 2: PORSI KECIL PAGE */}
               <div className="space-y-6 print:break-before-page pt-10 print:pt-0">
-                <div className="relative flex items-center justify-center pb-3 border-b-2 border-black w-full" style={{ minHeight: '80px' }}>
-                  <div className="absolute left-0 top-1/2 -translate-y-1/2">
+                <div className="relative flex items-center justify-between pb-3 border-b-2 border-black w-full" style={{ minHeight: '90px' }}>
+                  {/* Left Logo Container */}
+                  <div className="flex flex-col items-center justify-center w-20 h-20 shrink-0 relative">
                     <img 
-                      src={logoSrc} 
-                      alt="Logo" 
+                      src={leftLogo} 
+                      alt="Logo Kiri" 
                       className="w-16 h-16 object-contain" 
                       referrerPolicy="no-referrer"
                       onError={(e) => {
@@ -3620,12 +3706,29 @@ export default function FoodCostTab({
                       }}
                     />
                   </div>
-                  
-                  <div className="text-center font-sans tracking-wide leading-snug px-16 w-full" style={{ fontSize: '14pt' }}>
-                    <div className="font-extrabold uppercase text-slate-900 print:text-black">{kopLine1}</div>
-                    <div className="font-bold uppercase text-slate-900 print:text-black mt-0.5" style={{ fontSize: '13pt' }}>{kopLine2}</div>
-                    <div className="font-extrabold uppercase text-slate-900 print:text-black mt-0.5" style={{ fontSize: '13pt' }}>{kopLine3}</div>
-                    <div className="italic text-slate-600 print:text-black mt-0.5" style={{ fontSize: '10pt' }}>{kopLine4}</div>
+
+                  {/* Centered Kop Text */}
+                  <div className="text-center font-sans tracking-wide leading-snug px-4 flex-1">
+                    <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none" style={{ fontSize: '14pt' }}>{kopLine1}</div>
+                    <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none mt-1" style={{ fontSize: '13pt' }}>{kopLine2}</div>
+                    <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none mt-1" style={{ fontSize: '13pt' }}>{kopLine3}</div>
+                    <div className="italic text-slate-800 print:text-black font-sans mt-1.5" style={{ fontSize: '10pt' }}>{kopLine4}</div>
+                  </div>
+
+                  {/* Right Logo Container */}
+                  <div className="flex flex-col items-center justify-center w-20 h-20 shrink-0 relative">
+                    {rightLogo ? (
+                      <img 
+                        src={rightLogo} 
+                        alt="Logo Kanan" 
+                        className="w-16 h-16 object-contain" 
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <div className="w-16 h-16 border border-dashed border-slate-300 rounded flex items-center justify-center text-[8px] text-slate-400 font-bold uppercase no-print">
+                        Logo Kanan
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -3645,11 +3748,12 @@ export default function FoodCostTab({
               {customTables.map((table) => {
                 return (
                   <div key={table.id} className="space-y-6 print:break-before-page pt-10 print:pt-0">
-                    <div className="relative flex items-center justify-center pb-3 border-b-2 border-black w-full" style={{ minHeight: '80px' }}>
-                      <div className="absolute left-0 top-1/2 -translate-y-1/2">
+                    <div className="relative flex items-center justify-between pb-3 border-b-2 border-black w-full" style={{ minHeight: '90px' }}>
+                      {/* Left Logo Container */}
+                      <div className="flex flex-col items-center justify-center w-20 h-20 shrink-0 relative">
                         <img 
-                          src={logoSrc} 
-                          alt="Logo" 
+                          src={leftLogo} 
+                          alt="Logo Kiri" 
                           className="w-16 h-16 object-contain" 
                           referrerPolicy="no-referrer"
                           onError={(e) => {
@@ -3657,12 +3761,29 @@ export default function FoodCostTab({
                           }}
                         />
                       </div>
-                      
-                      <div className="text-center font-sans tracking-wide leading-snug px-16 w-full" style={{ fontSize: '14pt' }}>
-                        <div className="font-extrabold uppercase text-slate-900 print:text-black">{kopLine1}</div>
-                        <div className="font-bold uppercase text-slate-900 print:text-black mt-0.5" style={{ fontSize: '13pt' }}>{kopLine2}</div>
-                        <div className="font-extrabold uppercase text-slate-900 print:text-black mt-0.5" style={{ fontSize: '13pt' }}>{kopLine3}</div>
-                        <div className="italic text-slate-600 print:text-black mt-0.5" style={{ fontSize: '10pt' }}>{kopLine4}</div>
+
+                      {/* Centered Kop Text */}
+                      <div className="text-center font-sans tracking-wide leading-snug px-4 flex-1">
+                        <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none" style={{ fontSize: '14pt' }}>{kopLine1}</div>
+                        <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none mt-1" style={{ fontSize: '13pt' }}>{kopLine2}</div>
+                        <div className="font-bold uppercase text-slate-950 print:text-black font-sans leading-none mt-1" style={{ fontSize: '13pt' }}>{kopLine3}</div>
+                        <div className="italic text-slate-800 print:text-black font-sans mt-1.5" style={{ fontSize: '10pt' }}>{kopLine4}</div>
+                      </div>
+
+                      {/* Right Logo Container */}
+                      <div className="flex flex-col items-center justify-center w-20 h-20 shrink-0 relative">
+                        {rightLogo ? (
+                          <img 
+                            src={rightLogo} 
+                            alt="Logo Kanan" 
+                            className="w-16 h-16 object-contain" 
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-16 h-16 border border-dashed border-slate-300 rounded flex items-center justify-center text-[8px] text-slate-400 font-bold uppercase no-print">
+                            Logo Kanan
+                          </div>
+                        )}
                       </div>
                     </div>
 

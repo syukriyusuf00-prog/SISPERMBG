@@ -15,6 +15,18 @@ interface NotaPesananLogistikTabProps {
   tkpiList: TKPIItem[];
   harianPM: HariPM[];
   masterMenu: MasterMenu;
+  kopLine1: string;
+  setKopLine1: (val: string) => void;
+  kopLine2: string;
+  setKopLine2: (val: string) => void;
+  kopLine3: string;
+  setKopLine3: (val: string) => void;
+  kopLine4: string;
+  setKopLine4: (val: string) => void;
+  leftLogo: string;
+  setLeftLogo: (val: string) => void;
+  rightLogo: string;
+  setRightLogo: (val: string) => void;
 }
 
 interface NotaItem {
@@ -84,6 +96,18 @@ export default function NotaPesananLogistikTab({
   tkpiList,
   harianPM,
   masterMenu,
+  kopLine1,
+  setKopLine1,
+  kopLine2,
+  setKopLine2,
+  kopLine3,
+  setKopLine3,
+  kopLine4,
+  setKopLine4,
+  leftLogo,
+  setLeftLogo,
+  rightLogo,
+  setRightLogo,
 }: NotaPesananLogistikTabProps) {
   const logoSrc = localStorage.getItem("sisper_custom_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg";
 
@@ -93,14 +117,54 @@ export default function NotaPesananLogistikTab({
   const [items, setItems] = useState<NotaItem[]>([]);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
-  // Customizable KOP Surat fields
-  const [kopLine1, setKopLine1] = useState(() => localStorage.getItem("kop_line1") || "BADAN GIZI NASIONAL");
-  const [kopLine2, setKopLine2] = useState(() => localStorage.getItem("kop_line2") || "SATUAN PELAYANAN PEMENUHAN GIZI");
-  const [kopLine3, setKopLine3] = useState(() => localStorage.getItem("kop_line3") || profile.namaLembaga || "SPPG MUNA BARAT SAWERIGADI ONDOKE");
-  const [kopLine4, setKopLine4] = useState(() => localStorage.getItem("kop_line4") || `Alamat : ${profile.alamat}` || "Alamat : Jln. Poros Lagadi-Todasi, Desa Ondoke, Kecamatan Sawerigadi, Kab. Muna Barat");
+  // Customizable Logos states (Left & Right) synchronized via props
+  const logoLeft = leftLogo;
+  const setLogoLeft = setLeftLogo;
+  const logoRight = rightLogo;
+  const setLogoRight = setRightLogo;
+
+  const [logoLeftCropTop, setLogoLeftCropTop] = useState(() => Number(localStorage.getItem("logo_left_crop_top") || "0"));
+  const [logoLeftCropBottom, setLogoLeftCropBottom] = useState(() => Number(localStorage.getItem("logo_left_crop_bottom") || "0"));
+  const [logoLeftCropLeft, setLogoLeftCropLeft] = useState(() => Number(localStorage.getItem("logo_left_crop_left") || "0"));
+  const [logoLeftCropRight, setLogoLeftCropRight] = useState(() => Number(localStorage.getItem("logo_left_crop_right") || "0"));
+
+  const [logoRightCropTop, setLogoRightCropTop] = useState(() => Number(localStorage.getItem("logo_right_crop_top") || "0"));
+  const [logoRightCropBottom, setLogoRightCropBottom] = useState(() => Number(localStorage.getItem("logo_right_crop_bottom") || "0"));
+  const [logoRightCropLeft, setLogoRightCropLeft] = useState(() => Number(localStorage.getItem("logo_right_crop_left") || "0"));
+  const [logoRightCropRight, setLogoRightCropRight] = useState(() => Number(localStorage.getItem("logo_right_crop_right") || "0"));
+
+  const [logoLeftScale, setLogoLeftScale] = useState(() => Number(localStorage.getItem("logo_left_scale") || "100"));
+  const [logoRightScale, setLogoRightScale] = useState(() => Number(localStorage.getItem("logo_right_scale") || "100"));
+
+  const [logoLeftOffsetX, setLogoLeftOffsetX] = useState(() => Number(localStorage.getItem("logo_left_offset_x") || "0"));
+  const [logoLeftOffsetY, setLogoLeftOffsetY] = useState(() => Number(localStorage.getItem("logo_left_offset_y") || "0"));
+
+  const [logoRightOffsetX, setLogoRightOffsetX] = useState(() => Number(localStorage.getItem("logo_right_offset_x") || "0"));
+  const [logoRightOffsetY, setLogoRightOffsetY] = useState(() => Number(localStorage.getItem("logo_right_offset_y") || "0"));
+
+  const [logoLeftWidth, setLogoLeftWidth] = useState(() => Number(localStorage.getItem("logo_left_width") || "80"));
+  const [logoRightWidth, setLogoRightWidth] = useState(() => Number(localStorage.getItem("logo_right_width") || "80"));
+
+  // KOP Font Styling states
+  const [kopLine1Size, setKopLine1Size] = useState(() => Number(localStorage.getItem("kop_line1_size") || "18"));
+  const [kopLine2Size, setKopLine2Size] = useState(() => Number(localStorage.getItem("kop_line2_size") || "14"));
+  const [kopLine3Size, setKopLine3Size] = useState(() => Number(localStorage.getItem("kop_line3_size") || "14"));
+
+  const [kopLine1Font, setKopLine1Font] = useState(() => localStorage.getItem("kop_line1_font") || "Arial, sans-serif");
+  const [kopLine2Font, setKopLine2Font] = useState(() => localStorage.getItem("kop_line2_font") || "Arial, sans-serif");
+  const [kopLine3Font, setKopLine3Font] = useState(() => localStorage.getItem("kop_line3_font") || "Arial, sans-serif");
+
+  const [kopLine1Weight, setKopLine1Weight] = useState(() => localStorage.getItem("kop_line1_weight") || "900");
+  const [kopLine2Weight, setKopLine2Weight] = useState(() => localStorage.getItem("kop_line2_weight") || "800");
+  const [kopLine3Weight, setKopLine3Weight] = useState(() => localStorage.getItem("kop_line3_weight") || "900");
+
+  const [kopLine1Italic, setKopLine1Italic] = useState(() => localStorage.getItem("kop_line1_italic") === "true");
+  const [kopLine2Italic, setKopLine2Italic] = useState(() => localStorage.getItem("kop_line2_italic") === "true");
+  const [kopLine3Italic, setKopLine3Italic] = useState(() => localStorage.getItem("kop_line3_italic") === "true");
 
   // Customizable table options
   const [tableDensity, setTableDensity] = useState<"cramped" | "normal" | "spacious">(() => (localStorage.getItem("nota_table_density") as any) || "normal");
+  const [tableFontSize, setTableFontSize] = useState(() => Number(localStorage.getItem("nota_table_font_size") || "12"));
   const [bahanColWidth, setBahanColWidth] = useState<"normal" | "wide" | "extra-wide">(() => (localStorage.getItem("nota_bahan_col_width") as any) || "wide");
   const [previewWidth, setPreviewWidth] = useState<"standard" | "full">(() => (localStorage.getItem("nota_preview_width") as any) || "full");
   
@@ -138,6 +202,70 @@ export default function NotaPesananLogistikTab({
   useEffect(() => {
     localStorage.setItem("nota_preview_width", previewWidth);
   }, [previewWidth]);
+
+  // Persist logos, crops, fonts, and table font sizes
+  useEffect(() => {
+    localStorage.setItem("logo_left_src", logoLeft);
+    localStorage.setItem("logo_right_src", logoRight);
+  }, [logoLeft, logoRight]);
+
+  useEffect(() => {
+    localStorage.setItem("logo_left_crop_top", String(logoLeftCropTop));
+    localStorage.setItem("logo_left_crop_bottom", String(logoLeftCropBottom));
+    localStorage.setItem("logo_left_crop_left", String(logoLeftCropLeft));
+    localStorage.setItem("logo_left_crop_right", String(logoLeftCropRight));
+  }, [logoLeftCropTop, logoLeftCropBottom, logoLeftCropLeft, logoLeftCropRight]);
+
+  useEffect(() => {
+    localStorage.setItem("logo_right_crop_top", String(logoRightCropTop));
+    localStorage.setItem("logo_right_crop_bottom", String(logoRightCropBottom));
+    localStorage.setItem("logo_right_crop_left", String(logoRightCropLeft));
+    localStorage.setItem("logo_right_crop_right", String(logoRightCropRight));
+  }, [logoRightCropTop, logoRightCropBottom, logoRightCropLeft, logoRightCropRight]);
+
+  useEffect(() => {
+    localStorage.setItem("logo_left_scale", String(logoLeftScale));
+    localStorage.setItem("logo_right_scale", String(logoRightScale));
+  }, [logoLeftScale, logoRightScale]);
+
+  useEffect(() => {
+    localStorage.setItem("logo_left_offset_x", String(logoLeftOffsetX));
+    localStorage.setItem("logo_left_offset_y", String(logoLeftOffsetY));
+  }, [logoLeftOffsetX, logoLeftOffsetY]);
+
+  useEffect(() => {
+    localStorage.setItem("logo_right_offset_x", String(logoRightOffsetX));
+    localStorage.setItem("logo_right_offset_y", String(logoRightOffsetY));
+  }, [logoRightOffsetX, logoRightOffsetY]);
+
+  useEffect(() => {
+    localStorage.setItem("logo_left_width", String(logoLeftWidth));
+    localStorage.setItem("logo_right_width", String(logoRightWidth));
+  }, [logoLeftWidth, logoRightWidth]);
+
+  useEffect(() => {
+    localStorage.setItem("kop_line1_size", String(kopLine1Size));
+    localStorage.setItem("kop_line2_size", String(kopLine2Size));
+    localStorage.setItem("kop_line3_size", String(kopLine3Size));
+    localStorage.setItem("kop_line1_font", kopLine1Font);
+    localStorage.setItem("kop_line2_font", kopLine2Font);
+    localStorage.setItem("kop_line3_font", kopLine3Font);
+    localStorage.setItem("kop_line1_weight", kopLine1Weight);
+    localStorage.setItem("kop_line2_weight", kopLine2Weight);
+    localStorage.setItem("kop_line3_weight", kopLine3Weight);
+    localStorage.setItem("kop_line1_italic", String(kopLine1Italic));
+    localStorage.setItem("kop_line2_italic", String(kopLine2Italic));
+    localStorage.setItem("kop_line3_italic", String(kopLine3Italic));
+  }, [
+    kopLine1Size, kopLine2Size, kopLine3Size,
+    kopLine1Font, kopLine2Font, kopLine3Font,
+    kopLine1Weight, kopLine2Weight, kopLine3Weight,
+    kopLine1Italic, kopLine2Italic, kopLine3Italic
+  ]);
+
+  useEffect(() => {
+    localStorage.setItem("nota_table_font_size", String(tableFontSize));
+  }, [tableFontSize]);
 
   // Sync profile metadata on load or profile change
   useEffect(() => {
@@ -516,6 +644,32 @@ export default function NotaPesananLogistikTab({
     window.print();
   };
 
+  const handleLogoLeftChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setLogoLeft(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleLogoRightChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setLogoRight(event.target.result as string);
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   // Export to beautifully structured Excel matching the template
   const handleExportExcel = () => {
     const wb = XLSX.utils.book_new();
@@ -589,18 +743,24 @@ export default function NotaPesananLogistikTab({
         /* Custom Table Spacing and Sizes for screen preview and print */
         .print-container th, .print-container td {
           padding: ${tableDensity === "cramped" ? "3px 5px" : tableDensity === "spacious" ? "9px 12px" : "5px 8px"} !important;
-          font-size: ${tableDensity === "cramped" ? "9px" : tableDensity === "spacious" ? "11px" : "10px"} !important;
+          font-size: ${tableFontSize}px !important;
         }
         .col-nama-bahan {
           width: ${previewWidth === "full" ? "auto" : (bahanColWidth === "normal" ? "180px" : bahanColWidth === "extra-wide" ? "380px" : "280px")} !important;
           max-width: ${previewWidth === "full" ? "none" : (bahanColWidth === "normal" ? "180px" : bahanColWidth === "extra-wide" ? "380px" : "280px")} !important;
         }
         @media print {
-          /* Hide all default page content */
+          @page {
+            size: A4 portrait;
+            margin: 10mm 12mm 10mm 12mm;
+          }
+          /* Hide all default page content and navigation panels */
           body {
             background-color: white !important;
             color: black !important;
             font-family: Arial, sans-serif !important;
+            margin: 0 !important;
+            padding: 0 !important;
           }
           #sisper-app-root header,
           #sisper-app-root section,
@@ -617,25 +777,65 @@ export default function NotaPesananLogistikTab({
             padding: 0 !important;
           }
           .print-container {
-            width: 210mm !important;
-            min-height: 297mm !important;
-            padding: 10mm 15mm !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            min-height: auto !important;
+            padding: 0 !important;
             margin: 0 auto !important;
             box-shadow: none !important;
             border: none !important;
             background: white !important;
+            overflow: visible !important;
           }
-          .col-nama-bahan {
-            width: ${bahanColWidth === "normal" ? "180px" : bahanColWidth === "extra-wide" ? "380px" : "280px"} !important;
-            max-width: ${bahanColWidth === "normal" ? "180px" : bahanColWidth === "extra-wide" ? "380px" : "280px"} !important;
-          }
-          /* Ensure table borders print crisp and clear */
-          table {
-            border-collapse: collapse !important;
+
+          /* Auto-centering and perfect fitting */
+          .print-container > div {
+            margin: 0 auto !important;
             width: 100% !important;
           }
-          th, td {
+
+          /* Force shrink the table if it is too wide */
+          .print-container table {
+            border-collapse: collapse !important;
+            width: 100% !important;
+            table-layout: fixed !important;
+            margin: 0 auto !important;
+          }
+
+          /* Perfect percentage based column scaling so it always fits perfectly on A4 */
+          .print-container th:nth-of-type(1), .print-container td:nth-of-type(1) { width: 6% !important; text-align: center !important; }
+          .print-container th:nth-of-type(2), .print-container td:nth-of-type(2) { width: 44% !important; text-align: left !important; }
+          .print-container th:nth-of-type(3), .print-container td:nth-of-type(3) { width: 12% !important; text-align: center !important; }
+          .print-container th:nth-of-type(4), .print-container td:nth-of-type(4) { width: 12% !important; text-align: center !important; }
+          .print-container th:nth-of-type(5), .print-container td:nth-of-type(5) { width: 13% !important; text-align: right !important; }
+          .print-container th:nth-of-type(6), .print-container td:nth-of-type(6) { width: 13% !important; text-align: right !important; }
+
+          /* Enforce compact text & font sizes when printing to prevent overflow */
+          .print-container th, .print-container td {
             border: 1px solid black !important;
+            padding: 3px 5px !important;
+            font-size: ${Math.min(tableFontSize, 10.5)}px !important; /* Auto clamp font-size so it does not overflow */
+            line-height: 1.15 !important;
+            word-wrap: break-word !important;
+            white-space: normal !important;
+            overflow: hidden !important;
+          }
+
+          /* Ensure borderless style for input fields when printing */
+          .print-container input {
+            border: none !important;
+            padding: 0 !important;
+            margin: 0 !important;
+            width: 100% !important;
+            font-size: inherit !important;
+            background: transparent !important;
+            color: black !important;
+          }
+
+          /* Keep signatures on same page when possible */
+          .print-break-inside-avoid {
+            break-inside: avoid !important;
+            page-break-inside: avoid !important;
           }
         }
       `}</style>
@@ -865,165 +1065,712 @@ export default function NotaPesananLogistikTab({
             ✏️ Kustomisasi Surat Cetak
           </h4>
           
-          <div className="space-y-4 text-xs">
-            {/* Kop Surat Section */}
-            <div className="space-y-2.5 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-black text-slate-400 uppercase block tracking-wider">KOP Surat (Horizontal)</span>
-              
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">KOP Baris 1:</label>
-                <input
-                  type="text"
-                  value={kopLine1}
-                  onChange={(e) => setKopLine1(e.target.value)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs"
-                />
+          <div className="space-y-3.5 text-xs">
+            {/* 1. Isi Teks KOP Surat */}
+            <details className="bg-slate-50 rounded-xl border border-slate-150 overflow-hidden group" open>
+              <summary className="p-2.5 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer flex justify-between items-center select-none text-[10px] uppercase tracking-wider">
+                <span>✏️ Isi Teks KOP</span>
+                <span className="transition-transform group-open:rotate-180 text-slate-400 text-[10px]">▼</span>
+              </summary>
+              <div className="p-2.5 pt-2 border-t border-slate-100 bg-white space-y-2.5">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500">KOP Baris 1:</label>
+                  <input
+                    type="text"
+                    value={kopLine1}
+                    onChange={(e) => setKopLine1(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500">KOP Baris 2:</label>
+                  <input
+                    type="text"
+                    value={kopLine2}
+                    onChange={(e) => setKopLine2(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500">KOP Baris 3 (Lembaga):</label>
+                  <input
+                    type="text"
+                    value={kopLine3}
+                    onChange={(e) => setKopLine3(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500">KOP Baris 4 (Alamat):</label>
+                  <input
+                    type="text"
+                    value={kopLine4}
+                    onChange={(e) => setKopLine4(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 text-xs"
+                  />
+                </div>
               </div>
+            </details>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">KOP Baris 2:</label>
-                <input
-                  type="text"
-                  value={kopLine2}
-                  onChange={(e) => setKopLine2(e.target.value)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs"
-                />
+            {/* 2. Format & Gaya Teks KOP */}
+            <details className="bg-slate-50 rounded-xl border border-slate-150 overflow-hidden group">
+              <summary className="p-2.5 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer flex justify-between items-center select-none text-[10px] uppercase tracking-wider">
+                <span>🎨 Gaya Huruf KOP</span>
+                <span className="transition-transform group-open:rotate-180 text-slate-400 text-[10px]">▼</span>
+              </summary>
+              <div className="p-2.5 pt-2 border-t border-slate-100 bg-white space-y-3">
+                
+                {/* Baris 1 font controls */}
+                <div className="p-2 border border-slate-100 rounded-lg space-y-1.5 bg-slate-50/50">
+                  <div className="font-bold text-indigo-700 text-[9px] uppercase tracking-wider">Baris 1 (Instansi Utama)</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="text-[9px] text-slate-400 font-semibold block">Model Huruf</label>
+                      <select 
+                        value={kopLine1Font} 
+                        onChange={(e) => setKopLine1Font(e.target.value)}
+                        className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] font-medium"
+                      >
+                        <option value="Arial, sans-serif">Arial (Sans)</option>
+                        <option value="'Times New Roman', Times, serif">Times (Serif)</option>
+                        <option value="Georgia, serif">Georgia</option>
+                        <option value="'JetBrains Mono', monospace">Mono</option>
+                        <option value="system-ui">System UI</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-slate-400 font-semibold block">Ketebalan</label>
+                      <select 
+                        value={kopLine1Weight} 
+                        onChange={(e) => setKopLine1Weight(e.target.value)}
+                        className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] font-medium"
+                      >
+                        <option value="400">Normal</option>
+                        <option value="600">Sedang (600)</option>
+                        <option value="700">Tebal (700)</option>
+                        <option value="900">Sangat Tebal (900)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <input 
+                        type="checkbox" 
+                        id="italic-l1"
+                        checked={kopLine1Italic}
+                        onChange={(e) => setKopLine1Italic(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3 h-3"
+                      />
+                      <label htmlFor="italic-l1" className="text-[10px] text-slate-600 font-semibold">Miring (Italic)</label>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                      <span>Ukuran:</span>
+                      <input 
+                        type="number" 
+                        min="8" 
+                        max="36" 
+                        value={kopLine1Size}
+                        onChange={(e) => setKopLine1Size(Number(e.target.value))}
+                        className="w-8 px-0.5 py-0.5 border border-slate-200 rounded text-center text-[10px] font-bold"
+                      />
+                      <span>px</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Baris 2 font controls */}
+                <div className="p-2 border border-slate-100 rounded-lg space-y-1.5 bg-slate-50/50">
+                  <div className="font-bold text-indigo-700 text-[9px] uppercase tracking-wider">Baris 2 (Layanan)</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="text-[9px] text-slate-400 font-semibold block">Model Huruf</label>
+                      <select 
+                        value={kopLine2Font} 
+                        onChange={(e) => setKopLine2Font(e.target.value)}
+                        className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] font-medium"
+                      >
+                        <option value="Arial, sans-serif">Arial (Sans)</option>
+                        <option value="'Times New Roman', Times, serif">Times (Serif)</option>
+                        <option value="Georgia, serif">Georgia</option>
+                        <option value="'JetBrains Mono', monospace">Mono</option>
+                        <option value="system-ui">System UI</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-slate-400 font-semibold block">Ketebalan</label>
+                      <select 
+                        value={kopLine2Weight} 
+                        onChange={(e) => setKopLine2Weight(e.target.value)}
+                        className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] font-medium"
+                      >
+                        <option value="400">Normal</option>
+                        <option value="600">Sedang (600)</option>
+                        <option value="700">Tebal (700)</option>
+                        <option value="800">Sangat Tebal (800)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <input 
+                        type="checkbox" 
+                        id="italic-l2"
+                        checked={kopLine2Italic}
+                        onChange={(e) => setKopLine2Italic(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3 h-3"
+                      />
+                      <label htmlFor="italic-l2" className="text-[10px] text-slate-600 font-semibold">Miring (Italic)</label>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                      <span>Ukuran:</span>
+                      <input 
+                        type="number" 
+                        min="8" 
+                        max="36" 
+                        value={kopLine2Size}
+                        onChange={(e) => setKopLine2Size(Number(e.target.value))}
+                        className="w-8 px-0.5 py-0.5 border border-slate-200 rounded text-center text-[10px] font-bold"
+                      />
+                      <span>px</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Baris 3 font controls */}
+                <div className="p-2 border border-slate-100 rounded-lg space-y-1.5 bg-slate-50/50">
+                  <div className="font-bold text-indigo-700 text-[9px] uppercase tracking-wider">Baris 3 (SPPG / Cabang)</div>
+                  <div className="grid grid-cols-2 gap-1.5">
+                    <div>
+                      <label className="text-[9px] text-slate-400 font-semibold block">Model Huruf</label>
+                      <select 
+                        value={kopLine3Font} 
+                        onChange={(e) => setKopLine3Font(e.target.value)}
+                        className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] font-medium"
+                      >
+                        <option value="Arial, sans-serif">Arial (Sans)</option>
+                        <option value="'Times New Roman', Times, serif">Times (Serif)</option>
+                        <option value="Georgia, serif">Georgia</option>
+                        <option value="'JetBrains Mono', monospace">Mono</option>
+                        <option value="system-ui">System UI</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-[9px] text-slate-400 font-semibold block">Ketebalan</label>
+                      <select 
+                        value={kopLine3Weight} 
+                        onChange={(e) => setKopLine3Weight(e.target.value)}
+                        className="w-full px-1.5 py-0.5 border border-slate-200 rounded text-[10px] font-medium"
+                      >
+                        <option value="400">Normal</option>
+                        <option value="600">Sedang (600)</option>
+                        <option value="700">Tebal (700)</option>
+                        <option value="900">Sangat Tebal (900)</option>
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-between pt-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <input 
+                        type="checkbox" 
+                        id="italic-l3"
+                        checked={kopLine3Italic}
+                        onChange={(e) => setKopLine3Italic(e.target.checked)}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 w-3 h-3"
+                      />
+                      <label htmlFor="italic-l3" className="text-[10px] text-slate-600 font-semibold">Miring (Italic)</label>
+                    </div>
+                    <div className="flex items-center gap-1 text-[10px] text-slate-500 font-semibold">
+                      <span>Ukuran:</span>
+                      <input 
+                        type="number" 
+                        min="8" 
+                        max="36" 
+                        value={kopLine3Size}
+                        onChange={(e) => setKopLine3Size(Number(e.target.value))}
+                        className="w-8 px-0.5 py-0.5 border border-slate-200 rounded text-center text-[10px] font-bold"
+                      />
+                      <span>px</span>
+                    </div>
+                  </div>
+                </div>
               </div>
+            </details>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">KOP Baris 3 (Lembaga):</label>
-                <input
-                  type="text"
-                  value={kopLine3}
-                  onChange={(e) => setKopLine3(e.target.value)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs"
-                />
-              </div>
+            {/* 3. Logo Kiri */}
+            <details className="bg-slate-50 rounded-xl border border-slate-150 overflow-hidden group">
+              <summary className="p-2.5 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer flex justify-between items-center select-none text-[10px] uppercase tracking-wider">
+                <span>🖼️ Logo Kiri (KOP)</span>
+                <span className="transition-transform group-open:rotate-180 text-slate-400 text-[10px]">▼</span>
+              </summary>
+              <div className="p-2.5 pt-2 border-t border-slate-100 bg-white space-y-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 block">Pilih File Logo Kiri:</label>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={handleLogoLeftChange}
+                    className="w-full text-[10px] text-slate-500 file:mr-2 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer border border-slate-100 p-1 rounded-lg"
+                  />
+                </div>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">KOP Baris 4 (Alamat):</label>
-                <input
-                  type="text"
-                  value={kopLine4}
-                  onChange={(e) => setKopLine4(e.target.value)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 text-xs"
-                />
-              </div>
-            </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-slate-500 flex justify-between">
+                      <span>Lebar:</span>
+                      <span className="text-indigo-600 font-bold">{logoLeftWidth}px</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="40" 
+                      max="160" 
+                      value={logoLeftWidth} 
+                      onChange={(e) => setLogoLeftWidth(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-slate-500 flex justify-between">
+                      <span>Zoom:</span>
+                      <span className="text-indigo-600 font-bold">{logoLeftScale}%</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="50" 
+                      max="300" 
+                      value={logoLeftScale} 
+                      onChange={(e) => setLogoLeftScale(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+                </div>
 
-            {/* Layout Customization Section */}
-            <div className="space-y-2.5 p-3 bg-slate-50 rounded-xl border border-slate-100">
-              <span className="text-[10px] font-black text-slate-400 uppercase block tracking-wider">Tata Letak Tabel</span>
+                <div className="space-y-1.5 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Crop (Potong Sisi)</span>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-medium text-slate-500 flex justify-between">
+                        <span>Atas:</span>
+                        <span className="text-slate-700 font-semibold">{logoLeftCropTop}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="90" 
+                        value={logoLeftCropTop} 
+                        onChange={(e) => setLogoLeftCropTop(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-slate-600"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-medium text-slate-500 flex justify-between">
+                        <span>Bawah:</span>
+                        <span className="text-slate-700 font-semibold">{logoLeftCropBottom}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="90" 
+                        value={logoLeftCropBottom} 
+                        onChange={(e) => setLogoLeftCropBottom(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-slate-600"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-medium text-slate-500 flex justify-between">
+                        <span>Kiri:</span>
+                        <span className="text-slate-700 font-semibold">{logoLeftCropLeft}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="90" 
+                        value={logoLeftCropLeft} 
+                        onChange={(e) => setLogoLeftCropLeft(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-slate-600"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-medium text-slate-500 flex justify-between">
+                        <span>Kanan:</span>
+                        <span className="text-slate-700 font-semibold">{logoLeftCropRight}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="90" 
+                        value={logoLeftCropRight} 
+                        onChange={(e) => setLogoLeftCropRight(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-slate-600"
+                      />
+                    </div>
+                  </div>
+                </div>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Kepadatan Tabel:</label>
-                <select
-                  value={tableDensity}
-                  onChange={(e) => setTableDensity(e.target.value as any)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs cursor-pointer"
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-slate-500 flex justify-between">
+                      <span>Geser X:</span>
+                      <span>{logoLeftOffsetX}px</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={logoLeftOffsetX} 
+                      onChange={(e) => setLogoLeftOffsetX(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-slate-500"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-slate-500 flex justify-between">
+                      <span>Geser Y:</span>
+                      <span>{logoLeftOffsetY}px</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={logoLeftOffsetY} 
+                      onChange={(e) => setLogoLeftOffsetY(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-slate-500"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLogoLeftCropTop(0);
+                    setLogoLeftCropBottom(0);
+                    setLogoLeftCropLeft(0);
+                    setLogoLeftCropRight(0);
+                    setLogoLeftScale(100);
+                    setLogoLeftOffsetX(0);
+                    setLogoLeftOffsetY(0);
+                    setLogoLeftWidth(80);
+                    setLogoLeft("/src/assets/images/logo_sppg_1782256222616.jpg");
+                  }}
+                  className="w-full py-1 text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded transition font-bold text-[10px]"
                 >
-                  <option value="cramped">Sangat Padat (Cramped)</option>
-                  <option value="normal">Normal</option>
-                  <option value="spacious">Renggang (Spacious)</option>
-                </select>
+                  Reset Logo Kiri
+                </button>
               </div>
+            </details>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Lebar Kolom Bahan:</label>
-                <select
-                  value={bahanColWidth}
-                  onChange={(e) => setBahanColWidth(e.target.value as any)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs cursor-pointer"
-                >
-                  <option value="normal">Normal (180px)</option>
-                  <option value="wide">Lebar (280px)</option>
-                  <option value="extra-wide">Sangat Lebar (380px)</option>
-                </select>
+            {/* 4. Logo Kanan */}
+            <details className="bg-slate-50 rounded-xl border border-slate-155 overflow-hidden group">
+              <summary className="p-2.5 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer flex justify-between items-center select-none text-[10px] uppercase tracking-wider">
+                <span>🖼️ Logo Kanan (KOP)</span>
+                <span className="transition-transform group-open:rotate-180 text-slate-400 text-[10px]">▼</span>
+              </summary>
+              <div className="p-2.5 pt-2 border-t border-slate-100 bg-white space-y-3">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 block">Pilih File Logo Kanan:</label>
+                  <input 
+                    type="file" 
+                    accept="image/*"
+                    onChange={handleLogoRightChange}
+                    className="w-full text-[10px] text-slate-500 file:mr-2 file:py-0.5 file:px-2 file:rounded-md file:border-0 file:text-[10px] file:font-bold file:bg-indigo-50 file:text-indigo-700 hover:file:bg-indigo-100 cursor-pointer border border-slate-100 p-1 rounded-lg"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-slate-500 flex justify-between">
+                      <span>Lebar:</span>
+                      <span className="text-indigo-600 font-bold">{logoRightWidth}px</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="40" 
+                      max="160" 
+                      value={logoRightWidth} 
+                      onChange={(e) => setLogoRightWidth(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-slate-500 flex justify-between">
+                      <span>Zoom:</span>
+                      <span className="text-indigo-600 font-bold">{logoRightScale}%</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="50" 
+                      max="300" 
+                      value={logoRightScale} 
+                      onChange={(e) => setLogoRightScale(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1.5 p-2 bg-slate-50 rounded-lg border border-slate-100">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Crop (Potong Sisi)</span>
+                  <div className="grid grid-cols-2 gap-x-2 gap-y-1.5">
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-medium text-slate-500 flex justify-between">
+                        <span>Atas:</span>
+                        <span className="text-slate-700 font-semibold">{logoRightCropTop}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="90" 
+                        value={logoRightCropTop} 
+                        onChange={(e) => setLogoRightCropTop(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-slate-600"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-medium text-slate-500 flex justify-between">
+                        <span>Bawah:</span>
+                        <span className="text-slate-700 font-semibold">{logoRightCropBottom}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="90" 
+                        value={logoRightCropBottom} 
+                        onChange={(e) => setLogoRightCropBottom(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-slate-600"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-medium text-slate-500 flex justify-between">
+                        <span>Kiri:</span>
+                        <span className="text-slate-700 font-semibold">{logoRightCropLeft}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="90" 
+                        value={logoRightCropLeft} 
+                        onChange={(e) => setLogoRightCropLeft(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-slate-600"
+                      />
+                    </div>
+                    <div className="space-y-0.5">
+                      <label className="text-[9px] font-medium text-slate-500 flex justify-between">
+                        <span>Kanan:</span>
+                        <span className="text-slate-700 font-semibold">{logoRightCropRight}%</span>
+                      </label>
+                      <input 
+                        type="range" 
+                        min="0" 
+                        max="90" 
+                        value={logoRightCropRight} 
+                        onChange={(e) => setLogoRightCropRight(Number(e.target.value))}
+                        className="w-full h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-slate-600"
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-slate-500 flex justify-between">
+                      <span>Geser X:</span>
+                      <span>{logoRightOffsetX}px</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={logoRightOffsetX} 
+                      onChange={(e) => setLogoRightOffsetX(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-slate-500"
+                    />
+                  </div>
+                  <div className="space-y-0.5">
+                    <label className="text-[10px] font-semibold text-slate-500 flex justify-between">
+                      <span>Geser Y:</span>
+                      <span>{logoRightOffsetY}px</span>
+                    </label>
+                    <input 
+                      type="range" 
+                      min="-100" 
+                      max="100" 
+                      value={logoRightOffsetY} 
+                      onChange={(e) => setLogoRightOffsetY(Number(e.target.value))}
+                      className="w-full h-1 bg-slate-100 rounded appearance-none cursor-pointer accent-slate-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoRightCropTop(0);
+                      setLogoRightCropBottom(0);
+                      setLogoRightCropLeft(0);
+                      setLogoRightCropRight(0);
+                      setLogoRightScale(100);
+                      setLogoRightOffsetX(0);
+                      setLogoRightOffsetY(0);
+                      setLogoRightWidth(80);
+                    }}
+                    className="flex-1 py-1 text-slate-500 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded transition font-bold text-[10px]"
+                  >
+                    Reset Logo
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setLogoRight("");
+                    }}
+                    className="py-1 px-2 text-rose-500 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 rounded transition font-bold text-[10px]"
+                  >
+                    Hapus
+                  </button>
+                </div>
               </div>
+            </details>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Lebar Tampilan Layar:</label>
-                <select
-                  value={previewWidth}
-                  onChange={(e) => setPreviewWidth(e.target.value as any)}
-                  className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs cursor-pointer"
-                >
-                  <option value="full">Lebar Penuh (Mengisi Ruang)</option>
-                  <option value="standard">Standar Cetak A4 (210mm)</option>
-                </select>
+            {/* 5. Tata Letak & Ukuran Tabel */}
+            <details className="bg-slate-50 rounded-xl border border-slate-150 overflow-hidden group">
+              <summary className="p-2.5 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer flex justify-between items-center select-none text-[10px] uppercase tracking-wider">
+                <span>📏 Ukuran & Spasi Tabel</span>
+                <span className="transition-transform group-open:rotate-180 text-slate-400 text-[10px]">▼</span>
+              </summary>
+              <div className="p-2.5 pt-2 border-t border-slate-100 bg-white space-y-3.5">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 flex justify-between items-center text-[10px]">
+                    <span>Ukuran Font Tabel:</span>
+                    <span className="text-indigo-600 font-bold">{tableFontSize}px</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input 
+                      type="range" 
+                      min="8" 
+                      max="20" 
+                      value={tableFontSize} 
+                      onChange={(e) => setTableFontSize(Number(e.target.value))}
+                      className="flex-1 h-1 bg-slate-200 rounded appearance-none cursor-pointer accent-indigo-600"
+                    />
+                    <input 
+                      type="number" 
+                      min="8" 
+                      max="20" 
+                      value={tableFontSize} 
+                      onChange={(e) => setTableFontSize(Number(e.target.value))}
+                      className="w-10 px-1 py-0.5 border border-slate-200 rounded text-center text-[10px] font-bold"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500">Kepadatan Spasi Tabel:</label>
+                  <select
+                    value={tableDensity}
+                    onChange={(e) => setTableDensity(e.target.value as any)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs cursor-pointer"
+                  >
+                    <option value="cramped">Sangat Padat (Cramped)</option>
+                    <option value="normal">Normal</option>
+                    <option value="spacious">Renggang (Spacious)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500">Lebar Kolom Bahan:</label>
+                  <select
+                    value={bahanColWidth}
+                    onChange={(e) => setBahanColWidth(e.target.value as any)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs cursor-pointer"
+                  >
+                    <option value="normal">Normal (180px)</option>
+                    <option value="wide">Lebar (280px)</option>
+                    <option value="extra-wide">Sangat Lebar (380px)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500">Lebar Tampilan Layar:</label>
+                  <select
+                    value={previewWidth}
+                    onChange={(e) => setPreviewWidth(e.target.value as any)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs cursor-pointer"
+                  >
+                    <option value="full">Lebar Penuh (Mengisi Ruang)</option>
+                    <option value="standard">Standar Cetak A4 (210mm)</option>
+                  </select>
+                </div>
               </div>
-            </div>
+            </details>
 
-            {/* Metadata Surat Section */}
-            <div className="space-y-2.5 p-3 bg-indigo-50/50 rounded-xl border border-indigo-100/50">
-              <span className="text-[10px] font-black text-indigo-400 uppercase block tracking-wider">Metadata Nota</span>
+            {/* 6. Metadata Nota */}
+            <details className="bg-slate-50 rounded-xl border border-slate-150 overflow-hidden group">
+              <summary className="p-2.5 font-bold text-slate-700 hover:bg-slate-100 cursor-pointer flex justify-between items-center select-none text-[10px] uppercase tracking-wider">
+                <span>📋 Informasi & Penandatangan</span>
+                <span className="transition-transform group-open:rotate-180 text-slate-400 text-[10px]">▼</span>
+              </summary>
+              <div className="p-2.5 pt-2 border-t border-slate-100 bg-white space-y-2.5">
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 text-[10px]">Dari (Nama SPPG):</label>
+                  <input
+                    type="text"
+                    value={dari}
+                    onChange={(e) => setDari(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
+                  />
+                </div>
 
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Dari (Nama SPPG):</label>
-                <input
-                  id="edit-print-dari"
-                  type="text"
-                  value={dari}
-                  onChange={(e) => setDari(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
-                />
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 text-[10px]">Kepada (Penerima):</label>
+                  <input
+                    type="text"
+                    value={kepada}
+                    onChange={(e) => setKepada(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 text-[10px]">Alamat Penerima:</label>
+                  <input
+                    type="text"
+                    value={alamat}
+                    onChange={(e) => setAlamat(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 text-[10px]">Tanggal Nota:</label>
+                  <input
+                    type="text"
+                    value={tanggal}
+                    onChange={(e) => setTanggal(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 text-[10px]">Nama Penandatangan:</label>
+                  <input
+                    type="text"
+                    value={namaKepala}
+                    onChange={(e) => setNamaKepala(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="font-semibold text-slate-500 text-[10px]">Jabatan Penandatangan:</label>
+                  <input
+                    type="text"
+                    value={jabatanKepala}
+                    onChange={(e) => setJabatanKepala(e.target.value)}
+                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
+                  />
+                </div>
               </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Kepada (Penerima):</label>
-                <input
-                  id="edit-print-kepada"
-                  type="text"
-                  value={kepada}
-                  onChange={(e) => setKepada(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Alamat Penerima:</label>
-                <input
-                  id="edit-print-alamat"
-                  type="text"
-                  value={alamat}
-                  onChange={(e) => setAlamat(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Tanggal Nota:</label>
-                <input
-                  id="edit-print-tanggal"
-                  type="text"
-                  value={tanggal}
-                  onChange={(e) => setTanggal(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Nama Penandatangan:</label>
-                <input
-                  id="edit-print-nama-kepala"
-                  type="text"
-                  value={namaKepala}
-                  onChange={(e) => setNamaKepala(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-semibold text-slate-500">Jabatan Penandatangan:</label>
-                <input
-                  id="edit-print-jabatan-kepala"
-                  type="text"
-                  value={jabatanKepala}
-                  onChange={(e) => setJabatanKepala(e.target.value)}
-                  className="w-full px-2.5 py-1.5 border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium"
-                />
-              </div>
-            </div>
+            </details>
           </div>
 
           <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1.5 mt-2">
@@ -1039,33 +1786,107 @@ export default function NotaPesananLogistikTab({
           <div className={`print-container w-full ${previewWidth === "full" ? "max-w-full" : "max-w-[210mm]"} min-h-[297mm] bg-white text-black p-[15mm] border border-slate-200 rounded-3xl shadow-lg relative flex flex-col gap-5 overflow-x-auto`}>
             
             {/* Header Surat */}
-            <div className="relative flex items-center justify-center pb-3 border-b-[3px] border-double border-black w-full mb-4" style={{ minHeight: '80px' }}>
-              <div className="absolute left-0 top-1/2 -translate-y-1/2">
-                <img 
-                  src={logoSrc} 
-                  alt="Logo" 
-                  className="w-16 h-16 object-contain" 
-                  referrerPolicy="no-referrer"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "/src/assets/images/logo_sppg_1782256222616.jpg";
-                  }}
-                />
+            <div className="relative flex items-center justify-between pb-3 border-b-[3px] border-double border-black w-full mb-4 gap-4" style={{ minHeight: '100px' }}>
+              
+              {/* Logo Kiri */}
+              <div className="flex-shrink-0 flex items-center justify-start min-w-[80px]" style={{ width: `${logoLeftWidth}px` }}>
+                {logoLeft ? (
+                  <div 
+                    className="relative overflow-hidden flex items-center justify-center border border-slate-100 rounded bg-slate-50/30" 
+                    style={{ width: `${logoLeftWidth}px`, height: `${logoLeftWidth}px` }}
+                  >
+                    <img 
+                      src={logoLeft} 
+                      alt="Logo Kiri" 
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                        clipPath: `inset(${logoLeftCropTop}% ${logoLeftCropRight}% ${logoLeftCropBottom}% ${logoLeftCropLeft}%)`,
+                        transform: `scale(${logoLeftScale / 100}) translate(${logoLeftOffsetX}px, ${logoLeftOffsetY}px)`,
+                        transformOrigin: "center center",
+                      }}
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = "/src/assets/images/logo_sppg_1782256222616.jpg";
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="w-16 h-16 border border-dashed border-slate-300 rounded flex items-center justify-center text-[10px] text-slate-400 text-center">
+                    No Logo Kiri
+                  </div>
+                )}
               </div>
               
-              <div className="text-center font-sans tracking-wide leading-snug px-16 w-full">
-                <div className="font-black text-lg uppercase text-slate-900 print:text-black">
+              {/* KOP Text content */}
+              <div className="text-center tracking-wide leading-snug px-2 flex-1 w-full">
+                <div 
+                  style={{ 
+                    fontSize: `${kopLine1Size}px`,
+                    fontFamily: kopLine1Font,
+                    fontWeight: kopLine1Weight,
+                    fontStyle: kopLine1Italic ? "italic" : "normal"
+                  }} 
+                  className="uppercase text-slate-900 print:text-black leading-tight"
+                >
                   {kopLine1}
                 </div>
-                <div className="font-extrabold text-sm uppercase text-slate-900 print:text-black mt-0.5">
+                <div 
+                  style={{ 
+                    fontSize: `${kopLine2Size}px`,
+                    fontFamily: kopLine2Font,
+                    fontWeight: kopLine2Weight,
+                    fontStyle: kopLine2Italic ? "italic" : "normal"
+                  }} 
+                  className="uppercase text-slate-800 print:text-black mt-1 leading-tight"
+                >
                   {kopLine2}
                 </div>
-                <div className="font-black text-sm uppercase text-slate-900 print:text-black mt-0.5 text-indigo-900 print:text-black">
+                <div 
+                  style={{ 
+                    fontSize: `${kopLine3Size}px`,
+                    fontFamily: kopLine3Font,
+                    fontWeight: kopLine3Weight,
+                    fontStyle: kopLine3Italic ? "italic" : "normal"
+                  }} 
+                  className="uppercase mt-1 leading-tight text-indigo-900 print:text-black"
+                >
                   {kopLine3}
                 </div>
-                <div className="italic text-slate-600 print:text-black mt-0.5 font-medium underline" style={{ fontSize: '10pt' }}>
+                <div className="italic text-slate-600 print:text-black mt-1.5 font-medium underline" style={{ fontSize: '10pt' }}>
                   {kopLine4}
                 </div>
               </div>
+
+              {/* Logo Kanan */}
+              <div className="flex-shrink-0 flex items-center justify-end min-w-[80px]" style={{ width: `${logoRightWidth}px` }}>
+                {logoRight ? (
+                  <div 
+                    className="relative overflow-hidden flex items-center justify-center border border-slate-100 rounded bg-slate-50/30" 
+                    style={{ width: `${logoRightWidth}px`, height: `${logoRightWidth}px` }}
+                  >
+                    <img 
+                      src={logoRight} 
+                      alt="Logo Kanan" 
+                      style={{
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                        clipPath: `inset(${logoRightCropTop}% ${logoRightCropRight}% ${logoRightCropBottom}% ${logoRightCropLeft}%)`,
+                        transform: `scale(${logoRightScale / 100}) translate(${logoRightOffsetX}px, ${logoRightOffsetY}px)`,
+                        transformOrigin: "center center",
+                      }}
+                      referrerPolicy="no-referrer"
+                    />
+                  </div>
+                ) : (
+                  <div className="border border-dashed border-slate-300 rounded flex items-center justify-center text-[10px] text-slate-400 text-center no-print" style={{ width: `${logoRightWidth}px`, height: `${logoRightWidth}px` }}>
+                    No Logo Kanan
+                  </div>
+                )}
+              </div>
+
             </div>
 
             {/* Metadata Surat */}
@@ -1099,25 +1920,25 @@ export default function NotaPesananLogistikTab({
 
             {/* Main Table */}
             <div className="w-full">
-              <table className="w-full text-[10px] border-collapse border border-black font-sans leading-relaxed">
+              <table className="w-full text-[12px] border-collapse border border-black font-sans leading-relaxed">
                 <thead>
                   <tr className="bg-[#92D050] text-black font-extrabold border-b border-black">
-                    <th className="border border-black p-2 text-center w-12 text-[10px] uppercase font-bold text-slate-950 select-none">
+                    <th className="border border-black p-2 text-center w-12 text-[12px] uppercase font-bold text-slate-950 select-none">
                       No.
                     </th>
-                    <th className="border border-black p-2 text-left text-[10px] uppercase font-bold text-slate-950 select-none col-nama-bahan">
+                    <th className="border border-black p-2 text-left text-[12px] uppercase font-bold text-slate-950 select-none col-nama-bahan">
                       Uraian Jenis Bahan Makanan
                     </th>
-                    <th className="border border-black p-2 text-center w-24 text-[10px] uppercase font-bold text-slate-950 select-none">
+                    <th className="border border-black p-2 text-center w-24 text-[12px] uppercase font-bold text-slate-950 select-none">
                       Jumlah
                     </th>
-                    <th className="border border-black p-2 text-center w-28 text-[10px] uppercase font-bold text-slate-950 select-none">
+                    <th className="border border-black p-2 text-center w-28 text-[12px] uppercase font-bold text-slate-950 select-none">
                       Satuan
                     </th>
-                    <th className="border border-black p-2 text-center w-36 text-[10px] uppercase font-bold text-slate-950 select-none">
+                    <th className="border border-black p-2 text-center w-36 text-[12px] uppercase font-bold text-slate-950 select-none">
                       Harga
                     </th>
-                    <th className="border border-black p-2 text-center w-40 text-[10px] uppercase font-bold text-slate-950 select-none">
+                    <th className="border border-black p-2 text-center w-40 text-[12px] uppercase font-bold text-slate-950 select-none">
                       Total
                     </th>
                   </tr>
@@ -1130,7 +1951,7 @@ export default function NotaPesananLogistikTab({
                     return (
                       <tr key={row.id} className="hover:bg-slate-50/60 print:hover:bg-transparent group">
                         {/* No. */}
-                        <td className="border border-black text-center py-1 text-slate-950 font-bold select-none text-[10px]">
+                        <td className="border border-black text-center py-1 text-slate-950 font-bold select-none text-[12px]">
                           {idx + 1}
                         </td>
 

@@ -5,6 +5,7 @@
 
 import React, { useState, useEffect } from "react";
 import { MasterMenu, MenuItem, SPPGProfile } from "../types";
+import { downloadElementAsImage } from "../lib/printUtils";
 import { 
   BookOpen, 
   Copy, 
@@ -17,7 +18,8 @@ import {
   Check, 
   RefreshCw,
   Trash2,
-  RotateCcw
+  RotateCcw,
+  Image as ImageIcon
 } from "lucide-react";
 
 interface MasterMenuTabProps {
@@ -25,6 +27,18 @@ interface MasterMenuTabProps {
   onChange: (updated: MasterMenu) => void;
   profile?: SPPGProfile;
   customLogo?: string;
+  kopLine1: string;
+  setKopLine1: (val: string) => void;
+  kopLine2: string;
+  setKopLine2: (val: string) => void;
+  kopLine3: string;
+  setKopLine3: (val: string) => void;
+  kopLine4: string;
+  setKopLine4: (val: string) => void;
+  leftLogo: string;
+  setLeftLogo: (val: string) => void;
+  rightLogo: string;
+  setRightLogo: (val: string) => void;
 }
 
 // Convert YYYY-MM-DD into "Senin, 08 Juni 2026"
@@ -44,12 +58,30 @@ const formatIndonesianDate = (dateStr: string): string => {
   }
 };
 
-export default function MasterMenuTab({ menu, onChange, profile, customLogo }: MasterMenuTabProps) {
+export default function MasterMenuTab({ 
+  menu, 
+  onChange, 
+  profile, 
+  customLogo,
+  kopLine1,
+  setKopLine1,
+  kopLine2,
+  setKopLine2,
+  kopLine3,
+  setKopLine3,
+  kopLine4,
+  setKopLine4,
+  leftLogo,
+  setLeftLogo,
+  rightLogo,
+  setRightLogo
+}: MasterMenuTabProps) {
   const [activeCategory, setActiveCategory] = useState<"usiaSekolah" | "tigaB" | "mpAsi">("usiaSekolah");
   const [isAlergi, setIsAlergi] = useState<boolean>(false);
   const [copiedItem, setCopiedItem] = useState<{ sourceLabel: string; item: MenuItem } | null>(null);
   const [justPastedDay, setJustPastedDay] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"edit" | "print">("edit");
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
   // Customizable category labels
   const [labelUsiaSekolah, setLabelUsiaSekolah] = useState(() => 
@@ -65,20 +97,6 @@ export default function MasterMenuTab({ menu, onChange, profile, customLogo }: M
     "MP-ASI 6-12"
   );
 
-  // Kop Surat Customizable fields (persisted in localStorage)
-  const [kopLine1, setKopLine1] = useState(() => localStorage.getItem("kop_line1") || "BADAN GIZI NASIONAL");
-  const [kopLine2, setKopLine2] = useState(() => localStorage.getItem("kop_line2") || "SATUAN PELAYANAN PEMENUHAN GIZI");
-  const [kopLine3, setKopLine3] = useState(() => localStorage.getItem("kop_line3") || profile?.namaLembaga || "SPPG MUNA BARAT SAWERIGADI ONDOKE");
-  const [kopLine4, setKopLine4] = useState(() => localStorage.getItem("kop_line4") || (profile?.alamat ? `Alamat : ${profile.alamat}` : "Alamat : Jln. Poros Lagadi-Tondasi, Desa Ondoke, Kec. Sawerigadi, Kab. Muna Barat"));
-
-  // Left & Right Logo uploads (persisted in localStorage as base64 data URLs)
-  const [leftLogo, setLeftLogo] = useState<string>(() => {
-    return localStorage.getItem("kop_left_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg";
-  });
-  const [rightLogo, setRightLogo] = useState<string>(() => {
-    return localStorage.getItem("kop_right_logo") || "";
-  });
-
   // State-driven confirmations to avoid native iframe-blocking dialogs
   const [resetDayIndex, setResetDayIndex] = useState<number | null>(null);
   const [showResetAllConfirm, setShowResetAllConfirm] = useState<boolean>(false);
@@ -90,7 +108,6 @@ export default function MasterMenuTab({ menu, onChange, profile, customLogo }: M
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setLeftLogo(base64);
-        localStorage.setItem("kop_left_logo", base64);
       };
       reader.readAsDataURL(file);
     }
@@ -103,7 +120,6 @@ export default function MasterMenuTab({ menu, onChange, profile, customLogo }: M
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setRightLogo(base64);
-        localStorage.setItem("kop_right_logo", base64);
       };
       reader.readAsDataURL(file);
     }
@@ -111,12 +127,10 @@ export default function MasterMenuTab({ menu, onChange, profile, customLogo }: M
 
   const resetLeftLogo = () => {
     setLeftLogo("/src/assets/images/logo_sppg_1782256222616.jpg");
-    localStorage.removeItem("kop_left_logo");
   };
 
   const resetRightLogo = () => {
     setRightLogo("");
-    localStorage.removeItem("kop_right_logo");
   };
 
   // Sync with profile if changed and not manually customized
@@ -130,20 +144,6 @@ export default function MasterMenuTab({ menu, onChange, profile, customLogo }: M
       }
     }
   }, [profile]);
-
-  // Persist KOP edits in localStorage
-  useEffect(() => {
-    localStorage.setItem("kop_line1", kopLine1);
-  }, [kopLine1]);
-  useEffect(() => {
-    localStorage.setItem("kop_line2", kopLine2);
-  }, [kopLine2]);
-  useEffect(() => {
-    localStorage.setItem("kop_line3", kopLine3);
-  }, [kopLine3]);
-  useEffect(() => {
-    localStorage.setItem("kop_line4", kopLine4);
-  }, [kopLine4]);
 
   // Persist Category Labels in localStorage
   useEffect(() => {
@@ -805,15 +805,27 @@ export default function MasterMenuTab({ menu, onChange, profile, customLogo }: M
           <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm space-y-4 no-print">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat & Cetak</h4>
-              <button
-                id="btn-print-action"
-                type="button"
-                onClick={triggerPrint}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition"
-              >
-                <Printer className="w-4 h-4" />
-                Cetak / Download PDF (A4 Landscape)
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  id="btn-print-action-img"
+                  type="button"
+                  disabled={!!isDownloading}
+                  onClick={() => downloadElementAsImage("print-area-master-menu", `Master_Menu_${activeCategory}_Siklus_${isAlergi ? "Alergi" : "Standar"}`, setIsDownloading)}
+                  className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition"
+                >
+                  <ImageIcon className="w-4 h-4" />
+                  {isDownloading === "Memproses gambar..." || isDownloading === "Mengunduh gambar..." ? isDownloading : "Unduh Gambar (PNG)"}
+                </button>
+                <button
+                  id="btn-print-action"
+                  type="button"
+                  onClick={triggerPrint}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition"
+                >
+                  <Printer className="w-4 h-4" />
+                  Cetak / Download PDF (A4 Landscape)
+                </button>
+              </div>
             </div>
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
