@@ -233,3 +233,50 @@ export const INITIAL_HARIAN_PM: HariPM[] = Array.from({ length: 12 }, (_, i) => 
   hariKe: i + 1,
   sasaran: DEFAULT_SASARAN_LIST.map(item => ({ ...item }))
 }));
+
+export const EMPTY_SPPG_PROFILE: SPPGProfile = {
+  namaLembaga: "",
+  alamat: "",
+  namaKepala: "",
+  namaAhliGizi: "",
+  namaYayasan: "",
+  ketuaYayasan: "",
+  namaAkuntan: "",
+  tahunAnggaran: "",
+  periodeDates: Array.from({ length: 12 }, () => ""),
+  awalPeriodeBerikutnya: ""
+};
+
+export const EMPTY_SEKOLAH_PM: SekolahPM[] = [];
+export const EMPTY_TIGAB_PM: TigaBPM[] = [];
+
+export const EMPTY_SASARAN_LIST: KelompokSasaranPM[] = DEFAULT_SASARAN_LIST.map(item => ({
+  ...item,
+  porsiKecil: 0,
+  porsiBesar: 0,
+  alergiKecil: 0,
+  alergiBesar: 0
+}));
+
+export const EMPTY_HARIAN_PM: HariPM[] = Array.from({ length: 12 }, (_, i) => ({
+  hariKe: i + 1,
+  sasaran: EMPTY_SASARAN_LIST.map(item => ({ ...item }))
+}));
+
+export const EMPTY_MASTER_MENU: MasterMenu = {
+  usiaSekolah: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  tigaB: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  mpAsi: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  usiaSekolahAlergi: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  tigaBAlergi: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  mpAsiAlergi: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" }))
+};
+
+export const EMPTY_FOOD_COST_DAYS: FoodCostDay[] = Array.from({ length: 12 }, (_, i) => ({
+  jenisMenu: "Basah",
+  hariKe: i + 1,
+  porsiBesarBahan: [],
+  porsiKecilBahan: [],
+  bufferPct: 5
+}));
+

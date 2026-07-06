@@ -5,7 +5,21 @@
 
 import React, { useState, useEffect } from "react";
 import { SPPGProfile, SekolahPM, TigaBPM, MasterMenu, FoodCostDay, TKPIItem, KelompokSasaranPM, HariPM } from "./types";
-import { INITIAL_SPPG_PROFILE, INITIAL_SEKOLAH_PM, INITIAL_TIGAB_PM, INITIAL_MASTER_MENU, INITIAL_FOOD_COST_DAYS, INITIAL_HARIAN_PM } from "./initialData";
+import { 
+  INITIAL_SPPG_PROFILE, 
+  INITIAL_SEKOLAH_PM, 
+  INITIAL_TIGAB_PM, 
+  INITIAL_MASTER_MENU, 
+  INITIAL_FOOD_COST_DAYS, 
+  INITIAL_HARIAN_PM,
+  EMPTY_SPPG_PROFILE,
+  EMPTY_SEKOLAH_PM,
+  EMPTY_TIGAB_PM,
+  EMPTY_HARIAN_PM,
+  EMPTY_MASTER_MENU,
+  EMPTY_FOOD_COST_DAYS,
+  EMPTY_SASARAN_LIST
+} from "./initialData";
 import { INITIAL_TKPI_DATABASE } from "./tkpiData";
 import { getCountsForDay } from "./utils/calc";
 
@@ -53,10 +67,15 @@ import {
   Lock,
   LogOut,
   AlertCircle,
-  Zap
+  Zap,
+  Eye,
+  EyeOff,
+  X
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { useAuth } from "./context/AuthContext.tsx";
+import { db } from "./lib/firebase.ts";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 
 export default function App() {
   // Load initial state from LocalStorage or use default initial values
@@ -126,6 +145,12 @@ export default function App() {
     ];
   });
 
+  // Pusat Reset Data State
+  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
+  const [resetMenuTarget, setResetMenuTarget] = useState<"all" | "penerima" | "menu" | "foodcost" | "cekgizi">("all");
+  const [resetDayType, setResetDayType] = useState<"all" | "day">("all");
+  const [resetDaySelected, setResetDaySelected] = useState<number>(1);
+
   const { 
     user, 
     userProfile,
@@ -136,18 +161,58 @@ export default function App() {
     signInWithGoogle, 
     signOutUser,
     registerUser,
+    registerCustomUser,
+    registerThreeRoles,
+    loginWithEmailPassword,
     refreshUserProfile,
     authError,
     setAuthError,
     simulateAdminLogin
   } = useAuth();
 
-  // Registration Form States
+  // Authentication Tab & Form States
+  const [authTab, setAuthTab] = useState<"masuk" | "daftar">("masuk");
+  const [loginEmail, setLoginEmail] = useState("");
+  const [loginSandi, setLoginSandi] = useState("");
+  const [showLoginSandi, setShowLoginSandi] = useState(false);
+  const [showRegSandi, setShowRegSandi] = useState(false);
+  const [showRegConfirmSandi, setShowRegConfirmSandi] = useState(false);
+
+  // Registration Single User Form States
+  const [regNamaSingle, setRegNamaSingle] = useState("");
+  const [regEmailSingle, setRegEmailSingle] = useState("");
+  const [regPekerjaanSingle, setRegPekerjaanSingle] = useState("");
+  const [regInstansiSingle, setRegInstansiSingle] = useState("");
+  const [regSandiSingle, setRegSandiSingle] = useState("");
+  const [regConfirmSandiSingle, setRegConfirmSandiSingle] = useState("");
+
+  // Registration Multi-Role Form States
+  const [regInstansi, setRegInstansi] = useState("");
+  const [regSandiShared, setRegSandiShared] = useState("");
+
+  // Role 1: Pengawas Gizi
+  const [regGiziNama, setRegGiziNama] = useState("");
+  const [regGiziEmail, setRegGiziEmail] = useState("");
+  const [regGiziNoHp, setRegGiziNoHp] = useState("");
+
+  // Role 2: Akuntan
+  const [regAkuntanNama, setRegAkuntanNama] = useState("");
+  const [regAkuntanEmail, setRegAkuntanEmail] = useState("");
+  const [regAkuntanNoHp, setRegAkuntanNoHp] = useState("");
+
+  // Role 3: Chef / Juru Masak
+  const [regChefNama, setRegChefNama] = useState("");
+  const [regChefEmail, setRegChefEmail] = useState("");
+  const [regChefNoHp, setRegChefNoHp] = useState("");
+
+  const [isRegistering, setIsRegistering] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
+
+  // Fallback / legacy profile registration form states
   const [regNama, setRegNama] = useState("");
   const [regProfesi, setRegProfesi] = useState("Ahli Gizi");
   const [regNamaSPPG, setRegNamaSPPG] = useState("");
   const [regNoHp, setRegNoHp] = useState("");
-  const [isRegistering, setIsRegistering] = useState(false);
 
   // Admin Panel states
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
@@ -155,8 +220,22 @@ export default function App() {
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [cloudStatusMessage, setCloudStatusMessage] = useState<string>("Mode Lokal");
 
-  // Sync state helpers
+  // Sync state helpers & Real-time Global Logo subscription
   useEffect(() => {
+    // Real-time Global Logo Subscription
+    const logoDocRef = doc(db, "configs", "app_logo");
+    const unsubscribeLogo = onSnapshot(logoDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && data.url) {
+          setCustomLogo(data.url);
+          localStorage.setItem("sisper_custom_logo", data.url);
+        }
+      }
+    }, (error) => {
+      console.warn("Gagal berlangganan logo global dari awan:", error);
+    });
+
     if (user) {
       const loadAllCloudData = async () => {
         setIsCloudLoading(true);
@@ -178,39 +257,124 @@ export default function App() {
           const cloudKopRightLogo = await loadStateFromCloud("kopRightLogo");
           const cloudCekGiziItems = await loadStateFromCloud("cekGiziItems");
 
-          // Restore existing cloud states
-          if (cloudProfile) setProfile(cloudProfile);
-          if (cloudSekolah) setSekolahPM(cloudSekolah);
-          if (cloudTigab) setTigaBPM(cloudTigab);
-          if (cloudHarianPM) setHarianPM(cloudHarianPM);
-          if (cloudMenu) setMasterMenu(cloudMenu);
-          if (cloudFoodCost) setFoodCostDays(cloudFoodCost);
-          if (cloudTkpi) setTkpiList(cloudTkpi);
-          if (cloudCustomLogo) setCustomLogo(cloudCustomLogo);
-          if (cloudKopLine1) setKopLine1(cloudKopLine1);
-          if (cloudKopLine2) setKopLine2(cloudKopLine2);
-          if (cloudKopLine3) setKopLine3(cloudKopLine3);
-          if (cloudKopLine4) setKopLine4(cloudKopLine4);
-          if (cloudKopLeftLogo) setKopLeftLogo(cloudKopLeftLogo);
-          if (cloudKopRightLogo) setKopRightLogo(cloudKopRightLogo);
-          if (cloudCekGiziItems) setCekGiziItems(cloudCekGiziItems);
-          
-          // Seed new cloud database if empty
-          if (!cloudProfile) await saveStateToCloud("profile", profile);
-          if (!cloudSekolah) await saveStateToCloud("sekolah", sekolahPM);
-          if (!cloudTigab) await saveStateToCloud("tigab", tigaBPM);
-          if (!cloudHarianPM) await saveStateToCloud("harianPM", harianPM);
-          if (!cloudMenu) await saveStateToCloud("menu", masterMenu);
-          if (!cloudFoodCost) await saveStateToCloud("foodCost", foodCostDays);
-          if (!cloudTkpi) await saveStateToCloud("tkpi", tkpiList);
-          if (!cloudCustomLogo) await saveStateToCloud("customLogo", customLogo);
-          if (!cloudKopLine1) await saveStateToCloud("kopLine1", kopLine1);
-          if (!cloudKopLine2) await saveStateToCloud("kopLine2", kopLine2);
-          if (!cloudKopLine3) await saveStateToCloud("kopLine3", kopLine3);
-          if (!cloudKopLine4) await saveStateToCloud("kopLine4", kopLine4);
-          if (!cloudKopLeftLogo) await saveStateToCloud("kopLeftLogo", kopLeftLogo);
-          if (!cloudKopRightLogo) await saveStateToCloud("kopRightLogo", kopRightLogo);
-          if (!cloudCekGiziItems) await saveStateToCloud("cekGiziItems", cekGiziItems);
+          // Determine if user is the main admin or has an approved admin role
+          const isAdminUser = user.email === "sukriyusuf82@gmail.com" || user.email === "syukriyusuf82@gmail.com" || userProfile?.peran === "ADMIN";
+
+          // Restore existing cloud states or seed with clean system defaults to guarantee strict isolation
+          if (cloudProfile) {
+            setProfile(cloudProfile);
+          } else {
+            const initialProfile = isAdminUser ? INITIAL_SPPG_PROFILE : EMPTY_SPPG_PROFILE;
+            setProfile(initialProfile);
+            await saveStateToCloud("profile", initialProfile);
+          }
+
+          if (cloudSekolah) {
+            setSekolahPM(cloudSekolah);
+          } else {
+            const initialSekolah = isAdminUser ? INITIAL_SEKOLAH_PM : EMPTY_SEKOLAH_PM;
+            setSekolahPM(initialSekolah);
+            await saveStateToCloud("sekolah", initialSekolah);
+          }
+
+          if (cloudTigab) {
+            setTigaBPM(cloudTigab);
+          } else {
+            const initialTigab = isAdminUser ? INITIAL_TIGAB_PM : EMPTY_TIGAB_PM;
+            setTigaBPM(initialTigab);
+            await saveStateToCloud("tigab", initialTigab);
+          }
+
+          if (cloudHarianPM) {
+            setHarianPM(cloudHarianPM);
+          } else {
+            const initialHarian = isAdminUser ? INITIAL_HARIAN_PM : EMPTY_HARIAN_PM;
+            setHarianPM(initialHarian);
+            await saveStateToCloud("harianPM", initialHarian);
+          }
+
+          if (cloudMenu) {
+            setMasterMenu(cloudMenu);
+          } else {
+            const initialMenu = isAdminUser ? INITIAL_MASTER_MENU : EMPTY_MASTER_MENU;
+            setMasterMenu(initialMenu);
+            await saveStateToCloud("menu", initialMenu);
+          }
+
+          if (cloudFoodCost) {
+            setFoodCostDays(cloudFoodCost);
+          } else {
+            const initialFoodCost = isAdminUser ? INITIAL_FOOD_COST_DAYS : EMPTY_FOOD_COST_DAYS;
+            setFoodCostDays(initialFoodCost);
+            await saveStateToCloud("foodCost", initialFoodCost);
+          }
+
+          if (cloudTkpi) {
+            setTkpiList(cloudTkpi);
+          } else {
+            setTkpiList(INITIAL_TKPI_DATABASE);
+            await saveStateToCloud("tkpi", INITIAL_TKPI_DATABASE);
+          }
+
+          if (cloudCustomLogo) {
+            setCustomLogo(cloudCustomLogo);
+          }
+
+          if (cloudKopLine1) {
+            setKopLine1(cloudKopLine1);
+          } else {
+            setKopLine1("BADAN GIZI NASIONAL");
+            await saveStateToCloud("kopLine1", "BADAN GIZI NASIONAL");
+          }
+
+          if (cloudKopLine2) {
+            setKopLine2(cloudKopLine2);
+          } else {
+            setKopLine2("SATUAN PELAYANAN PEMENUHAN GIZI");
+            await saveStateToCloud("kopLine2", "SATUAN PELAYANAN PEMENUHAN GIZI");
+          }
+
+          if (cloudKopLine3) {
+            setKopLine3(cloudKopLine3);
+          } else {
+            const defaultKop3 = isAdminUser ? "SPPG MUNA BARAT SAWERIGADI ONDOKE" : "";
+            setKopLine3(defaultKop3);
+            await saveStateToCloud("kopLine3", defaultKop3);
+          }
+
+          if (cloudKopLine4) {
+            setKopLine4(cloudKopLine4);
+          } else {
+            const defaultKop4 = isAdminUser ? "Alamat : Jln. Poros Lagadi-Tondasi, Desa Ondoke, Kec. Sawerigadi, Kab. Muna Barat" : "";
+            setKopLine4(defaultKop4);
+            await saveStateToCloud("kopLine4", defaultKop4);
+          }
+
+          if (cloudKopLeftLogo) {
+            setKopLeftLogo(cloudKopLeftLogo);
+          } else {
+            setKopLeftLogo("/src/assets/images/logo_sppg_1782256222616.jpg");
+            await saveStateToCloud("kopLeftLogo", "/src/assets/images/logo_sppg_1782256222616.jpg");
+          }
+
+          if (cloudKopRightLogo) {
+            setKopRightLogo(cloudKopRightLogo);
+          } else {
+            setKopRightLogo("");
+            await saveStateToCloud("kopRightLogo", "");
+          }
+
+          if (cloudCekGiziItems) {
+            setCekGiziItems(cloudCekGiziItems);
+          } else {
+            const defaultCekGizi = [
+              { id: "item_1", namaMenu: "Menu Uji Coba", tkpiId: "beras_giling", berat: 80, urt: "1 piring" },
+              { id: "item_2", namaMenu: "Menu Uji Coba", tkpiId: "daging_ayam_tanpa_kulit", berat: 60, urt: "1 potong" },
+              { id: "item_3", namaMenu: "Menu Uji Coba", tkpiId: "wortel_segar", berat: 30, urt: "1/2 gelas" }
+            ];
+            setCekGiziItems(defaultCekGizi);
+            await saveStateToCloud("cekGiziItems", defaultCekGizi);
+          }
           
           setCloudStatusMessage("Awan Aktif");
         } catch (error) {
@@ -223,7 +387,46 @@ export default function App() {
       loadAllCloudData();
     } else {
       setCloudStatusMessage("Mode Lokal");
+      // Reset all states to pristine system defaults when user is logged out to prevent session/tenant bleed
+      setProfile(INITIAL_SPPG_PROFILE);
+      setSekolahPM(INITIAL_SEKOLAH_PM);
+      setTigaBPM(INITIAL_TIGAB_PM);
+      setHarianPM(INITIAL_HARIAN_PM);
+      setMasterMenu(INITIAL_MASTER_MENU);
+      setFoodCostDays(INITIAL_FOOD_COST_DAYS);
+      setTkpiList(INITIAL_TKPI_DATABASE);
+      setCustomLogo("/src/assets/images/logo_sppg_1782256222616.jpg");
+      setKopLine1("BADAN GIZI NASIONAL");
+      setKopLine2("SATUAN PELAYANAN PEMENUHAN GIZI");
+      setKopLine3("SPPG MUNA BARAT SAWERIGADI ONDOKE");
+      setKopLine4("Alamat : Jln. Poros Lagadi-Tondasi, Desa Ondoke, Kec. Sawerigadi, Kab. Muna Barat");
+      setKopLeftLogo("/src/assets/images/logo_sppg_1782256222616.jpg");
+      setKopRightLogo("");
+      setCekGiziItems([
+        { id: "item_1", namaMenu: "Menu Uji Coba", tkpiId: "beras_giling", berat: 80, urt: "1 piring" },
+        { id: "item_2", namaMenu: "Menu Uji Coba", tkpiId: "daging_ayam_tanpa_kulit", berat: 60, urt: "1 potong" },
+        { id: "item_3", namaMenu: "Menu Uji Coba", tkpiId: "wortel_segar", berat: 30, urt: "1/2 gelas" }
+      ]);
+
+      // Wipe local storage keys so next login is completely fresh
+      localStorage.removeItem("sisper_profile");
+      localStorage.removeItem("sisper_sekolah");
+      localStorage.removeItem("sisper_tigab");
+      localStorage.removeItem("sisper_harian_pm");
+      localStorage.removeItem("sisper_menu");
+      localStorage.removeItem("sisper_food_cost");
+      localStorage.removeItem("sisper_tkpi_list");
+      localStorage.removeItem("sisper_custom_logo");
+      localStorage.removeItem("kop_line1");
+      localStorage.removeItem("kop_line2");
+      localStorage.removeItem("kop_line3");
+      localStorage.removeItem("kop_line4");
+      localStorage.removeItem("kop_left_logo");
+      localStorage.removeItem("kop_right_logo");
+      localStorage.removeItem("sisper_cek_gizi_items");
     }
+
+    return () => unsubscribeLogo();
   }, [user]);
 
   // Save states to local storage and Cloud (with debounce)
@@ -354,8 +557,97 @@ export default function App() {
   const grandTotalRecipients = totalSekolahSiswa + total3BOrang;
 
   // Reset demo data
+  const [resetSuccessMessage, setResetSuccessMessage] = useState("");
+
+  const executeResetData = () => {
+    // 1. Reset Penerima Manfaat
+    if (resetMenuTarget === "all" || resetMenuTarget === "penerima") {
+      if (resetDayType === "all") {
+        setHarianPM(EMPTY_HARIAN_PM);
+        setSekolahPM(EMPTY_SEKOLAH_PM);
+        setTigaBPM(EMPTY_TIGAB_PM);
+      } else {
+        const updated = harianPM.map((day) => {
+          if (day.hariKe === resetDaySelected) {
+            return {
+              ...day,
+              sasaran: EMPTY_SASARAN_LIST.map(item => ({ ...item }))
+            };
+          }
+          return day;
+        });
+        setHarianPM(updated);
+      }
+    }
+
+    // 2. Reset Master Menu
+    if (resetMenuTarget === "all" || resetMenuTarget === "menu") {
+      if (resetDayType === "all") {
+        setMasterMenu(EMPTY_MASTER_MENU);
+      } else {
+        const updated = { ...masterMenu };
+        const idx = resetDaySelected - 1;
+        const blankItem = { namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" };
+        
+        updated.usiaSekolah = [...updated.usiaSekolah];
+        updated.usiaSekolah[idx] = blankItem;
+
+        updated.tigaB = [...updated.tigaB];
+        updated.tigaB[idx] = blankItem;
+
+        updated.mpAsi = [...updated.mpAsi];
+        updated.mpAsi[idx] = blankItem;
+
+        updated.usiaSekolahAlergi = [...updated.usiaSekolahAlergi];
+        updated.usiaSekolahAlergi[idx] = blankItem;
+
+        updated.tigaBAlergi = [...updated.tigaBAlergi];
+        updated.tigaBAlergi[idx] = blankItem;
+
+        updated.mpAsiAlergi = [...updated.mpAsiAlergi];
+        updated.mpAsiAlergi[idx] = blankItem;
+
+        setMasterMenu(updated);
+      }
+    }
+
+    // 3. Reset Food Costing
+    if (resetMenuTarget === "all" || resetMenuTarget === "foodcost") {
+      if (resetDayType === "all") {
+        setFoodCostDays(EMPTY_FOOD_COST_DAYS);
+      } else {
+        const updated = foodCostDays.map((d) => {
+          if (d.hariKe === resetDaySelected) {
+            return {
+              ...d,
+              porsiBesarBahan: [],
+              porsiKecilBahan: []
+            };
+          }
+          return d;
+        });
+        setFoodCostDays(updated);
+      }
+    }
+
+    // 4. Reset Sandbox Gizi
+    if (resetMenuTarget === "all" || resetMenuTarget === "cekgizi") {
+      setCekGiziItems([]);
+    }
+
+    // Show beautiful success notification
+    const targetLabel = resetMenuTarget === "all" ? "Semua Menu Operasional" : resetMenuTarget === "penerima" ? "Penerima Manfaat" : resetMenuTarget === "menu" ? "Master Menu" : resetMenuTarget === "foodcost" ? "Food Costing" : "Sandbox Gizi";
+    const dayLabel = resetDayType === "all" ? "Keseluruhan Hari 1-12" : "Hari ke-" + resetDaySelected;
+    setResetSuccessMessage(`Berhasil menyetel ulang ${targetLabel} (${dayLabel}) secara bersih dan sistematis!`);
+    
+    setTimeout(() => {
+      setResetSuccessMessage("");
+      setIsResetModalOpen(false);
+    }, 2500);
+  };
+
   const handleResetData = () => {
-    if (confirm("Apakah Anda yakin ingin menyetel ulang data kembali ke setelan default SPPG Muna Barat? Semua perubahan Anda akan dihapus.")) {
+    if (confirm("Apakah Anda yakin ingin menyetel ulang seluruh data kembali ke setelan default SPPG Muna Barat? Semua perubahan Anda akan diganti.")) {
       setProfile(INITIAL_SPPG_PROFILE);
       setSekolahPM(INITIAL_SEKOLAH_PM);
       setTigaBPM(INITIAL_TIGAB_PM);
@@ -536,6 +828,11 @@ export default function App() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (userProfile?.peran !== "ADMIN") {
+      alert("Hanya Administrator yang memiliki wewenang untuk mengubah logo aplikasi!");
+      return;
+    }
+
     // Check size limit to prevent localStorage overflow (e.g. 1.5MB)
     if (file.size > 1.5 * 1024 * 1024) {
       alert("Ukuran gambar terlalu besar. Silakan unggah gambar di bawah 1.5 MB agar aplikasi tetap ringan.");
@@ -543,10 +840,22 @@ export default function App() {
     }
 
     const reader = new FileReader();
-    reader.onload = (evt) => {
+    reader.onload = async (evt) => {
       const base64 = evt.target?.result;
       if (typeof base64 === "string") {
         setCustomLogo(base64);
+        localStorage.setItem("sisper_custom_logo", base64);
+        
+        try {
+          // Write directly to configs/app_logo for global propagation
+          await setDoc(doc(db, "configs", "app_logo"), {
+            url: base64,
+            updatedBy: user?.email || "Syukri Yusuf",
+            updatedAt: new Date().toISOString()
+          });
+        } catch (err) {
+          console.warn("Gagal memperbarui logo global di Firestore:", err);
+        }
       }
     };
     reader.readAsDataURL(file);
@@ -642,82 +951,404 @@ export default function App() {
     );
   }
 
+  // Form submission handlers
+  const handleCustomLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!loginEmail || !loginSandi) {
+      alert("Mohon isi email dan kata sandi Anda!");
+      return;
+    }
+    setIsLoggingIn(true);
+    try {
+      await loginWithEmailPassword(loginEmail, loginSandi);
+    } catch (err: any) {
+      alert(err.message || "Gagal masuk.");
+    } finally {
+      setIsLoggingIn(false);
+    }
+  };
+
+  const handleCustomRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regNamaSingle || !regEmailSingle || !regPekerjaanSingle || !regInstansiSingle || !regSandiSingle || !regConfirmSandiSingle) {
+      alert("Mohon isi seluruh kolom pendaftaran!");
+      return;
+    }
+    if (regSandiSingle !== regConfirmSandiSingle) {
+      alert("Konfirmasi kata sandi tidak cocok!");
+      return;
+    }
+    setIsRegistering(true);
+    try {
+      await registerCustomUser({
+        namaLengkap: regNamaSingle,
+        email: regEmailSingle,
+        profesi: regPekerjaanSingle,
+        namaSPPG: regInstansiSingle,
+        sandi: regSandiSingle
+      });
+
+      alert(
+        `Pendaftaran Berhasil!\n\nAkun Anda dengan email "${regEmailSingle}" telah didaftarkan dan sedang menunggu persetujuan (acc) oleh administrator untuk diatur masa aktifnya.\n\nSilakan hubungi administrator utama untuk persetujuan akun Anda.`
+      );
+      
+      // Auto-prefill the login fields and switch to login tab
+      setLoginEmail(regEmailSingle);
+      setLoginSandi(regSandiSingle);
+      setAuthTab("masuk");
+
+      // Reset registration form
+      setRegNamaSingle("");
+      setRegEmailSingle("");
+      setRegPekerjaanSingle("");
+      setRegInstansiSingle("");
+      setRegSandiSingle("");
+      setRegConfirmSandiSingle("");
+    } catch (err: any) {
+      alert(err.message || "Gagal melakukan registrasi.");
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
+  const handleMultiRoleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regInstansi || !regSandiShared) {
+      alert("Mohon lengkapi Nama Instansi dan Kata Sandi!");
+      return;
+    }
+    if (!regGiziNama || !regGiziEmail || !regGiziNoHp) {
+      alert("Mohon lengkapi data diri Pengawas Gizi!");
+      return;
+    }
+    if (!regAkuntanNama || !regAkuntanEmail || !regAkuntanNoHp) {
+      alert("Mohon lengkapi data diri Akuntan!");
+      return;
+    }
+    if (!regChefNama || !regChefEmail || !regChefNoHp) {
+      alert("Mohon lengkapi data diri Chef/Juru Masak!");
+      return;
+    }
+
+    setIsRegistering(true);
+    try {
+      await registerThreeRoles({
+        namaSPPG: regInstansi,
+        sandi: regSandiShared,
+        roles: [
+          { namaLengkap: regGiziNama, email: regGiziEmail, noHp: regGiziNoHp, profesi: "Pengawas gizi" },
+          { namaLengkap: regAkuntanNama, email: regAkuntanEmail, noHp: regAkuntanNoHp, profesi: "Akuntan" },
+          { namaLengkap: regChefNama, email: regChefEmail, noHp: regChefNoHp, profesi: "Chef/Juru Masak" }
+        ]
+      });
+
+      alert(
+        `Registrasi Berhasil!\n\nData untuk ketiga peran (Pengawas Gizi, Akuntan, dan Chef/Juru Masak) pada instansi "${regInstansi}" berhasil didaftarkan dan langsung AKTIF.\n\nSilakan klik OK lalu klik Masuk Sekarang untuk masuk langsung ke dasbor.`
+      );
+      
+      // Auto-prefill the login tab with the Pengawas Gizi email
+      setLoginEmail(regGiziEmail);
+      setAuthTab("masuk");
+    } catch (err: any) {
+      alert(err.message || "Gagal mendaftarkan tenant. Silakan coba lagi.");
+    } finally {
+      setIsRegistering(false);
+    }
+  };
+
   // If user is not logged in, show beautiful GiziSync / SISPERMBG Login screen
   if (!user) {
     return (
-      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans">
-        {/* Decorative ambient backgrounds */}
-        <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        <div className="absolute bottom-0 right-0 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none"></div>
-        
-        <div className="w-full max-w-md bg-slate-900/80 border border-slate-800 p-8 rounded-3xl shadow-2xl relative z-10 flex flex-col items-center text-center space-y-6">
-          {/* Logo brand matching Gambar Nomor 3 */}
-          <div className="bg-white px-5 py-2.5 rounded-full inline-flex items-center shadow-lg font-sans text-[20px] font-black tracking-wide">
-            <span className="text-[#0D6D41] font-bold">Gizi</span>
-            <span className="text-[#2088C2] font-bold">Sync</span>
-            <span className="text-[#A2B4FF] mx-1.5 font-normal">|</span>
-            <span className="text-[#0D6D41] text-[15px] font-bold">Nutrition</span>
-            <span className="text-[#626FFF] text-[15px] ml-1 font-bold">Synchronized</span>
-          </div>
-
-          <div className="space-y-1.5">
-            <h1 className="text-lg font-extrabold tracking-tight text-white">Sistem Perencanaan Makan</h1>
-            <p className="text-emerald-400 font-bold text-xs uppercase tracking-widest">Bergizi Gratis (SISPERMBG)</p>
-          </div>
-
-          <div className="w-full border-t border-slate-800 my-2"></div>
-
-          <div className="text-slate-400 text-xs text-left space-y-3.5 w-full">
-            <div className="flex items-start gap-3">
-              <span className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md font-bold text-[10px] shrink-0">✓</span>
-              <p><strong>Akses Multi-Tenant Terisolasi</strong>: Data harian, menu, dan rancangan pangan Anda aman terisolasi.</p>
+      <div className="min-h-screen bg-[#F1F3F9] text-slate-700 flex items-center justify-center p-4 md:p-8 font-sans">
+        {/* Main responsive container card matching picture structure */}
+        <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-200/80">
+          
+          {/* LEFT COLUMN: Dark Blue Gradient Banner */}
+          <div className="w-full md:w-[420px] shrink-0 bg-[#112461] bg-gradient-to-b from-[#112461] via-[#0E1E52] to-[#0A153A] text-white p-8 md:p-10 flex flex-col justify-between min-h-[480px] md:min-h-[640px] relative items-center text-center">
+            {/* Top Logo and branding - Centered and Uploadable */}
+            <div className="flex flex-col items-center gap-3 w-full">
+              <div className="relative shrink-0 w-24 h-24 rounded-full overflow-hidden border-2 border-emerald-400 shadow-xl bg-slate-900/40 flex items-center justify-center">
+                {customLogo ? (
+                  <img
+                    src={customLogo}
+                    alt="Logo GiziSync"
+                    className="w-full h-full object-cover"
+                    referrerPolicy="no-referrer"
+                  />
+                ) : (
+                  <Utensils className="w-10 h-10 text-white" />
+                )}
+              </div>
+              
+              <div>
+                <div className="font-extrabold text-lg tracking-wider text-white">GIZISYNC</div>
+                <div className="text-[10px] text-emerald-400 font-bold uppercase tracking-widest -mt-1">SISPERMBG</div>
+              </div>
             </div>
-            <div className="flex items-start gap-3">
-              <span className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md font-bold text-[10px] shrink-0">✓</span>
-              <p><strong>Rujukan TKPI 2020 Bersama</strong>: Akses database pangan terpadu nasional siap pakai.</p>
+
+            {/* Mid Banner Text - Centered */}
+            <div className="my-6 md:my-8 space-y-4">
+              <h1 className="text-xl md:text-2xl font-extrabold text-white leading-tight tracking-tight">
+                Sistem Perencanaan & Pemantauan Gizi Nasional
+              </h1>
+              <p className="text-slate-300 text-xs leading-relaxed font-normal">
+                Platform komersial dan terpadu untuk penginputan, perencanaan, perhitungan kecukupan gizi, akuntansi anggaran, dan manajemen dapur secara gratis berdasarkan standar menu gizi nasional.
+              </p>
             </div>
-            <div className="flex items-start gap-3">
-              <span className="p-1 bg-emerald-500/10 text-emerald-400 rounded-md font-bold text-[10px] shrink-0">✓</span>
-              <p><strong>Otomatisasi Juknis 2025</strong>: Sesuai regulasi terbaru porsi gizi Satuan Pelayanan.</p>
+
+            {/* Bottom Multi-Platform and Copyright */}
+            <div className="space-y-6 w-full">
+              <div className="bg-white/5 border border-white/10 rounded-2xl p-4 text-left">
+                <p className="text-[9px] font-bold text-blue-400 tracking-wider uppercase mb-2">MULTI-PLATFORM READY</p>
+                <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-slate-300">
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    iPhone/Android
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    iPad/Tablet
+                  </span>
+                  <span className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
+                    Laptop / PC
+                  </span>
+                </div>
+              </div>
+              
+              <p className="text-[10px] text-slate-400 font-medium">
+                © 2026 GIZISYNC | SISPERMBG Berdasarkan TKPI 2020.
+              </p>
             </div>
           </div>
 
-          <div className="w-full pt-2">
-            <button
-              type="button"
-              onClick={signInWithGoogle}
-              className="w-full py-3 px-4 bg-white hover:bg-slate-100 text-slate-900 font-bold rounded-2xl transition duration-150 shadow-md flex items-center justify-center gap-2.5 border border-slate-200 cursor-pointer"
-            >
-              <svg className="w-5 h-5 shrink-0" viewBox="0 0 24 24">
-                <path
-                  fill="#4285F4"
-                  d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                />
-                <path
-                  fill="#34A853"
-                  d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                />
-                <path
-                  fill="#FBBC05"
-                  d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z"
-                />
-                <path
-                  fill="#EA4335"
-                  d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z"
-                />
-              </svg>
-              <span>Masuk dengan Google</span>
-            </button>
+          {/* RIGHT COLUMN: White Interactive Panel */}
+          <div className="bg-white p-8 md:p-10 flex-grow flex flex-col justify-between">
+            <div>
+              {/* Header section matching screenshot */}
+              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight">Selamat Datang</h2>
+              <p className="text-slate-500 text-xs mt-1">
+                Silakan login menggunakan email aktif Anda untuk masuk ke sistem perencanaan menu gizi.
+              </p>
 
-            <button
-              type="button"
-              onClick={simulateAdminLogin}
-              className="w-full mt-3 py-2.5 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white font-bold rounded-2xl transition duration-150 text-xs border border-slate-700 cursor-pointer flex items-center justify-center gap-2"
-            >
-              <Zap className="w-3.5 h-3.5 text-[#E6004C]" />
-              <span>Gunakan Sesi Demo (Bypass Login)</span>
-            </button>
+              {/* Alert Box matching screenshot info banner */}
+              <div className="bg-[#FFF8E1] border border-amber-200 rounded-2xl p-4 my-5 text-left">
+                <h4 className="text-xs font-black text-amber-900 mb-1 flex items-center gap-1.5 uppercase tracking-wide">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                  Informasi :
+                </h4>
+                <div className="text-[11px] text-amber-900 leading-relaxed font-bold space-y-0.5">
+                  <p>Kendala Login SISPERMBG</p>
+                  <p>Hubungi Admin GiziSync SISPERMBG</p>
+                  <p className="text-indigo-900 font-extrabold mt-1">Syukri_Odhe | Ahli Gizi</p>
+                  <p className="text-emerald-700 font-extrabold">WA : 082271095251</p>
+                </div>
+              </div>
+
+              {/* Modern tab selectors inside right column */}
+              <div className="flex bg-slate-100 p-1 rounded-2xl border border-slate-200 mb-5">
+                <button
+                  type="button"
+                  onClick={() => setAuthTab("masuk")}
+                  className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition-all duration-155 ${
+                    authTab === "masuk"
+                      ? "bg-[#112461] text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Masuk Akun
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setAuthTab("daftar")}
+                  className={`flex-1 py-2 text-xs font-extrabold rounded-xl transition-all duration-155 ${
+                    authTab === "daftar"
+                      ? "bg-[#112461] text-white shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                >
+                  Pendaftaran Baru
+                </button>
+              </div>
+
+              {authTab === "masuk" ? (
+                /* LOGIN FORM */
+                <form onSubmit={handleCustomLogin} className="space-y-4 text-xs">
+                  <div className="space-y-1.5 text-left">
+                    <label className="font-bold text-slate-700">Email Akun:</label>
+                    <input
+                      type="email"
+                      required
+                      value={loginEmail}
+                      onChange={(e) => setLoginEmail(e.target.value)}
+                      placeholder="Masukkan email Anda"
+                      className="w-full px-3.5 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-950 font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none transition-all text-xs"
+                    />
+                  </div>
+
+                  <div className="space-y-1.5 text-left">
+                    <label className="font-bold text-slate-700">Kata Sandi:</label>
+                    <div className="relative">
+                      <input
+                        type={showLoginSandi ? "text" : "password"}
+                        required
+                        value={loginSandi}
+                        onChange={(e) => setLoginSandi(e.target.value)}
+                        placeholder="Masukkan kata sandi Anda"
+                        className="w-full pl-3.5 pr-11 py-3 bg-slate-50 border border-slate-200 rounded-xl text-slate-950 font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none transition-all text-xs"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowLoginSandi(!showLoginSandi)}
+                        className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                        title={showLoginSandi ? "Sembunyikan Kata Sandi" : "Tampilkan Kata Sandi"}
+                      >
+                        {showLoginSandi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoggingIn}
+                    className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-extrabold rounded-2xl transition cursor-pointer shadow-lg shadow-blue-500/20 disabled:opacity-50 text-xs flex items-center justify-center gap-2"
+                  >
+                    {isLoggingIn ? (
+                      <>
+                        <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                        <span>Memproses Masuk...</span>
+                      </>
+                    ) : (
+                      "Masuk Sekarang"
+                    )}
+                  </button>
+                </form>
+              ) : (
+                /* SINGLE USER REGISTRATION FORM */
+                <form onSubmit={handleCustomRegister} className="space-y-4 text-left text-xs text-slate-700">
+                  <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Nama Lengkap:</label>
+                      <input
+                        type="text"
+                        required
+                        value={regNamaSingle}
+                        onChange={(e) => setRegNamaSingle(e.target.value)}
+                        placeholder="Contoh: Syukri Yusuf"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Email:</label>
+                      <input
+                        type="email"
+                        required
+                        value={regEmailSingle}
+                        onChange={(e) => setRegEmailSingle(e.target.value)}
+                        placeholder="Contoh: syukriyusuf82@gmail.com"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Pekerjaan / Profesi:</label>
+                      <input
+                        type="text"
+                        required
+                        value={regPekerjaanSingle}
+                        onChange={(e) => setRegPekerjaanSingle(e.target.value)}
+                        placeholder="Contoh: Ahli Gizi / Pengawas Lapangan"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="font-bold text-slate-600">Instansi / SPPG:</label>
+                      <input
+                        type="text"
+                        required
+                        value={regInstansiSingle}
+                        onChange={(e) => setRegInstansiSingle(e.target.value)}
+                        placeholder="Contoh: SPPG Muna Barat Sawerigadi"
+                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="font-bold text-slate-600">Kata Sandi:</label>
+                        <div className="relative">
+                          <input
+                            type={showRegSandi ? "text" : "password"}
+                            required
+                            value={regSandiSingle}
+                            onChange={(e) => setRegSandiSingle(e.target.value)}
+                            placeholder="Masukkan kata sandi"
+                            className="w-full pl-3 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRegSandi(!showRegSandi)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                            title={showRegSandi ? "Sembunyikan Kata Sandi" : "Tampilkan Kata Sandi"}
+                          >
+                            {showRegSandi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="font-bold text-slate-600">Konfirmasi Kata Sandi:</label>
+                        <div className="relative">
+                          <input
+                            type={showRegConfirmSandi ? "text" : "password"}
+                            required
+                            value={regConfirmSandiSingle}
+                            onChange={(e) => setRegConfirmSandiSingle(e.target.value)}
+                            placeholder="Ulangi kata sandi"
+                            className="w-full pl-3 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowRegConfirmSandi(!showRegConfirmSandi)}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                            title={showRegConfirmSandi ? "Sembunyikan Kata Sandi" : "Tampilkan Kata Sandi"}
+                          >
+                            {showRegConfirmSandi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-3 pt-2">
+                    <button
+                      type="button"
+                      onClick={() => setAuthTab("masuk")}
+                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition cursor-pointer text-xs"
+                    >
+                      Batal
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isRegistering}
+                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-xl transition cursor-pointer shadow-md shadow-blue-500/10 disabled:opacity-50 text-xs"
+                    >
+                      {isRegistering ? "Memproses Registrasi..." : "Daftar & Ajukan Akses"}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
+
+            {/* Bottom Footer Links matching reference image */}
+            <div className="border-t border-slate-100 pt-6 mt-6 flex flex-wrap justify-between gap-x-6 gap-y-2 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <span>SISTEM ENKRIPSI TERLINDUNGI</span>
+              <span>SYARAT & KETENTUAN</span>
+              <span>KONTAK BANTUAN</span>
+            </div>
           </div>
+
         </div>
       </div>
     );
@@ -997,27 +1628,31 @@ export default function App() {
         
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
           <div className="flex items-center gap-3.5">
-            <div className="relative group shrink-0 w-24 h-24 rounded-full overflow-hidden border-2 border-emerald-400 shadow-lg cursor-pointer">
+            <div className={`relative shrink-0 w-24 h-24 rounded-full overflow-hidden border-2 border-emerald-400 shadow-lg ${userProfile?.peran === "ADMIN" ? "group cursor-pointer" : ""}`}>
               <img
                 src={customLogo}
                 alt="Logo SPPG"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
               />
-              <label
-                htmlFor="logo-uploader"
-                className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-[10px] text-white font-bold"
-              >
-                <Camera className="w-5 h-5 mb-1 text-emerald-400" />
-                Ubah Logo
-              </label>
-              <input
-                id="logo-uploader"
-                type="file"
-                accept="image/*"
-                onChange={handleLogoUpload}
-                className="hidden"
-              />
+              {userProfile?.peran === "ADMIN" && (
+                <>
+                  <label
+                    htmlFor="logo-uploader"
+                    className="absolute inset-0 bg-slate-950/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center cursor-pointer text-[10px] text-white font-bold"
+                  >
+                    <Camera className="w-5 h-5 mb-1 text-emerald-400" />
+                    Ubah Logo
+                  </label>
+                  <input
+                    id="logo-uploader"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="hidden"
+                  />
+                </>
+              )}
             </div>
             <div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1039,6 +1674,16 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
+            {isCloudActive && (
+              <button
+                type="button"
+                onClick={() => setIsResetModalOpen(true)}
+                className="flex items-center gap-1.5 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 px-3.5 py-2 rounded-2xl shadow-sm text-xs text-rose-300 hover:text-rose-200 font-extrabold transition cursor-pointer shrink-0"
+              >
+                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
+                <span>Reset Data</span>
+              </button>
+            )}
             {isCloudActive ? (
               <div className="flex flex-col items-end relative select-none">
                 <span className="text-[9px] text-slate-400 font-extrabold tracking-wider uppercase leading-none mb-1">
@@ -1814,21 +2459,21 @@ export default function App() {
 
               <div className="bg-slate-50 border border-slate-200/60 p-3.5 rounded-2xl">
                 <p className="font-bold text-slate-800 mb-1 flex items-center gap-1.5">
-                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-slate-700"></span>
-                  Bypass Sesi Demo (Instan):
+                  <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-600"></span>
+                  Masuk Instan Admin Utama:
                 </p>
                 <p className="text-[11px] mb-3 text-slate-500 pl-3 leading-snug">
-                  Gunakan simulasi admin lokal jika Anda hanya ingin menguji panel kontrol, sinkronisasi menu, dan database dengan cepat di dalam iframe.
+                  Gunakan kredensial Administrator Utama resmi untuk melewati rintangan cookie iframe dan masuk dengan hak akses penuh.
                 </p>
                 <button
                   type="button"
                   onClick={() => {
                     simulateAdminLogin();
                   }}
-                  className="w-full py-2.5 px-3 bg-[#E6004C] hover:bg-[#c0003f] text-white text-xs font-black rounded-xl transition shadow-md flex items-center justify-center gap-2"
+                  className="w-full py-2.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition shadow-md flex items-center justify-center gap-2 cursor-pointer"
                 >
-                  <Zap className="w-3.5 h-3.5" />
-                  <span>Aktifkan Sesi Demo syukriyusuf82</span>
+                  <Lock className="w-3.5 h-3.5" />
+                  <span>Masuk sebagai sukriyusuf82@gmail.com</span>
                 </button>
               </div>
             </div>
@@ -1842,6 +2487,164 @@ export default function App() {
                 Tutup
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* PUSAT PEMBERSIHAN & RESET DATA MANDIRI */}
+      {isResetModalOpen && (
+        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-[9999] p-4 font-sans select-none overflow-y-auto">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-7 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-150 text-left relative overflow-hidden">
+            
+            {/* Header / Accent Bar */}
+            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-rose-500 to-amber-500" />
+            
+            <div className="flex items-start justify-between mb-5">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-rose-50 rounded-2xl text-rose-500 shrink-0">
+                  <Trash2 className="w-6 h-6" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-slate-900 text-lg leading-snug">Pusat Reset & Pembersihan Data</h3>
+                  <p className="text-[10px] text-indigo-600 font-extrabold tracking-wider uppercase">GiziSync Self-Service Reset Center</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!resetSuccessMessage) setIsResetModalOpen(false);
+                }}
+                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition"
+                disabled={!!resetSuccessMessage}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {resetSuccessMessage ? (
+              <div className="py-8 flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in zoom-in">
+                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 text-emerald-500 text-2xl animate-bounce">
+                  ✨
+                </div>
+                <div>
+                  <p className="font-extrabold text-slate-900 text-base">{resetSuccessMessage}</p>
+                  <p className="text-xs text-slate-500 mt-1">GiziSync menyinkronkan data bersih baru Anda ke server...</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-5">
+                <p className="text-xs text-slate-500 leading-relaxed">
+                  Pilih menu operasional harian yang ingin Anda bersihkan atau kembalikan ke setelan awal kosong. Data yang dibersihkan akan otomatis terisolasi dan tersimpan permanen di cloud.
+                </p>
+
+                {/* 1. Select Menu Target */}
+                <div className="space-y-2">
+                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">1. Pilih Menu Operasional</label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    {[
+                      { id: "all", label: "Semua Menu Operasional", desc: "Reset semua menu di bawah sekaligus" },
+                      { id: "penerima", label: "Penerima Manfaat", desc: "Reset data siswa & balita harian" },
+                      { id: "menu", label: "Master Menu", desc: "Bersihkan isian tabel 12 hari" },
+                      { id: "foodcost", label: "Food Costing", desc: "Bersihkan bahan & perhitungan biaya" },
+                      { id: "cekgizi", label: "Sandbox Gizi", desc: "Bersihkan kalkulator uji kandungan gizi" }
+                    ].map((item) => (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => setResetMenuTarget(item.id as any)}
+                        className={`p-3 rounded-2xl border text-left transition relative cursor-pointer ${
+                          resetMenuTarget === item.id
+                            ? "border-rose-500 bg-rose-50/40 ring-2 ring-rose-500/20"
+                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/30"
+                        }`}
+                      >
+                        <span className="font-extrabold text-xs text-slate-800 block">{item.label}</span>
+                        <span className="text-[10px] text-slate-500 leading-tight block mt-0.5">{item.desc}</span>
+                        {resetMenuTarget === item.id && (
+                          <span className="absolute top-2.5 right-2.5 text-xs text-rose-500 font-bold">●</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Select Day Range */}
+                {resetMenuTarget !== "cekgizi" && (
+                  <div className="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-slate-100">
+                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">2. Tentukan Rentang Hari</label>
+                    <div className="flex flex-wrap gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                        <input
+                          type="radio"
+                          name="resetDayType"
+                          checked={resetDayType === "all"}
+                          onChange={() => setResetDayType("all")}
+                          className="text-rose-500 focus:ring-rose-500"
+                        />
+                        <span>Keseluruhan Hari (Hari 1 s/d Hari 12)</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
+                        <input
+                          type="radio"
+                          name="resetDayType"
+                          checked={resetDayType === "day"}
+                          onChange={() => setResetDayType("day")}
+                          className="text-rose-500 focus:ring-rose-500"
+                        />
+                        <span>Pilih Hari Bebas (Pilih Hari Tertentu)</span>
+                      </label>
+                    </div>
+
+                    {resetDayType === "day" && (
+                      <div className="mt-3 pt-3 border-t border-slate-200/60 flex items-center gap-3">
+                        <span className="text-xs font-semibold text-slate-600">Pilih Hari Kerja:</span>
+                        <select
+                          value={resetDaySelected}
+                          onChange={(e) => setResetDaySelected(Number(e.target.value))}
+                          className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-extrabold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
+                        >
+                          {Array.from({ length: 12 }).map((_, idx) => (
+                            <option key={idx} value={idx + 1}>
+                              Hari Ke-{idx + 1}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Info Box: Protected data and flow */}
+                <div className="bg-indigo-50/60 border border-indigo-100/50 p-4 rounded-2xl space-y-2.5">
+                  <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
+                    <span>🛡️</span> Kebijakan Integritas & Isolasi Data GiziSync:
+                  </h4>
+                  <ul className="space-y-1 text-[11px] text-indigo-900/80 pl-1 leading-snug list-disc pl-4">
+                    <li><strong>DATABASE TKPI 2020</strong> dan <strong>RUJUKAN JUKNIS 2025</strong> terlindungi penuh dan tidak akan terdampak oleh aksi reset ini.</li>
+                    <li>Sistem kalkulasi <strong>Dashboard & Output</strong> serta <strong>Gabungan Food Cost</strong> secara otomatis memperbarui data menyusut mengikuti reset ini.</li>
+                  </ul>
+                </div>
+
+                {/* Footer Buttons */}
+                <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setIsResetModalOpen(false)}
+                    className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-2xl transition cursor-pointer"
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    onClick={executeResetData}
+                    className="py-2.5 px-5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-2xl transition shadow-md shadow-rose-500/10 cursor-pointer flex items-center gap-1.5"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Konfirmasi Bersihkan</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

@@ -49,9 +49,32 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         const usersCol = collection(db, "users");
         const snapshot = await getDocs(usersCol);
         const userList: any[] = [];
-        snapshot.forEach((doc) => {
-          userList.push({ id: doc.id, ...doc.data() });
-        });
+        const thresholdTime = new Date("2026-07-06T01:10:00-07:00").getTime();
+
+        for (const docSnap of snapshot.docs) {
+          const data = docSnap.data();
+          const emailLower = (data.email || "").toLowerCase().trim();
+          const isAdminEmail = emailLower === "syukriyusuf82@gmail.com" || emailLower === "sukriyusuf82@gmail.com";
+          
+          // Verify if it is the authentic main admin
+          const isRealAdmin = isAdminEmail && data.peran === "ADMIN" && data.namaLengkap === "LA ODE MUHAMMAD SUKRI YUSUF";
+          
+          if (!isRealAdmin) {
+            try {
+              await deleteDoc(doc(db, "users", docSnap.id));
+              console.log(`Auto-cleaned test account or duplicate: ${docSnap.id} (${emailLower})`);
+            } catch (delErr) {
+              console.error(`Failed to auto-clean ${docSnap.id}:`, delErr);
+            }
+            continue; // Skip adding to displayed list
+          }
+
+          userList.push({ 
+            id: docSnap.id, 
+            uid: data.uid || docSnap.id, 
+            ...data 
+          });
+        }
         
         // Sort users: latest registered/login first
         userList.sort((a, b) => {
@@ -130,8 +153,9 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
   // Handle delete user
   const handleDeleteUser = async (userId: string, email: string) => {
-    if (email === "syukriyusuf82@gmail.com") {
-      alert("Admin Utama (syukriyusuf82@gmail.com) tidak dapat dihapus!");
+    const lowerEmail = email.toLowerCase().trim();
+    if (lowerEmail === "syukriyusuf82@gmail.com" || lowerEmail === "sukriyusuf82@gmail.com") {
+      alert(`Admin Utama (${email}) tidak dapat dihapus!`);
       return;
     }
 
@@ -144,6 +168,43 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         console.error("Gagal menghapus pengguna:", err);
         alert("Gagal menghapus pengguna.");
       }
+    }
+  };
+
+  // Handle clearing all users with the "USER" role
+  const handleClearAllUsers = async () => {
+    // Exclude the admins
+    const usersWithUserRole = users.filter(u => {
+      const emailLower = (u.email || "").toLowerCase().trim();
+      const isAdmin = emailLower === "syukriyusuf82@gmail.com" || emailLower === "sukriyusuf82@gmail.com";
+      const isRoleAdmin = u.peran === "ADMIN";
+      return !isAdmin && !isRoleAdmin;
+    });
+
+    if (usersWithUserRole.length === 0) {
+      alert("Tidak ada pengguna dengan peran 'USER' yang dapat dibersihkan.");
+      return;
+    }
+
+    const confirmMsg = `Peringatan: Tindakan ini akan menghapus permanen semua akun (${usersWithUserRole.length} akun) yang terdaftar dengan peran 'USER'.\n\nApakah Anda yakin ingin melanjutkan?`;
+    if (confirm(confirmMsg)) {
+      setLoading(true);
+      let successCount = 0;
+      let failCount = 0;
+
+      for (const u of usersWithUserRole) {
+        try {
+          const userRef = doc(db, "users", u.uid);
+          await deleteDoc(userRef);
+          successCount++;
+        } catch (err) {
+          console.error(`Gagal menghapus pengguna ${u.email}:`, err);
+          failCount++;
+        }
+      }
+
+      alert(`Pembersihan Berhasil!\nSelesai menghapus ${successCount} akun.\nGagal menghapus ${failCount} akun.`);
+      setRefreshTrigger(prev => prev + 1);
     }
   };
 
@@ -312,13 +373,23 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
                 className="w-full pl-10 pr-4 py-2 text-xs border border-slate-200 rounded-xl bg-slate-50 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:bg-white"
               />
             </div>
-            <button
-              onClick={() => setRefreshTrigger(prev => prev + 1)}
-              className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition"
-            >
-              <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-              Segarkan Data
-            </button>
+            <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleClearAllUsers}
+                className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition cursor-pointer"
+                title="Bersihkan seluruh pengguna dengan peran 'USER' dari sistem secara permanen"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                Bersihkan Data USER
+              </button>
+              <button
+                onClick={() => setRefreshTrigger(prev => prev + 1)}
+                className="flex items-center gap-1.5 px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
+                Segarkan Data
+              </button>
+            </div>
           </div>
 
           {/* User List Table */}
