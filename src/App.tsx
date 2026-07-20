@@ -127,6 +127,16 @@ export default function App() {
     return localStorage.getItem("sisper_custom_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg";
   });
 
+  // State untuk penyesuaian/pemotongan logo profil
+  const [isCropModalOpen, setIsCropModalOpen] = useState(false);
+  const [cropImageSrc, setCropImageSrc] = useState<string>("");
+  const [cropImageRatio, setCropImageRatio] = useState<number>(1);
+  const [cropZoom, setCropZoom] = useState<number>(1);
+  const [cropOffsetX, setCropOffsetX] = useState<number>(0);
+  const [cropOffsetY, setCropOffsetY] = useState<number>(0);
+  const [cropDragging, setCropDragging] = useState(false);
+  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
+
   // Synchronized KOP Surat & Logos
   const [kopLine1, setKopLine1] = useState(() => localStorage.getItem("kop_line1") || "BADAN GIZI NASIONAL");
   const [kopLine2, setKopLine2] = useState(() => localStorage.getItem("kop_line2") || "SATUAN PELAYANAN PEMENUHAN GIZI");
@@ -145,11 +155,23 @@ export default function App() {
     ];
   });
 
-  // Pusat Reset Data State
-  const [isResetModalOpen, setIsResetModalOpen] = useState(false);
-  const [resetMenuTarget, setResetMenuTarget] = useState<"all" | "penerima" | "menu" | "foodcost" | "cekgizi">("all");
-  const [resetDayType, setResetDayType] = useState<"all" | "day">("all");
-  const [resetDaySelected, setResetDaySelected] = useState<number>(1);
+  // Sistem Manajemen Multi-Periode & Riwayat Perencanaan
+  const [savedPeriods, setSavedPeriods] = useState<any[]>(() => {
+    const saved = localStorage.getItem("sisper_saved_periods");
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  // Pengaturan Target Harga & Klasifikasi Sasaran PM
+  const [pmSettings, setPmSettings] = useState<any>(() => {
+    const saved = localStorage.getItem("sisper_pm_settings");
+    if (saved) return JSON.parse(saved);
+    return {
+      porsiKecilHarga: 8000,
+      porsiBesarHarga: 10000,
+      porsiKecilSasaranIds: ["tk_paud_lb", "sd_kelas_1_3", "anak_balita", "anak_balita_13_59", "balita_6_11"],
+      porsiBesarSasaranIds: ["sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan", "ibu_hamil", "ibu_menyusui"]
+    };
+  });
 
   const { 
     user, 
@@ -256,6 +278,8 @@ export default function App() {
           const cloudKopLeftLogo = await loadStateFromCloud("kopLeftLogo");
           const cloudKopRightLogo = await loadStateFromCloud("kopRightLogo");
           const cloudCekGiziItems = await loadStateFromCloud("cekGiziItems");
+          const cloudSavedPeriods = await loadStateFromCloud("savedPeriods");
+          const cloudPmSettings = await loadStateFromCloud("pmSettings");
 
           // Determine if user is the main admin or has an approved admin role
           const isAdminUser = user.email === "sukriyusuf82@gmail.com" || user.email === "syukriyusuf82@gmail.com" || userProfile?.peran === "ADMIN";
@@ -375,6 +399,26 @@ export default function App() {
             setCekGiziItems(defaultCekGizi);
             await saveStateToCloud("cekGiziItems", defaultCekGizi);
           }
+
+          if (cloudSavedPeriods) {
+            setSavedPeriods(cloudSavedPeriods);
+          } else {
+            setSavedPeriods([]);
+            await saveStateToCloud("savedPeriods", []);
+          }
+
+          if (cloudPmSettings) {
+            setPmSettings(cloudPmSettings);
+          } else {
+            const defaultPmSettings = {
+              porsiKecilHarga: 8000,
+              porsiBesarHarga: 10000,
+              porsiKecilSasaranIds: ["tk_paud_lb", "sd_kelas_1_3", "anak_balita", "anak_balita_13_59", "balita_6_11"],
+              porsiBesarSasaranIds: ["sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan", "ibu_hamil", "ibu_menyusui"]
+            };
+            setPmSettings(defaultPmSettings);
+            await saveStateToCloud("pmSettings", defaultPmSettings);
+          }
           
           setCloudStatusMessage("Awan Aktif");
         } catch (error) {
@@ -407,7 +451,14 @@ export default function App() {
         { id: "item_2", namaMenu: "Menu Uji Coba", tkpiId: "daging_ayam_tanpa_kulit", berat: 60, urt: "1 potong" },
         { id: "item_3", namaMenu: "Menu Uji Coba", tkpiId: "wortel_segar", berat: 30, urt: "1/2 gelas" }
       ]);
-
+      setSavedPeriods([]);
+      setPmSettings({
+        porsiKecilHarga: 8000,
+        porsiBesarHarga: 10000,
+        porsiKecilSasaranIds: ["tk_paud_lb", "sd_kelas_1_3", "anak_balita", "anak_balita_13_59", "balita_6_11"],
+        porsiBesarSasaranIds: ["sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan", "ibu_hamil", "ibu_menyusui"]
+      });
+ 
       // Wipe local storage keys so next login is completely fresh
       localStorage.removeItem("sisper_profile");
       localStorage.removeItem("sisper_sekolah");
@@ -424,6 +475,8 @@ export default function App() {
       localStorage.removeItem("kop_left_logo");
       localStorage.removeItem("kop_right_logo");
       localStorage.removeItem("sisper_cek_gizi_items");
+      localStorage.removeItem("sisper_saved_periods");
+      localStorage.removeItem("sisper_pm_settings");
     }
 
     return () => unsubscribeLogo();
@@ -550,115 +603,27 @@ export default function App() {
     }
   }, [cekGiziItems, isCloudActive, isCloudLoading]);
 
+  useEffect(() => {
+    localStorage.setItem("sisper_saved_periods", JSON.stringify(savedPeriods));
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("savedPeriods", savedPeriods), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [savedPeriods, isCloudActive, isCloudLoading]);
+
+  useEffect(() => {
+    localStorage.setItem("sisper_pm_settings", JSON.stringify(pmSettings));
+    if (isCloudActive && !isCloudLoading) {
+      const timer = setTimeout(() => saveStateToCloud("pmSettings", pmSettings), 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [pmSettings, isCloudActive, isCloudLoading]);
+
   // Recipient totals (using Day 1 as default baseline display)
   const defaultDayCounts = getCountsForDay(harianPM, 1);
   const totalSekolahSiswa = defaultDayCounts.pmKecilSekolah + defaultDayCounts.pmBesarSekolah;
   const total3BOrang = defaultDayCounts.totalBalita + defaultDayCounts.totalBumil + defaultDayCounts.totalBusui;
   const grandTotalRecipients = totalSekolahSiswa + total3BOrang;
-
-  // Reset demo data
-  const [resetSuccessMessage, setResetSuccessMessage] = useState("");
-
-  const executeResetData = () => {
-    // 1. Reset Penerima Manfaat
-    if (resetMenuTarget === "all" || resetMenuTarget === "penerima") {
-      if (resetDayType === "all") {
-        setHarianPM(EMPTY_HARIAN_PM);
-        setSekolahPM(EMPTY_SEKOLAH_PM);
-        setTigaBPM(EMPTY_TIGAB_PM);
-      } else {
-        const updated = harianPM.map((day) => {
-          if (day.hariKe === resetDaySelected) {
-            return {
-              ...day,
-              sasaran: EMPTY_SASARAN_LIST.map(item => ({ ...item }))
-            };
-          }
-          return day;
-        });
-        setHarianPM(updated);
-      }
-    }
-
-    // 2. Reset Master Menu
-    if (resetMenuTarget === "all" || resetMenuTarget === "menu") {
-      if (resetDayType === "all") {
-        setMasterMenu(EMPTY_MASTER_MENU);
-      } else {
-        const updated = { ...masterMenu };
-        const idx = resetDaySelected - 1;
-        const blankItem = { namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" };
-        
-        updated.usiaSekolah = [...updated.usiaSekolah];
-        updated.usiaSekolah[idx] = blankItem;
-
-        updated.tigaB = [...updated.tigaB];
-        updated.tigaB[idx] = blankItem;
-
-        updated.mpAsi = [...updated.mpAsi];
-        updated.mpAsi[idx] = blankItem;
-
-        updated.usiaSekolahAlergi = [...updated.usiaSekolahAlergi];
-        updated.usiaSekolahAlergi[idx] = blankItem;
-
-        updated.tigaBAlergi = [...updated.tigaBAlergi];
-        updated.tigaBAlergi[idx] = blankItem;
-
-        updated.mpAsiAlergi = [...updated.mpAsiAlergi];
-        updated.mpAsiAlergi[idx] = blankItem;
-
-        setMasterMenu(updated);
-      }
-    }
-
-    // 3. Reset Food Costing
-    if (resetMenuTarget === "all" || resetMenuTarget === "foodcost") {
-      if (resetDayType === "all") {
-        setFoodCostDays(EMPTY_FOOD_COST_DAYS);
-      } else {
-        const updated = foodCostDays.map((d) => {
-          if (d.hariKe === resetDaySelected) {
-            return {
-              ...d,
-              porsiBesarBahan: [],
-              porsiKecilBahan: []
-            };
-          }
-          return d;
-        });
-        setFoodCostDays(updated);
-      }
-    }
-
-    // 4. Reset Sandbox Gizi
-    if (resetMenuTarget === "all" || resetMenuTarget === "cekgizi") {
-      setCekGiziItems([]);
-    }
-
-    // Show beautiful success notification
-    const targetLabel = resetMenuTarget === "all" ? "Semua Menu Operasional" : resetMenuTarget === "penerima" ? "Penerima Manfaat" : resetMenuTarget === "menu" ? "Master Menu" : resetMenuTarget === "foodcost" ? "Food Costing" : "Sandbox Gizi";
-    const dayLabel = resetDayType === "all" ? "Keseluruhan Hari 1-12" : "Hari ke-" + resetDaySelected;
-    setResetSuccessMessage(`Berhasil menyetel ulang ${targetLabel} (${dayLabel}) secara bersih dan sistematis!`);
-    
-    setTimeout(() => {
-      setResetSuccessMessage("");
-      setIsResetModalOpen(false);
-    }, 2500);
-  };
-
-  const handleResetData = () => {
-    if (confirm("Apakah Anda yakin ingin menyetel ulang seluruh data kembali ke setelan default SPPG Muna Barat? Semua perubahan Anda akan diganti.")) {
-      setProfile(INITIAL_SPPG_PROFILE);
-      setSekolahPM(INITIAL_SEKOLAH_PM);
-      setTigaBPM(INITIAL_TIGAB_PM);
-      setHarianPM(INITIAL_HARIAN_PM);
-      setMasterMenu(INITIAL_MASTER_MENU);
-      setFoodCostDays(INITIAL_FOOD_COST_DAYS);
-      setTkpiList(INITIAL_TKPI_DATABASE);
-      setCustomLogo("/src/assets/images/logo_sppg_1782256222616.jpg");
-      setActiveTab("dashboard");
-    }
-  };
 
   // State for adding custom TKPI item manually
   const [newTkpiItem, setNewTkpiItem] = useState<Partial<TKPIItem>>({
@@ -824,7 +789,54 @@ export default function App() {
     XLSX.writeFile(wb, "Template_Database_TKPI.xlsx");
   };
 
-  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const resizeAndCompressImage = (file: File, maxWidth = 300, maxHeight = 300, quality = 0.75): Promise<string> => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (readerEvent) => {
+        const image = new Image();
+        image.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = image.width;
+          let height = image.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(image, 0, 0, width, height);
+            const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
+            const dataUrl = canvas.toDataURL(mimeType, mimeType === "image/jpeg" ? quality : undefined);
+            resolve(dataUrl);
+          } else {
+            resolve(readerEvent.target?.result as string);
+          }
+        };
+        image.onerror = () => {
+          resolve(readerEvent.target?.result as string);
+        };
+        image.src = readerEvent.target?.result as string;
+      };
+      reader.onerror = () => {
+        resolve("");
+      };
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -833,32 +845,121 @@ export default function App() {
       return;
     }
 
-    // Check size limit to prevent localStorage overflow (e.g. 1.5MB)
-    if (file.size > 1.5 * 1024 * 1024) {
-      alert("Ukuran gambar terlalu besar. Silakan unggah gambar di bawah 1.5 MB agar aplikasi tetap ringan.");
+    if (file.size > 10 * 1024 * 1024) {
+      alert("Ukuran berkas terlalu besar. Silakan pilih berkas di bawah 10 MB.");
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = async (evt) => {
-      const base64 = evt.target?.result;
-      if (typeof base64 === "string") {
-        setCustomLogo(base64);
-        localStorage.setItem("sisper_custom_logo", base64);
-        
-        try {
-          // Write directly to configs/app_logo for global propagation
-          await setDoc(doc(db, "configs", "app_logo"), {
-            url: base64,
-            updatedBy: user?.email || "Syukri Yusuf",
-            updatedAt: new Date().toISOString()
-          });
-        } catch (err) {
-          console.warn("Gagal memperbarui logo global di Firestore:", err);
+    try {
+      const reader = new FileReader();
+      reader.onload = (readerEvent) => {
+        const img = new Image();
+        img.onload = () => {
+          setCropImageRatio(img.width / img.height);
+          setCropImageSrc(readerEvent.target?.result as string);
+          setCropZoom(1.0);
+          setCropOffsetX(0);
+          setCropOffsetY(0);
+          setIsCropModalOpen(true);
+        };
+        img.src = readerEvent.target?.result as string;
+      };
+      reader.readAsDataURL(file);
+    } catch (err) {
+      console.error("Gagal memuat gambar untuk dipotong:", err);
+      alert("Gagal memuat gambar. Silakan coba gambar lain.");
+    }
+  };
+
+  const handleCropMouseDown = (e: React.MouseEvent) => {
+    setCropDragging(true);
+    setDragStart({ x: e.clientX - cropOffsetX, y: e.clientY - cropOffsetY });
+  };
+
+  const handleCropMouseMove = (e: React.MouseEvent) => {
+    if (!cropDragging) return;
+    setCropOffsetX(e.clientX - dragStart.x);
+    setCropOffsetY(e.clientY - dragStart.y);
+  };
+
+  const handleCropMouseUp = () => setCropDragging(false);
+  const handleCropMouseLeave = () => setCropDragging(false);
+
+  const handleCropTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      setCropDragging(true);
+      setDragStart({
+        x: e.touches[0].clientX - cropOffsetX,
+        y: e.touches[0].clientY - cropOffsetY,
+      });
+    }
+  };
+
+  const handleCropTouchMove = (e: React.TouchEvent) => {
+    if (!cropDragging) return;
+    if (e.touches.length === 1) {
+      setCropOffsetX(e.touches[0].clientX - dragStart.x);
+      setCropOffsetY(e.touches[0].clientY - dragStart.y);
+    }
+  };
+
+  const handleCropTouchEnd = () => setCropDragging(false);
+
+  const handleSaveCroppedLogo = () => {
+    if (!cropImageSrc) return;
+    const img = new Image();
+    img.onload = async () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = 300;
+      canvas.height = 300;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, 300, 300);
+
+        const containerSize = 240;
+        const targetSize = 300;
+        const scaleFactor = targetSize / containerSize;
+
+        let baseWidth = containerSize;
+        let baseHeight = containerSize;
+        if (cropImageRatio > 1) {
+          baseWidth = containerSize * cropImageRatio;
+        } else {
+          baseHeight = containerSize / cropImageRatio;
+        }
+
+        const wDraw = baseWidth * cropZoom * scaleFactor;
+        const hDraw = baseHeight * cropZoom * scaleFactor;
+
+        const cx = 150 + (cropOffsetX * scaleFactor);
+        const cy = 150 + (cropOffsetY * scaleFactor);
+
+        const xDraw = cx - wDraw / 2;
+        const yDraw = cy - hDraw / 2;
+
+        ctx.drawImage(img, xDraw, yDraw, wDraw, hDraw);
+
+        const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
+        if (compressedBase64) {
+          setCustomLogo(compressedBase64);
+          localStorage.setItem("sisper_custom_logo", compressedBase64);
+
+          try {
+            // Write directly to configs/app_logo for global propagation
+            await setDoc(doc(db, "configs", "app_logo"), {
+              url: compressedBase64,
+              updatedBy: user?.email || "Syukri Yusuf",
+              updatedAt: new Date().toISOString()
+            });
+          } catch (err) {
+            console.warn("Gagal memperbarui logo global di Firestore:", err);
+          }
         }
       }
+      setIsCropModalOpen(false);
     };
-    reader.readAsDataURL(file);
+    img.src = cropImageSrc;
   };
 
   const handleTkpiUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1674,16 +1775,6 @@ export default function App() {
           </div>
 
           <div className="flex items-center gap-4">
-            {isCloudActive && (
-              <button
-                type="button"
-                onClick={() => setIsResetModalOpen(true)}
-                className="flex items-center gap-1.5 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 px-3.5 py-2 rounded-2xl shadow-sm text-xs text-rose-300 hover:text-rose-200 font-extrabold transition cursor-pointer shrink-0"
-              >
-                <Trash2 className="w-3.5 h-3.5 text-rose-400" />
-                <span>Reset Data</span>
-              </button>
-            )}
             {isCloudActive ? (
               <div className="flex flex-col items-end relative select-none">
                 <span className="text-[9px] text-slate-400 font-extrabold tracking-wider uppercase leading-none mb-1">
@@ -1850,13 +1941,48 @@ export default function App() {
         )}
 
         {activeTab === "sppg" && (
-          <SPPGProfileTab profile={profile} onChange={setProfile} />
+          <SPPGProfileTab
+            profile={profile}
+            onChange={setProfile}
+            savedPeriods={savedPeriods}
+            setSavedPeriods={setSavedPeriods}
+            activeState={{
+              sekolahPM,
+              tigaBPM,
+              harianPM,
+              masterMenu,
+              foodCostDays
+            }}
+            loadPeriod={(period: any) => {
+              setProfile(period.profile);
+              setSekolahPM(period.sekolahPM);
+              setTigaBPM(period.tigaBPM);
+              setHarianPM(period.harianPM);
+              setMasterMenu(period.masterMenu);
+              setFoodCostDays(period.foodCostDays);
+            }}
+            startNewPeriod={() => {
+              // Create clean blank state
+              setProfile({
+                ...profile,
+                periodeDates: Array.from({ length: 12 }, () => ""),
+                awalPeriodeBerikutnya: ""
+              });
+              setSekolahPM([]);
+              setTigaBPM([]);
+              setHarianPM(EMPTY_HARIAN_PM);
+              setMasterMenu(EMPTY_MASTER_MENU);
+              setFoodCostDays(EMPTY_FOOD_COST_DAYS);
+            }}
+          />
         )}
 
         {activeTab === "penerima" && (
           <PenerimaManfaatTab
             harianPM={harianPM}
             onChange={setHarianPM}
+            pmSettings={pmSettings}
+            setPmSettings={setPmSettings}
           />
         )}
 
@@ -1902,6 +2028,8 @@ export default function App() {
             setLeftLogo={setKopLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
+            pmSettings={pmSettings}
+            setPmSettings={setPmSettings}
           />
         )}
 
@@ -2491,160 +2619,195 @@ export default function App() {
         </div>
       )}
 
-      {/* PUSAT PEMBERSIHAN & RESET DATA MANDIRI */}
-      {isResetModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/70 backdrop-blur-md flex items-center justify-center z-[9999] p-4 font-sans select-none overflow-y-auto">
-          <div className="bg-white rounded-3xl max-w-lg w-full p-7 shadow-2xl border border-slate-100 animate-in fade-in zoom-in duration-150 text-left relative overflow-hidden">
-            
-            {/* Header / Accent Bar */}
-            <div className="absolute top-0 left-0 right-0 h-2 bg-gradient-to-r from-rose-500 to-amber-500" />
-            
-            <div className="flex items-start justify-between mb-5">
-              <div className="flex items-center gap-3">
-                <div className="p-3 bg-rose-50 rounded-2xl text-rose-500 shrink-0">
-                  <Trash2 className="w-6 h-6" />
-                </div>
+      {/* MODAL PENYESUAIAN & PEMOTONGAN LOGO / FOTO PROFIL */}
+      {isCropModalOpen && cropImageSrc && (
+        <div className="fixed inset-0 bg-slate-900/80 backdrop-blur-sm flex items-center justify-center z-[9999] p-4 font-sans select-none animate-in fade-in duration-200">
+          <div className="bg-white rounded-3xl max-w-md w-full shadow-2xl border border-slate-100 overflow-hidden flex flex-col animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="px-6 py-4 border-b border-slate-100 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Camera className="w-5 h-5 text-emerald-600" />
                 <div>
-                  <h3 className="font-extrabold text-slate-900 text-lg leading-snug">Pusat Reset & Pembersihan Data</h3>
-                  <p className="text-[10px] text-indigo-600 font-extrabold tracking-wider uppercase">GiziSync Self-Service Reset Center</p>
+                  <h3 className="font-extrabold text-slate-800 text-sm">Sesuaikan Foto Profil</h3>
+                  <p className="text-[10px] text-slate-400">Atur ukuran & letak logo SPPG</p>
                 </div>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  if (!resetSuccessMessage) setIsResetModalOpen(false);
-                }}
-                className="p-1 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition"
-                disabled={!!resetSuccessMessage}
+                onClick={() => setIsCropModalOpen(false)}
+                className="p-1.5 hover:bg-slate-200/60 rounded-full text-slate-400 hover:text-slate-600 transition cursor-pointer"
               >
-                <X className="w-5 h-5" />
+                <X className="w-4 h-4" />
               </button>
             </div>
 
-            {resetSuccessMessage ? (
-              <div className="py-8 flex flex-col items-center justify-center text-center space-y-4 animate-in fade-in zoom-in">
-                <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center border border-emerald-100 text-emerald-500 text-2xl animate-bounce">
-                  ✨
+            {/* Content */}
+            <div className="p-6 flex flex-col items-center gap-6">
+              {/* Circular Viewport for Cropping */}
+              <div
+                className="relative w-[240px] h-[240px] rounded-full border-2 border-dashed border-emerald-500 overflow-hidden bg-slate-950 flex items-center justify-center cursor-move shadow-inner"
+                onMouseDown={handleCropMouseDown}
+                onMouseMove={handleCropMouseMove}
+                onMouseUp={handleCropMouseUp}
+                onMouseLeave={handleCropMouseLeave}
+                onTouchStart={handleCropTouchStart}
+                onTouchMove={handleCropTouchMove}
+                onTouchEnd={handleCropTouchEnd}
+                title="Seret gambar untuk memposisikan"
+              >
+                <img
+                  src={cropImageSrc}
+                  alt="Crop preview"
+                  className="max-w-none absolute select-none pointer-events-none"
+                  style={{
+                    width: cropImageRatio > 1 ? `${240 * cropImageRatio}px` : "240px",
+                    height: cropImageRatio > 1 ? "240px" : `${240 / cropImageRatio}px`,
+                    transform: `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropZoom})`,
+                    transformOrigin: "center center",
+                  }}
+                />
+                
+                {/* Visual grid guide lines for professional look */}
+                <div className="absolute inset-0 pointer-events-none border border-white/10 rounded-full flex items-center justify-center">
+                  <div className="w-1/3 h-full border-l border-r border-white/5"></div>
+                  <div className="h-1/3 w-full border-t border-b border-white/5 absolute"></div>
                 </div>
-                <div>
-                  <p className="font-extrabold text-slate-900 text-base">{resetSuccessMessage}</p>
-                  <p className="text-xs text-slate-500 mt-1">GiziSync menyinkronkan data bersih baru Anda ke server...</p>
-                </div>
-              </div>
-            ) : (
-              <div className="space-y-5">
-                <p className="text-xs text-slate-500 leading-relaxed">
-                  Pilih menu operasional harian yang ingin Anda bersihkan atau kembalikan ke setelan awal kosong. Data yang dibersihkan akan otomatis terisolasi dan tersimpan permanen di cloud.
-                </p>
 
-                {/* 1. Select Menu Target */}
-                <div className="space-y-2">
-                  <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">1. Pilih Menu Operasional</label>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                    {[
-                      { id: "all", label: "Semua Menu Operasional", desc: "Reset semua menu di bawah sekaligus" },
-                      { id: "penerima", label: "Penerima Manfaat", desc: "Reset data siswa & balita harian" },
-                      { id: "menu", label: "Master Menu", desc: "Bersihkan isian tabel 12 hari" },
-                      { id: "foodcost", label: "Food Costing", desc: "Bersihkan bahan & perhitungan biaya" },
-                      { id: "cekgizi", label: "Sandbox Gizi", desc: "Bersihkan kalkulator uji kandungan gizi" }
-                    ].map((item) => (
-                      <button
-                        key={item.id}
-                        type="button"
-                        onClick={() => setResetMenuTarget(item.id as any)}
-                        className={`p-3 rounded-2xl border text-left transition relative cursor-pointer ${
-                          resetMenuTarget === item.id
-                            ? "border-rose-500 bg-rose-50/40 ring-2 ring-rose-500/20"
-                            : "border-slate-200 hover:border-slate-300 hover:bg-slate-50/30"
-                        }`}
-                      >
-                        <span className="font-extrabold text-xs text-slate-800 block">{item.label}</span>
-                        <span className="text-[10px] text-slate-500 leading-tight block mt-0.5">{item.desc}</span>
-                        {resetMenuTarget === item.id && (
-                          <span className="absolute top-2.5 right-2.5 text-xs text-rose-500 font-bold">●</span>
-                        )}
-                      </button>
-                    ))}
+                {/* Dark circular overlay for non-selected region */}
+                <div className="absolute inset-0 pointer-events-none rounded-full shadow-[0_0_0_9999px_rgba(15,23,42,0.45)]"></div>
+              </div>
+
+              {/* Instructions */}
+              <div className="text-center space-y-1">
+                <p className="text-xs font-bold text-slate-700">Gunakan Mouse / Sentuhan untuk Menggeser</p>
+                <p className="text-[10px] text-slate-400">Seret gambar tepat ke posisi tengah lingkaran crop.</p>
+              </div>
+
+              {/* Interactive Sliders */}
+              <div className="w-full space-y-4 pt-2 border-t border-slate-100">
+                {/* Zoom control */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-600">Perbesaran (Zoom):</span>
+                    <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                      {cropZoom.toFixed(2)}x
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCropZoom(prev => Math.max(1, prev - 0.1))}
+                      className="text-xs font-bold w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+                    >
+                      -
+                    </button>
+                    <input
+                      type="range"
+                      min="1"
+                      max="3"
+                      step="0.01"
+                      value={cropZoom}
+                      onChange={(e) => setCropZoom(parseFloat(e.target.value))}
+                      className="flex-grow h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCropZoom(prev => Math.min(3, prev + 0.1))}
+                      className="text-xs font-bold w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+                    >
+                      +
+                    </button>
                   </div>
                 </div>
 
-                {/* 2. Select Day Range */}
-                {resetMenuTarget !== "cekgizi" && (
-                  <div className="space-y-2.5 bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                    <label className="text-xs font-black text-slate-700 uppercase tracking-wider block">2. Tentukan Rentang Hari</label>
-                    <div className="flex flex-wrap gap-4">
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
-                        <input
-                          type="radio"
-                          name="resetDayType"
-                          checked={resetDayType === "all"}
-                          onChange={() => setResetDayType("all")}
-                          className="text-rose-500 focus:ring-rose-500"
-                        />
-                        <span>Keseluruhan Hari (Hari 1 s/d Hari 12)</span>
-                      </label>
-                      <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-700">
-                        <input
-                          type="radio"
-                          name="resetDayType"
-                          checked={resetDayType === "day"}
-                          onChange={() => setResetDayType("day")}
-                          className="text-rose-500 focus:ring-rose-500"
-                        />
-                        <span>Pilih Hari Bebas (Pilih Hari Tertentu)</span>
-                      </label>
-                    </div>
-
-                    {resetDayType === "day" && (
-                      <div className="mt-3 pt-3 border-t border-slate-200/60 flex items-center gap-3">
-                        <span className="text-xs font-semibold text-slate-600">Pilih Hari Kerja:</span>
-                        <select
-                          value={resetDaySelected}
-                          onChange={(e) => setResetDaySelected(Number(e.target.value))}
-                          className="bg-white border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 font-extrabold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                        >
-                          {Array.from({ length: 12 }).map((_, idx) => (
-                            <option key={idx} value={idx + 1}>
-                              Hari Ke-{idx + 1}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    )}
+                {/* Fine-tune X-axis alignment */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-600">Geser Horizontal (X):</span>
+                    <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                      {cropOffsetX > 0 ? `+${cropOffsetX}` : cropOffsetX}px
+                    </span>
                   </div>
-                )}
-
-                {/* Info Box: Protected data and flow */}
-                <div className="bg-indigo-50/60 border border-indigo-100/50 p-4 rounded-2xl space-y-2.5">
-                  <h4 className="text-xs font-extrabold text-indigo-950 flex items-center gap-1.5">
-                    <span>🛡️</span> Kebijakan Integritas & Isolasi Data GiziSync:
-                  </h4>
-                  <ul className="space-y-1 text-[11px] text-indigo-900/80 pl-1 leading-snug list-disc pl-4">
-                    <li><strong>DATABASE TKPI 2020</strong> dan <strong>RUJUKAN JUKNIS 2025</strong> terlindungi penuh dan tidak akan terdampak oleh aksi reset ini.</li>
-                    <li>Sistem kalkulasi <strong>Dashboard & Output</strong> serta <strong>Gabungan Food Cost</strong> secara otomatis memperbarui data menyusut mengikuti reset ini.</li>
-                  </ul>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCropOffsetX(prev => prev - 5)}
+                      className="text-xs font-bold w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+                    >
+                      ←
+                    </button>
+                    <input
+                      type="range"
+                      min="-200"
+                      max="200"
+                      value={cropOffsetX}
+                      onChange={(e) => setCropOffsetX(parseInt(e.target.value))}
+                      className="flex-grow h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-slate-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCropOffsetX(prev => prev + 5)}
+                      className="text-xs font-bold w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+                    >
+                      →
+                    </button>
+                  </div>
                 </div>
 
-                {/* Footer Buttons */}
-                <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                  <button
-                    type="button"
-                    onClick={() => setIsResetModalOpen(false)}
-                    className="py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-2xl transition cursor-pointer"
-                  >
-                    Batal
-                  </button>
-                  <button
-                    type="button"
-                    onClick={executeResetData}
-                    className="py-2.5 px-5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-black rounded-2xl transition shadow-md shadow-rose-500/10 cursor-pointer flex items-center gap-1.5"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>Konfirmasi Bersihkan</span>
-                  </button>
+                {/* Fine-tune Y-axis alignment */}
+                <div className="space-y-1">
+                  <div className="flex justify-between items-center text-xs">
+                    <span className="font-bold text-slate-600">Geser Vertikal (Y):</span>
+                    <span className="font-mono bg-slate-100 text-slate-700 px-1.5 py-0.5 rounded text-[10px] font-bold">
+                      {cropOffsetY > 0 ? `+${cropOffsetY}` : cropOffsetY}px
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setCropOffsetY(prev => prev - 5)}
+                      className="text-xs font-bold w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+                    >
+                      ↑
+                    </button>
+                    <input
+                      type="range"
+                      min="-200"
+                      max="200"
+                      value={cropOffsetY}
+                      onChange={(e) => setCropOffsetY(parseInt(e.target.value))}
+                      className="flex-grow h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-slate-600"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setCropOffsetY(prev => prev + 5)}
+                      className="text-xs font-bold w-6 h-6 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center text-slate-600 transition cursor-pointer"
+                    >
+                      ↓
+                    </button>
+                  </div>
                 </div>
               </div>
-            )}
+            </div>
+
+            {/* Footer */}
+            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
+              <button
+                type="button"
+                onClick={() => setIsCropModalOpen(false)}
+                className="px-4 py-2 bg-white hover:bg-slate-100 text-slate-600 text-xs font-bold rounded-xl border border-slate-200 transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveCroppedLogo}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5"
+              >
+                <Camera className="w-4 h-4" />
+                <span>Simpan & Terapkan</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

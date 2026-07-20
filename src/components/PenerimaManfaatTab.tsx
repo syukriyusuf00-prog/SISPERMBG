@@ -5,22 +5,85 @@
 
 import React, { useState } from "react";
 import { HariPM, KelompokSasaranPM } from "../types";
-import { Calendar, Download, Upload, Copy, RotateCcw, AlertTriangle, Users, HeartHandshake } from "lucide-react";
+import { 
+  Calendar, 
+  Download, 
+  Upload, 
+  Copy, 
+  RotateCcw, 
+  AlertTriangle, 
+  Users, 
+  HeartHandshake, 
+  Wallet, 
+  DollarSign, 
+  Settings, 
+  Check, 
+  ChevronDown, 
+  ChevronUp 
+} from "lucide-react";
 import * as XLSX from "xlsx";
 
 interface PenerimaManfaatTabProps {
   harianPM: HariPM[];
   onChange: (updated: HariPM[]) => void;
+  pmSettings?: {
+    porsiKecilHarga: number;
+    porsiBesarHarga: number;
+    porsiKecilSasaranIds: string[];
+    porsiBesarSasaranIds: string[];
+  };
+  setPmSettings?: (updated: any) => void;
 }
 
 export default function PenerimaManfaatTab({
   harianPM,
-  onChange
+  onChange,
+  pmSettings,
+  setPmSettings
 }: PenerimaManfaatTabProps) {
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [alertMsg, setAlertMsg] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
 
+  // Accordion state for classification editing
+  const [showKecilSasaranEditor, setShowKecilSasaranEditor] = useState(false);
+  const [showBesarSasaranEditor, setShowBesarSasaranEditor] = useState(false);
+
   const activeDayData = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0];
+
+  // Fallbacks for dynamic PM settings
+  const defaultSettings = {
+    porsiKecilHarga: 8000,
+    porsiBesarHarga: 10000,
+    porsiKecilSasaranIds: ["tk_paud_lb", "sd_kelas_1_3", "anak_balita", "anak_balita_13_59", "balita_6_11"],
+    porsiBesarSasaranIds: ["sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan", "ibu_hamil", "ibu_menyusui"]
+  };
+  
+  const settings = pmSettings || defaultSettings;
+
+  const updateSetting = (key: string, value: any) => {
+    if (setPmSettings) {
+      setPmSettings({
+        ...settings,
+        [key]: value
+      });
+    }
+  };
+
+  const handleToggleKecilSasaran = (sasaranId: string) => {
+    const alreadySelected = settings.porsiKecilSasaranIds.includes(sasaranId);
+    const updatedIds = alreadySelected
+      ? settings.porsiKecilSasaranIds.filter(id => id !== sasaranId)
+      : [...settings.porsiKecilSasaranIds, sasaranId];
+    updateSetting("porsiKecilSasaranIds", updatedIds);
+  };
+
+  const handleToggleBesarSasaran = (sasaranId: string) => {
+    const alreadySelected = settings.porsiBesarSasaranIds.includes(sasaranId);
+    const updatedIds = alreadySelected
+      ? settings.porsiBesarSasaranIds.filter(id => id !== sasaranId)
+      : [...settings.porsiBesarSasaranIds, sasaranId];
+    updateSetting("porsiBesarSasaranIds", updatedIds);
+  };
 
   // Helper for triggering alert banners
   const triggerAlert = (type: "success" | "info" | "error", text: string) => {
@@ -30,13 +93,39 @@ export default function PenerimaManfaatTab({
     }, 4000);
   };
 
-  // Calculations for current day
+  // Calculations for current day PM counts
   const totalPorsiKecil = activeDayData.sasaran.reduce((acc, curr) => acc + (Number(curr.porsiKecil) || 0), 0);
   const totalPorsiBesar = activeDayData.sasaran.reduce((acc, curr) => acc + (Number(curr.porsiBesar) || 0), 0);
   const totalAlergiKecil = activeDayData.sasaran.reduce((acc, curr) => acc + (Number(curr.alergiKecil) || 0), 0);
   const totalAlergiBesar = activeDayData.sasaran.reduce((acc, curr) => acc + (Number(curr.alergiBesar) || 0), 0);
   const totalAlergi = totalAlergiKecil + totalAlergiBesar;
   const totalPM = totalPorsiKecil + totalPorsiBesar;
+
+  // Dynamic RAB calculations based on user settings & current day inputs
+  const rabPorsiKecil = activeDayData.sasaran.reduce((acc, curr) => {
+    if (settings.porsiKecilSasaranIds.includes(curr.id)) {
+      return acc + (Number(curr.porsiKecil) || 0) * settings.porsiKecilHarga;
+    }
+    return acc;
+  }, 0);
+
+  const rabPorsiBesar = activeDayData.sasaran.reduce((acc, curr) => {
+    if (settings.porsiBesarSasaranIds.includes(curr.id)) {
+      return acc + (Number(curr.porsiBesar) || 0) * settings.porsiBesarHarga;
+    }
+    return acc;
+  }, 0);
+
+  const totalRABHarian = rabPorsiKecil + rabPorsiBesar;
+
+  // Format currency for IDR cleanly
+  const formatIDR = (num: number) => {
+    return new Intl.NumberFormat("id-ID", {
+      style: "currency",
+      currency: "IDR",
+      maximumFractionDigits: 0
+    }).format(num);
+  };
 
   // Row update handler
   const handleCellChange = (id: string, field: "porsiKecil" | "porsiBesar" | "alergiKecil" | "alergiBesar", value: number) => {
@@ -172,8 +261,19 @@ export default function PenerimaManfaatTab({
     e.target.value = ""; // reset file input
   };
 
+  // Generate dynamic labels list for bottom panels
+  const porsiKecilLabels = activeDayData.sasaran
+    .filter(s => settings.porsiKecilSasaranIds.includes(s.id))
+    .map(s => s.label)
+    .join(", ");
+
+  const porsiBesarLabels = activeDayData.sasaran
+    .filter(s => settings.porsiBesarSasaranIds.includes(s.id))
+    .map(s => s.label)
+    .join(", ");
+
   return (
-    <div id="penerima-manfaat-container" className="space-y-6">
+    <div id="penerima-manfaat-container" className="space-y-6 font-sans">
       
       {/* Header and Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -194,8 +294,8 @@ export default function PenerimaManfaatTab({
           alertMsg.type === "info" ? "bg-blue-50 border-blue-100 text-blue-800" :
           "bg-rose-50 border-rose-100 text-rose-800"
         }`}>
-          <span>●</span>
-          <span>{alertMsg.text}</span>
+          <span className="w-2 h-2 rounded-full bg-current animate-pulse" />
+          <span className="font-medium">{alertMsg.text}</span>
         </div>
       )}
 
@@ -215,7 +315,7 @@ export default function PenerimaManfaatTab({
                 id={`btn-day-tab-${dayNum}`}
                 type="button"
                 onClick={() => setSelectedDay(dayNum)}
-                className={`px-4 py-2 text-xs font-semibold rounded-xl transition-all duration-200 border cursor-pointer ${
+                className={`px-4 py-2 text-xs font-bold rounded-xl transition-all duration-200 border cursor-pointer ${
                   isSelected
                     ? "bg-indigo-600 text-white border-indigo-600 shadow-sm shadow-indigo-600/10 scale-105"
                     : "bg-slate-50 text-slate-600 border-slate-100 hover:bg-slate-100 hover:text-slate-800"
@@ -229,42 +329,69 @@ export default function PenerimaManfaatTab({
       </div>
 
       {/* Summary Metrics Cards for Selected Day */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         
-        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 p-5 rounded-2xl border border-indigo-100 shadow-sm">
-          <span className="text-xs font-semibold text-indigo-700 uppercase tracking-wider block">Porsi Kecil (H-{selectedDay})</span>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-indigo-900">{totalPorsiKecil}</span>
-            <span className="text-xs text-indigo-600 font-medium">Siswa / Anak</span>
+        <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 p-4 rounded-2xl border border-indigo-100 shadow-sm flex flex-col justify-between">
+          <div>
+            <span className="text-xs font-bold text-indigo-700 uppercase tracking-wider block">Porsi Kecil (H-{selectedDay})</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl font-black text-indigo-900">{totalPorsiKecil}</span>
+              <span className="text-[10px] text-indigo-600 font-bold">Jiwa</span>
+            </div>
           </div>
-          <p className="text-[10px] text-indigo-500/80 mt-1">TK/PAUD, SD Kelas 1-3 & Balita</p>
+          <p className="text-[9px] text-indigo-500/80 mt-2 line-clamp-2" title={porsiKecilLabels}>
+            {porsiKecilLabels || "Tidak ada sasaran aktif"}
+          </p>
         </div>
 
-        <div className="bg-gradient-to-br from-cyan-50 to-cyan-100/50 p-5 rounded-2xl border border-cyan-100 shadow-sm">
-          <span className="text-xs font-semibold text-cyan-700 uppercase tracking-wider block">Porsi Besar (H-{selectedDay})</span>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-cyan-900">{totalPorsiBesar}</span>
-            <span className="text-xs text-cyan-600 font-medium">Jiwa</span>
+        <div className="bg-gradient-to-br from-cyan-50 to-cyan-100/50 p-4 rounded-2xl border border-cyan-100 shadow-sm flex flex-col justify-between">
+          <div>
+            <span className="text-xs font-bold text-cyan-700 uppercase tracking-wider block">Porsi Besar (H-{selectedDay})</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl font-black text-cyan-900">{totalPorsiBesar}</span>
+              <span className="text-[10px] text-cyan-600 font-bold">Jiwa</span>
+            </div>
           </div>
-          <p className="text-[10px] text-cyan-500/80 mt-1">SD Kelas 4-6, SMP, SMA & Ibu</p>
+          <p className="text-[9px] text-cyan-500/80 mt-2 line-clamp-2" title={porsiBesarLabels}>
+            {porsiBesarLabels || "Tidak ada sasaran aktif"}
+          </p>
         </div>
 
-        <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 p-5 rounded-2xl border border-amber-100 shadow-sm">
-          <span className="text-xs font-semibold text-amber-700 uppercase tracking-wider block">PM Alergi (H-{selectedDay})</span>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-amber-900">{totalAlergi}</span>
-            <span className="text-xs text-amber-600 font-medium">Jiwa</span>
+        <div className="bg-gradient-to-br from-amber-50 to-amber-100/50 p-4 rounded-2xl border border-amber-100 shadow-sm flex flex-col justify-between">
+          <div>
+            <span className="text-xs font-bold text-amber-700 uppercase tracking-wider block">PM Alergi (H-{selectedDay})</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl font-black text-amber-900">{totalAlergi}</span>
+              <span className="text-[10px] text-amber-600 font-bold">Jiwa</span>
+            </div>
           </div>
-          <p className="text-[10px] text-amber-500/80 mt-1">Kecil: {totalAlergiKecil} | Besar: {totalAlergiBesar}</p>
+          <p className="text-[9px] text-amber-500/80 mt-2">Kecil: {totalAlergiKecil} | Besar: {totalAlergiBesar}</p>
         </div>
 
-        <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/50 p-5 rounded-2xl border border-emerald-100 shadow-sm">
-          <span className="text-xs font-semibold text-emerald-700 uppercase tracking-wider block">Total Sasaran (H-{selectedDay})</span>
-          <div className="mt-2 flex items-baseline gap-2">
-            <span className="text-3xl font-bold text-emerald-900">{totalPM}</span>
-            <span className="text-xs text-emerald-600 font-medium">Jiwa</span>
+        <div className="bg-gradient-to-br from-indigo-900 to-slate-900 p-4 rounded-2xl border border-indigo-950 shadow-sm text-white flex flex-col justify-between">
+          <div>
+            <span className="text-xs font-bold text-indigo-200 uppercase tracking-wider block">Total PM (H-{selectedDay})</span>
+            <div className="mt-2 flex items-baseline gap-1">
+              <span className="text-2xl font-black text-white">{totalPM}</span>
+              <span className="text-[10px] text-indigo-300 font-bold">Jiwa</span>
+            </div>
           </div>
-          <p className="text-[10px] text-emerald-500/80 mt-1">Gabungan seluruh kelompok penerima</p>
+          <p className="text-[9px] text-indigo-200/80 mt-2">Seluruh kelompok penerima gabungan</p>
+        </div>
+
+        {/* Dynamic RAB Harian Metric Card */}
+        <div className="bg-gradient-to-br from-emerald-600 to-teal-700 p-4 rounded-2xl border border-emerald-500 shadow-md text-white flex flex-col justify-between">
+          <div>
+            <span className="text-xs font-bold text-emerald-100 uppercase tracking-wider block">Total RAB Harian (H-{selectedDay})</span>
+            <div className="mt-2">
+              <span className="text-xl font-extrabold font-mono text-white block truncate">
+                {formatIDR(totalRABHarian)}
+              </span>
+            </div>
+          </div>
+          <p className="text-[9px] text-emerald-100/90 mt-2 truncate">
+            Kecil: {formatIDR(rabPorsiKecil)} | Besar: {formatIDR(rabPorsiBesar)}
+          </p>
         </div>
 
       </div>
@@ -423,50 +550,187 @@ export default function PenerimaManfaatTab({
                   {totalPM}
                 </td>
               </tr>
+
+              {/* Estimasi RAB Harian Row */}
+              <tr className="bg-emerald-50/40 font-extrabold border-t border-emerald-100">
+                <td colSpan={2} className="p-4 text-left text-emerald-900 pl-6">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                    ESTIMASI RAB HARIAN (H-{selectedDay})
+                  </div>
+                </td>
+                <td className="p-4 text-center font-mono text-emerald-800 text-sm">
+                  {formatIDR(rabPorsiKecil)}
+                </td>
+                <td className="p-4 text-center font-mono text-emerald-800 text-sm">
+                  {formatIDR(rabPorsiBesar)}
+                </td>
+                <td colSpan={2} className="bg-emerald-50/5"></td>
+                <td className="p-4 text-right font-mono text-emerald-950 text-base pr-6">
+                  {formatIDR(totalRABHarian)}
+                </td>
+              </tr>
+
             </tbody>
           </table>
         </div>
 
-        {/* Informational Footer note */}
+        {/* Informational Footer note with customizable targets and target selector */}
         <div className="p-5 bg-slate-50 border-t border-slate-100 space-y-4">
           <div className="flex items-start gap-2.5 text-xs text-indigo-800">
             <AlertTriangle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
               <span className="font-bold text-slate-800 text-sm">Pedoman Klasifikasi Jenis Porsi (Juknis BGN 2025):</span>
               <p className="text-slate-600">
-                Setiap kelompok sasaran memiliki standard gizi tersendiri. Pengisian jumlah <span className="font-semibold text-amber-700">PM Alergi Porsi Kecil</span> dan <span className="font-semibold text-orange-700">PM Alergi Porsi Besar</span> harus diisi secara akurat untuk kalkulasi alokasi porsi yang tepat dan aman.
+                Setiap kelompok sasaran memiliki standard gizi tersendiri. Anda dapat mengubah harga satuan porsi dan memilih kelompok sasaran yang masuk ke dalam klasifikasi porsi di bawah ini untuk kalkulasi alokasi RAB yang dinamis.
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-            <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg uppercase tracking-wider">
+            
+            {/* PORSI KECIL CONFIG CARD */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="px-2.5 py-1 bg-indigo-50 text-indigo-700 text-xs font-bold rounded-lg uppercase tracking-wider self-start">
                   Porsi Kecil
                 </span>
-                <span className="text-xs font-bold text-emerald-600 font-mono">
-                  Target Rp 8.000,- / porsi
-                </span>
+                
+                {/* Dynamic Price Input for Porsi Kecil */}
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                  <span>Target Rp</span>
+                  <input
+                    id="input-harga-kecil"
+                    type="number"
+                    value={settings.porsiKecilHarga}
+                    min="0"
+                    onChange={(e) => updateSetting("porsiKecilHarga", Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-24 px-2 py-1 border border-slate-200 rounded-lg text-center text-xs font-extrabold text-emerald-700 bg-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
+                  />
+                  <span>/ porsi</span>
+                </div>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                <span className="font-semibold text-slate-700">Klasifikasi Sasaran:</span> Balita 6-11 Bulan, Balita 13-59 Bulan, Anak Balita, TK/PAUD/LB, SD/MI/SLB Kelas 1-3.
-              </p>
+
+              <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="font-bold text-slate-700 block mb-1">Klasifikasi Sasaran Terpilih:</span>
+                <p className="text-slate-500 text-[11px]">
+                  {porsiKecilLabels || "Belum ada sasaran terpilih. Atur klasifikasi di bawah."}
+                </p>
+              </div>
+
+              {/* Accordion Toggle for Porsi Kecil Classifications */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowKecilSasaranEditor(!showKecilSasaranEditor)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 rounded-xl text-[11px] font-bold transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-1">
+                    <Settings className="w-3.5 h-3.5" />
+                    Pilih Klasifikasi Sasaran Porsi Kecil
+                  </span>
+                  {showKecilSasaranEditor ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {showKecilSasaranEditor && (
+                  <div className="mt-2 p-3 bg-white border border-slate-150 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] max-h-[180px] overflow-y-auto animate-in fade-in duration-150">
+                    {activeDayData.sasaran.map((s) => {
+                      const isChecked = settings.porsiKecilSasaranIds.includes(s.id);
+                      return (
+                        <label
+                          key={s.id}
+                          className={`flex items-center gap-2 p-1.5 rounded-lg border cursor-pointer transition ${
+                            isChecked 
+                              ? "bg-indigo-50/40 border-indigo-200 text-indigo-950 font-semibold" 
+                              : "border-slate-100 text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleKecilSasaran(s.id)}
+                            className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                          />
+                          <span className="truncate">{s.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
 
-            <div className="bg-white p-4 rounded-xl border border-slate-200/60 shadow-xs space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 text-xs font-bold rounded-lg uppercase tracking-wider">
+            {/* PORSI BESAR CONFIG CARD */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-xs space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <span className="px-2.5 py-1 bg-cyan-50 text-cyan-700 text-xs font-bold rounded-lg uppercase tracking-wider self-start">
                   Porsi Besar
                 </span>
-                <span className="text-xs font-bold text-emerald-600 font-mono">
-                  Target Rp 8.000,- / porsi
-                </span>
+                
+                {/* Dynamic Price Input for Porsi Besar */}
+                <div className="flex items-center gap-1.5 text-xs text-slate-500 font-semibold">
+                  <span>Target Rp</span>
+                  <input
+                    id="input-harga-besar"
+                    type="number"
+                    value={settings.porsiBesarHarga}
+                    min="0"
+                    onChange={(e) => updateSetting("porsiBesarHarga", Math.max(0, parseInt(e.target.value) || 0))}
+                    className="w-24 px-2 py-1 border border-slate-200 rounded-lg text-center text-xs font-extrabold text-emerald-700 bg-emerald-50/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
+                  />
+                  <span>/ porsi</span>
+                </div>
               </div>
-              <p className="text-xs text-slate-500 leading-relaxed">
-                <span className="font-semibold text-slate-700">Klasifikasi Sasaran:</span> TK/PAUD/LB, SD/MI/SLB Kelas 4-6, Siswa SMP/MTS/SMPLB, Siswa SMA/SMK/MK/MASMALB, Pendidik, Tenaga Pendidikan, Ibu Hamil, Ibu Menyusui.
-              </p>
+
+              <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                <span className="font-bold text-slate-700 block mb-1">Klasifikasi Sasaran Terpilih:</span>
+                <p className="text-slate-500 text-[11px]">
+                  {porsiBesarLabels || "Belum ada sasaran terpilih. Atur klasifikasi di bawah."}
+                </p>
+              </div>
+
+              {/* Accordion Toggle for Porsi Besar Classifications */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setShowBesarSasaranEditor(!showBesarSasaranEditor)}
+                  className="w-full flex items-center justify-between px-3 py-2 bg-cyan-50 hover:bg-cyan-100/80 text-cyan-700 rounded-xl text-[11px] font-bold transition cursor-pointer"
+                >
+                  <span className="flex items-center gap-1">
+                    <Settings className="w-3.5 h-3.5" />
+                    Pilih Klasifikasi Sasaran Porsi Besar
+                  </span>
+                  {showBesarSasaranEditor ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                </button>
+
+                {showBesarSasaranEditor && (
+                  <div className="mt-2 p-3 bg-white border border-slate-150 rounded-xl grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] max-h-[180px] overflow-y-auto animate-in fade-in duration-150">
+                    {activeDayData.sasaran.map((s) => {
+                      const isChecked = settings.porsiBesarSasaranIds.includes(s.id);
+                      return (
+                        <label
+                          key={s.id}
+                          className={`flex items-center gap-2 p-1.5 rounded-lg border cursor-pointer transition ${
+                            isChecked 
+                              ? "bg-cyan-50/40 border-cyan-200 text-cyan-950 font-semibold" 
+                              : "border-slate-100 text-slate-600 hover:bg-slate-50"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => handleToggleBesarSasaran(s.id)}
+                            className="rounded text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5"
+                          />
+                          <span className="truncate">{s.label}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
+
           </div>
         </div>
       </div>

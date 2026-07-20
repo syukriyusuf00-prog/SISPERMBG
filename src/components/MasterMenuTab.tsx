@@ -101,27 +101,78 @@ export default function MasterMenuTab({
   const [resetDayIndex, setResetDayIndex] = useState<number | null>(null);
   const [showResetAllConfirm, setShowResetAllConfirm] = useState<boolean>(false);
 
-  const handleLeftLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
+  const resizeAndCompressImage = (file: File, maxWidth = 300, maxHeight = 300, quality = 0.75): Promise<string> => {
+    return new Promise((resolve) => {
       const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setLeftLogo(base64);
+      reader.onload = (readerEvent) => {
+        const image = new Image();
+        image.onload = () => {
+          const canvas = document.createElement("canvas");
+          let width = image.width;
+          let height = image.height;
+
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+
+          const ctx = canvas.getContext("2d");
+          if (ctx) {
+            ctx.drawImage(image, 0, 0, width, height);
+            const mimeType = file.type === "image/png" ? "image/png" : "image/jpeg";
+            const dataUrl = canvas.toDataURL(mimeType, mimeType === "image/jpeg" ? quality : undefined);
+            resolve(dataUrl);
+          } else {
+            resolve(readerEvent.target?.result as string);
+          }
+        };
+        image.onerror = () => {
+          resolve(readerEvent.target?.result as string);
+        };
+        image.src = readerEvent.target?.result as string;
+      };
+      reader.onerror = () => {
+        resolve("");
       };
       reader.readAsDataURL(file);
+    });
+  };
+
+  const handleLeftLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      try {
+        const compressedBase64 = await resizeAndCompressImage(file, 300, 300, 0.75);
+        if (compressedBase64) {
+          setLeftLogo(compressedBase64);
+        }
+      } catch (err) {
+        console.error("Gagal memproses gambar:", err);
+      }
     }
   };
 
-  const handleRightLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleRightLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const base64 = reader.result as string;
-        setRightLogo(base64);
-      };
-      reader.readAsDataURL(file);
+      try {
+        const compressedBase64 = await resizeAndCompressImage(file, 300, 300, 0.75);
+        if (compressedBase64) {
+          setRightLogo(compressedBase64);
+        }
+      } catch (err) {
+        console.error("Gagal memproses gambar:", err);
+      }
     }
   };
 

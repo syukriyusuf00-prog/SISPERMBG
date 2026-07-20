@@ -7,7 +7,8 @@ import React, { useState } from "react";
 import { TKPIItem, BahanMakananInput, FoodCostDay, MasterMenu, HariPM } from "../types";
 import { calculateDay, formatRupiah, getCountsForDay } from "../utils/calc";
 import SearchableTkpiDropdown from "./SearchableTkpiDropdown";
-import { Plus, Trash2, HelpCircle, Sparkles, AlertTriangle, CheckCircle2, ChevronRight, Calculator, Info, Sliders, Printer, Download, FileSpreadsheet, Edit3, RefreshCw, Image as ImageIcon } from "lucide-react";
+import { PriceCalculatorPopover } from "./PriceCalculatorPopover";
+import { Plus, Trash2, HelpCircle, Sparkles, AlertTriangle, CheckCircle2, ChevronRight, Calculator, Info, Sliders, Printer, Download, FileSpreadsheet, Edit3, RefreshCw, Image as ImageIcon, Settings, ChevronDown, ChevronUp } from "lucide-react";
 import { downloadElementAsImage } from "../lib/printUtils";
 import { TARGET_AKG_LIMITS } from "../tkpiData";
 import * as XLSX from "xlsx";
@@ -33,6 +34,8 @@ interface FoodCostTabProps {
   setLeftLogo: (val: string) => void;
   rightLogo: string;
   setRightLogo: (val: string) => void;
+  pmSettings?: any;
+  setPmSettings?: (val: any) => void;
 }
 
 const formatThousandSeparator = (value: number | string | undefined | null): string => {
@@ -120,7 +123,9 @@ export default function FoodCostTab({
   leftLogo,
   setLeftLogo,
   rightLogo,
-  setRightLogo
+  setRightLogo,
+  pmSettings,
+  setPmSettings
 }: FoodCostTabProps) {
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [selectedGroup, setSelectedGroup] = useState<"sekolah" | "tigaB" | "custom">("sekolah");
@@ -128,7 +133,60 @@ export default function FoodCostTab({
   const [viewMode, setViewMode] = useState<"edit" | "print">("edit");
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
 
+  const [planningMode, setPlanningMode] = useState<"with_bumbu_10" | "all_ingredients">(() => {
+    return (localStorage.getItem("sisper_planning_mode") as any) || "with_bumbu_10";
+  });
+
+  const handlePlanningModeChange = (mode: "with_bumbu_10" | "all_ingredients") => {
+    setPlanningMode(mode);
+    localStorage.setItem("sisper_planning_mode", mode);
+  };
+
   // State for Calculator Modal
+  const [confirmModal, setConfirmModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: "danger" | "warning" | "info";
+  }>({
+    isOpen: false,
+    title: "",
+    message: "",
+    onConfirm: () => {},
+  });
+
+  const triggerConfirm = ({
+    title,
+    message,
+    onConfirm,
+    confirmText = "Hapus",
+    cancelText = "Batal",
+    variant = "danger"
+  }: {
+    title: string;
+    message: string;
+    onConfirm: () => void;
+    confirmText?: string;
+    cancelText?: string;
+    variant?: "danger" | "warning" | "info";
+  }) => {
+    setConfirmModal({
+      isOpen: true,
+      title,
+      message,
+      onConfirm: () => {
+        onConfirm();
+        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+      },
+      confirmText,
+      cancelText,
+      variant
+    });
+  };
+
   const [activeCalcField, setActiveCalcField] = useState<{
     porsi: "besar" | "kecil" | string; // If custom table, it is the tableId
     rowIndex: number;
@@ -138,6 +196,48 @@ export default function FoodCostTab({
 
   const [calcExpr, setCalcExpr] = useState<string>("");
   const [calcResult, setCalcResult] = useState<string>("");
+
+  // State for Buffer & Jumlah Config Modal
+  const [activeBufferConfig, setActiveBufferConfig] = useState<{
+    porsi: "besar" | "kecil" | string; // If custom table, it is the tableId
+    rowIndex: number;
+    namaBahan: string;
+    bufferBase: string;
+    bufferCustomVal?: string;
+    jumlahBufferChoice: string;
+    jumlahBufferCustomVal?: string;
+  } | null>(null);
+
+  const openBufferConfig = (porsi: "besar" | "kecil" | string, rowIndex: number, b: any) => {
+    setActiveBufferConfig({
+      porsi,
+      rowIndex,
+      namaBahan: b.nama || b.namaBahan || "Bahan Makanan",
+      bufferBase: b.bufferBase || "auto",
+      bufferCustomVal: b.bufferCustomVal || "",
+      jumlahBufferChoice: b.jumlahBufferChoice || "auto",
+      jumlahBufferCustomVal: b.jumlahBufferCustomVal || ""
+    });
+  };
+
+  const saveBufferConfig = (config: typeof activeBufferConfig) => {
+    if (!config) return;
+    const { porsi, rowIndex, bufferBase, bufferCustomVal, jumlahBufferChoice, jumlahBufferCustomVal } = config;
+
+    const updates = {
+      bufferBase: bufferBase as any,
+      bufferCustomVal,
+      jumlahBufferChoice,
+      jumlahBufferCustomVal
+    };
+
+    if (porsi === "besar" || porsi === "kecil") {
+      handleRowBatchChange(porsi, rowIndex, updates);
+    } else {
+      editIngredientInCustomTableBatch(porsi, rowIndex, updates);
+    }
+    setActiveBufferConfig(null);
+  };
 
   const safeEvalMath = (expr: string): string => {
     try {
@@ -245,6 +345,24 @@ export default function FoodCostTab({
 
   const [showConfigPanel, setShowConfigPanel] = useState(false);
   const [activeConfigTab, setActiveConfigTab] = useState<"targets" | "mergeBesar" | "mergeKecil">("targets");
+  const [showKecilSasaranEditor, setShowKecilSasaranEditor] = useState(false);
+  const [showBesarSasaranEditor, setShowBesarSasaranEditor] = useState(false);
+
+  const settings = pmSettings || {
+    porsiKecilHarga: 8000,
+    porsiBesarHarga: 10000,
+    porsiKecilSasaranIds: ["tk_paud_lb", "sd_kelas_1_3", "anak_balita", "anak_balita_13_59", "balita_6_11"],
+    porsiBesarSasaranIds: ["sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan", "ibu_hamil", "ibu_menyusui"]
+  };
+
+  const updateSetting = (key: string, value: any) => {
+    if (setPmSettings) {
+      setPmSettings({
+        ...settings,
+        [key]: value
+      });
+    }
+  };
 
   React.useEffect(() => {
     localStorage.setItem("sppg_sasaran_targets_v1", JSON.stringify(sasaranTargets));
@@ -331,10 +449,16 @@ export default function FoodCostTab({
     }));
   };
 
-  const removeIngredientFromCustomTable = (tableId: string, rowId: string) => {
+  const removeIngredientFromCustomTable = (tableId: string, rowId: string, index: number) => {
     setCustomTables(prev => prev.map(t => {
       if (t.id === tableId) {
-        return { ...t, bahanList: t.bahanList.filter((b: any) => b.id !== rowId) };
+        const updatedList = t.bahanList.filter((b: any, idx: number) => {
+          if (rowId && b.id) {
+            return b.id !== rowId;
+          }
+          return idx !== index;
+        });
+        return { ...t, bahanList: updatedList };
       }
       return t;
     }));
@@ -351,6 +475,17 @@ export default function FoodCostTab({
     }));
   };
 
+  const editIngredientInCustomTableBatch = (tableId: string, rowIndex: number, updates: Partial<BahanMakananInput>) => {
+    setCustomTables(prev => prev.map(t => {
+      if (t.id === tableId) {
+        const updatedList = [...t.bahanList];
+        updatedList[rowIndex] = { ...updatedList[rowIndex], ...updates };
+        return { ...t, bahanList: updatedList };
+      }
+      return t;
+    }));
+  };
+
   const editCustomTableMeta = (tableId: string, field: string, value: any) => {
     setCustomTables(prev => prev.map(t => {
       if (t.id === tableId) {
@@ -361,9 +496,13 @@ export default function FoodCostTab({
   };
 
   const deleteCustomTable = (tableId: string) => {
-    if (confirm("Apakah Anda yakin ingin menghapus tabel komponen kustom ini?")) {
-      setCustomTables(prev => prev.filter(t => t.id !== tableId));
-    }
+    triggerConfirm({
+      title: "Hapus Tabel Komponen Kustom",
+      message: "Apakah Anda yakin ingin menghapus tabel komponen kustom ini? Seluruh isi data bahan di dalamnya akan hilang secara permanen.",
+      onConfirm: () => {
+        setCustomTables(prev => prev.filter(t => t.id !== tableId));
+      }
+    });
   };
 
   // Customizable column headers
@@ -457,6 +596,65 @@ export default function FoodCostTab({
     return Math.round(((minVal + maxVal) / 2) * 10) / 10;
   };
 
+  const handleAkgValChange = (
+    porsi: "besar" | "kecil",
+    key: string,
+    val: number,
+    currentMode: string,
+    akgTypeFromTable?: string,
+    tableId?: string
+  ) => {
+    const isBesar = porsi === "besar";
+    const setCustom = isBesar ? setCustomBesar : setCustomKecil;
+
+    if (tableId) {
+      editCustomTableMeta(tableId, "akgMode", "custom");
+    } else {
+      if (isBesar) {
+        setBesarAkgMode("custom");
+      } else {
+        setKecilAkgMode("custom");
+      }
+    }
+
+    if (currentMode === "custom") {
+      setCustom(prev => ({ ...prev, [key]: val }));
+    } else {
+      const keys = ["energi", "protein", "lemak", "kh", "serat"];
+      const newCustom: Record<string, number> = {};
+      
+      keys.forEach(k => {
+        if (k === key) {
+          newCustom[k] = val;
+        } else {
+          let displayedVal = 0;
+          const type = akgTypeFromTable || (isBesar ? besarAkgType : kecilAkgType);
+          const config = TARGET_AKG_LIMITS[type];
+          if (config) {
+            const minVal = k === "energi" ? config.energiMin : (config as any)[`${k}Min`] || 0;
+            const ratio = config.energiMax / config.energiMin;
+
+            if (currentMode === "min") {
+              displayedVal = minVal;
+            } else if (currentMode === "max") {
+              if (k === "energi") displayedVal = config.energiMax;
+              else displayedVal = Math.round(minVal * ratio * 10) / 10;
+            } else { // "avg"
+              if (k === "energi") {
+                displayedVal = (config.energiMin + config.energiMax) / 2;
+              } else {
+                const maxVal = minVal * ratio;
+                displayedVal = Math.round(((minVal + maxVal) / 2) * 10) / 10;
+              }
+            }
+          }
+          newCustom[k] = displayedVal;
+        }
+      });
+      setCustom(newCustom);
+    }
+  };
+
   // Force selectedType to MP-ASI if threeB group is active and user wants it, or vice versa
   React.useEffect(() => {
     if (selectedGroup === "sekolah" && selectedType === "MP-ASI") {
@@ -491,42 +689,17 @@ export default function FoodCostTab({
 
   // Helper to compute dynamic combined/merged count and target price
   const getPmCountAndTargetPrice = (porsi: "besar" | "kecil") => {
-    const mode = porsi === "besar" ? pmSelectionModeBesar : pmSelectionModeKecil;
+    const targetIds = porsi === "besar" ? settings.porsiBesarSasaranIds : settings.porsiKecilSasaranIds;
+    const targetPrice = porsi === "besar" ? settings.porsiBesarHarga : settings.porsiKecilHarga;
     
-    if (mode === "custom") {
-      const count = porsi === "besar" ? customPmBesarCount : customPmKecilCount;
-      const targetPrice = porsi === "besar" ? targetPriceBesar : targetPriceKecil;
-      return { count, targetPrice };
-    }
-    
-    if (mode === "merge") {
-      const selectedSasarans = porsi === "besar" ? selectedSasaransBesar : selectedSasaransKecil;
-      const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
-      
-      let totalCount = 0;
-      let totalValue = 0;
-      
-      selectedSasarans.forEach(sId => {
-        const sasItem = dayPM.sasaran.find(item => item.id === sId);
-        if (sasItem) {
-          const count = porsi === "besar" ? (Number(sasItem.porsiBesar) || 0) : (Number(sasItem.porsiKecil) || 0);
-          const targetPrice = sasaranTargets[sId] || (porsi === "besar" ? 10000 : 8000);
-          totalCount += count;
-          totalValue += count * targetPrice;
-        }
-      });
-      
-      const weightedTarget = totalCount > 0 ? Math.round(totalValue / totalCount) : (porsi === "besar" ? targetPriceBesar : targetPriceKecil);
-      return { count: totalCount, targetPrice: weightedTarget };
-    }
-    
-    // Default mode: "standard" Juknis
+    const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
     let count = 0;
-    if (selectedGroup === "tigaB") {
-      count = porsi === "besar" ? dayCounts.pmBesar3B : dayCounts.pmKecil3B;
-    } else {
-      count = porsi === "besar" ? dayCounts.pmBesarSekolah : dayCounts.pmKecilSekolah;
-    }
+    targetIds.forEach((sId: string) => {
+      const sasItem = dayPM.sasaran.find(item => item.id === sId);
+      if (sasItem) {
+        count += porsi === "besar" ? (Number(sasItem.porsiBesar) || 0) : (Number(sasItem.porsiKecil) || 0);
+      }
+    });
     
     // Check if there is an active custom count for today
     const currentCustom = porsi === "besar" ? currentDayData.customPmBesarCount : currentDayData.customPmKecilCount;
@@ -534,27 +707,7 @@ export default function FoodCostTab({
       count = currentCustom;
     }
     
-    // Use target price of the selected group, or fallback
-    // We can also compute weighted target based on standard sasarans!
-    const standardSasarans = porsi === "besar" 
-      ? (selectedGroup === "tigaB" ? ["ibu_hamil", "ibu_menyusui"] : ["sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan"])
-      : (selectedGroup === "tigaB" ? ["anak_balita", "anak_balita_13_59", "balita_6_11"] : ["tk_paud_lb", "sd_kelas_1_3"]);
-      
-    const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
-    let totalCount = 0;
-    let totalValue = 0;
-    standardSasarans.forEach(sId => {
-      const sasItem = dayPM.sasaran.find(item => item.id === sId);
-      if (sasItem) {
-        const c = porsi === "besar" ? (Number(sasItem.porsiBesar) || 0) : (Number(sasItem.porsiKecil) || 0);
-        const targetPrice = sasaranTargets[sId] || (porsi === "besar" ? 10000 : 8000);
-        totalCount += c;
-        totalValue += c * targetPrice;
-      }
-    });
-    
-    const weightedTarget = totalCount > 0 ? Math.round(totalValue / totalCount) : (porsi === "besar" ? 10000 : 8000);
-    return { count, targetPrice: weightedTarget };
+    return { count, targetPrice };
   };
 
   const pmBesarInfo = getPmCountAndTargetPrice("besar");
@@ -565,6 +718,38 @@ export default function FoodCostTab({
 
   const activeTargetPriceBesar = pmBesarInfo.targetPrice;
   const activeTargetPriceKecil = pmKecilInfo.targetPrice;
+
+  const dayPMForLabels = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
+  const porsiKecilLabels = dayPMForLabels.sasaran
+    .filter(s => settings.porsiKecilSasaranIds.includes(s.id))
+    .map(s => s.label)
+    .join(", ");
+
+  const porsiBesarLabels = dayPMForLabels.sasaran
+    .filter(s => settings.porsiBesarSasaranIds.includes(s.id))
+    .map(s => s.label)
+    .join(", ");
+
+  const rabPorsiKecil = pmKecil * activeTargetPriceKecil;
+  const rabPorsiBesar = pmBesar * activeTargetPriceBesar;
+
+  const handleToggleKecilSasaran = (id: string) => {
+    const currentList = settings.porsiKecilSasaranIds || [];
+    const isChecked = currentList.includes(id);
+    const updatedIds = isChecked
+      ? currentList.filter((x: string) => x !== id)
+      : [...currentList, id];
+    updateSetting("porsiKecilSasaranIds", updatedIds);
+  };
+
+  const handleToggleBesarSasaran = (id: string) => {
+    const currentList = settings.porsiBesarSasaranIds || [];
+    const isChecked = currentList.includes(id);
+    const updatedIds = isChecked
+      ? currentList.filter((x: string) => x !== id)
+      : [...currentList, id];
+    updateSetting("porsiBesarSasaranIds", updatedIds);
+  };
 
   // Get Menu Name from Master Menu
   let namaMenuHariIni = "";
@@ -808,18 +993,20 @@ export default function FoodCostTab({
     }
   };
 
-  const removeIngredientRow = (porsi: "besar" | "kecil", id: string) => {
-    if (porsi === "besar") {
-      updateDayData({
-        ...currentDayData,
-        porsiBesarBahan: currentDayData.porsiBesarBahan.filter((b) => b.id !== id)
-      });
-    } else {
-      updateDayData({
-        ...currentDayData,
-        porsiKecilBahan: currentDayData.porsiKecilBahan.filter((b) => b.id !== id)
-      });
-    }
+  const removeIngredientRow = (porsi: "besar" | "kecil", id: string, index: number) => {
+    const listKey = porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan";
+    const currentList = currentDayData[listKey] || [];
+    const updatedList = currentList.filter((b, idx) => {
+      if (id && b.id) {
+        return b.id !== id;
+      }
+      return idx !== index;
+    });
+
+    updateDayData({
+      ...currentDayData,
+      [listKey]: updatedList
+    });
   };
 
   const handleRowChange = (
@@ -831,6 +1018,17 @@ export default function FoodCostTab({
     const listKey = porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan";
     const list = [...currentDayData[listKey]];
     list[index] = { ...list[index], [field]: value };
+    updateDayData({ ...currentDayData, [listKey]: list });
+  };
+
+  const handleRowBatchChange = (
+    porsi: "besar" | "kecil",
+    index: number,
+    updates: Partial<BahanMakananInput>
+  ) => {
+    const listKey = porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan";
+    const list = [...currentDayData[listKey]];
+    list[index] = { ...list[index], ...updates };
     updateDayData({ ...currentDayData, [listKey]: list });
   };
 
@@ -1074,6 +1272,10 @@ export default function FoodCostTab({
     const recipientCount = porsi === "besar" ? pmBesar : pmKecil;
     const targetPrice = porsi === "besar" ? targetPriceBesar : targetPriceKecil;
 
+    const calculatedCostPerPorsi = planningMode === "all_ingredients"
+      ? (recipientCount > 0 ? totalBahanCost / recipientCount : 0)
+      : costPerPorsi;
+
     const akgType = porsi === "besar" ? besarAkgType : kecilAkgType;
     const setAkgType = porsi === "besar" ? setBesarAkgType : setKecilAkgType;
     const customMap = porsi === "besar" ? customBesar : customKecil;
@@ -1097,7 +1299,7 @@ export default function FoodCostTab({
     const pctKH = targetKH > 0 ? (sumKH / targetKH) * 100 : 0;
     const pctSerat = targetSerat > 0 ? (sumSerat / targetSerat) * 100 : 0;
 
-    const diffPrice = costPerPorsi - targetPrice;
+    const diffPrice = calculatedCostPerPorsi - targetPrice;
     const isOverBudget = diffPrice > 0;
 
     const defaultLabel = porsi === "besar"
@@ -1186,16 +1388,16 @@ export default function FoodCostTab({
               <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[155px] min-w-[155px] bg-[#92D050] text-[10px] leading-tight select-none">
                 Jumlah+Buffer
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[96px] min-w-[96px]">Harga Satuan</th>
+              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[130px] min-w-[130px]">Harga Satuan</th>
               <th rowSpan={2} className="p-1 border border-black border-r-2 border-r-slate-950 text-center text-slate-950 font-extrabold w-[136px] min-w-[136px]">Harga Total</th>
               {!isPrint && <th rowSpan={2} className="p-1 border border-black border-l-2 border-l-slate-950 text-center text-rose-800 w-[44px] min-w-[44px] no-print">Aksi</th>}
             </tr>
             <tr>
               <th className="p-1 border border-black text-center w-[54px] min-w-[54px] bg-[#D8E4BC] text-slate-950 font-bold">ENERGI (Kal)</th>
-              <th className="p-1 border border-black text-center w-[48px] min-w-[48px] bg-[#D8E4BC] text-slate-950 font-bold">Protein (g)</th>
-              <th className="p-1 border border-black text-center w-[48px] min-w-[48px] bg-[#D8E4BC] text-slate-950 font-bold">LEMAK (g)</th>
-              <th className="p-1 border border-black text-center w-[48px] min-w-[48px] bg-[#D8E4BC] text-slate-950 font-bold">KH (g)</th>
-              <th className="p-1 border border-black text-center w-[48px] min-w-[48px] bg-[#D8E4BC] text-slate-950 font-bold">SERAT (g)</th>
+              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">Protein (g)</th>
+              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">LEMAK (g)</th>
+              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">KH (g)</th>
+              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">SERAT (g)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black text-[11px] text-slate-900 bg-white">
@@ -1244,7 +1446,7 @@ export default function FoodCostTab({
                         </div>
                         <button
                           type="button"
-                          onClick={() => removeIngredientRow(porsi, b.id)}
+                          onClick={() => removeIngredientRow(porsi, b.id, idx)}
                           className="p-1 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition hover:scale-105 active:scale-95 shrink-0 no-print"
                           title="Hapus Bahan Makanan Ini"
                         >
@@ -1280,10 +1482,10 @@ export default function FoodCostTab({
                     )}
                   </td>
                   <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[54px] min-w-[54px] text-xs">{b.energi.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[48px] min-w-[48px] text-xs">{b.protein.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[48px] min-w-[48px] text-xs">{b.lemak.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[48px] min-w-[48px] text-xs">{b.kh.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[48px] min-w-[48px] text-xs">{b.serat.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.protein.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.lemak.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.kh.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.serat.toFixed(1)}</td>
                   
                   <td className="p-1 border border-black text-center w-[56px] min-w-[56px]">
                     {isPrint ? (
@@ -1351,93 +1553,74 @@ export default function FoodCostTab({
                       </div>
                     )}
                   </td>
-                  <td className="p-1 border border-black text-center w-[115px] min-w-[115px] bg-slate-50/50">
-                    <div className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
-                      <span className="font-mono text-slate-950 text-xs font-semibold shrink-0">
-                        {typeof b.buah === "number" && b.buah > 0 ? b.buah.toFixed(3) : "-"}
+                  <td
+                    onClick={() => !isPrint && openBufferConfig(porsi, idx, b)}
+                    className={`p-1 border border-black text-center w-[115px] min-w-[115px] bg-slate-50/50 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/buffer" : ""}`}
+                    title={!isPrint ? "Klik untuk memilih basis Buffer (Kg, Potong, Ekor)" : undefined}
+                  >
+                    <div className="flex flex-col items-center justify-center h-full min-h-[36px]">
+                      <span className="font-mono text-slate-950 text-xs font-semibold">
+                        {typeof b.buah === "number" && b.buah >= 0 ? b.buah.toFixed(3) : "-"}
                       </span>
                       {!isPrint && (
-                        <div className="flex items-center gap-1 no-print">
-                          <select
-                            value={b.bufferBase || "auto"}
-                            onChange={(e) => handleRowChange(porsi, idx, "bufferBase", e.target.value)}
-                            className="text-[9px] py-0 px-0.5 border border-slate-300 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-sans cursor-pointer h-[18px] text-center w-[44px] focus:outline-none focus:ring-1 focus:ring-rose-500"
-                            title="Pilih basis penyusutan (Buffer)"
-                          >
-                            <option value="auto">Auto</option>
-                            <option value="kg">Kg</option>
-                            <option value="potong">Ptg</option>
-                            <option value="ekor">Ekr</option>
-                            <option value="custom">Cust</option>
-                          </select>
-                          {(b.bufferBase === "custom") && (
-                            <input
-                              type="text"
-                              placeholder="Nilai"
-                              value={b.bufferCustomVal ?? ""}
-                              onChange={(e) => handleRowChange(porsi, idx, "bufferCustomVal", e.target.value)}
-                              className="text-[9px] py-0 px-0.5 border border-slate-300 rounded bg-white text-slate-700 font-mono text-center w-[36px] h-[18px] focus:outline-none focus:ring-1 focus:ring-rose-500"
-                              title="Masukkan angka basis custom"
-                            />
-                          )}
-                        </div>
+                        <span className="text-[8px] text-indigo-600 font-extrabold uppercase tracking-wider block leading-none mt-0.5 opacity-70 group-hover/buffer:opacity-100 transition-opacity">
+                          {b.bufferBase === "kg" ? "KG" : b.bufferBase === "potong" ? "Ptg" : b.bufferBase === "ekor" ? "Ekr" : b.bufferBase === "custom" ? "Cust" : "Auto"} ⚙️
+                        </span>
                       )}
                     </div>
                   </td>
-                  <td className="p-1 border border-black text-center w-[155px] min-w-[155px] bg-[#E6F0FA]/30">
-                    <div className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
-                      <span className="font-mono text-slate-950 text-xs font-bold shrink-0">
-                        {typeof b.butir === "number" && b.butir > 0 ? b.butir.toFixed(3) : "-"}
+                  <td
+                    onClick={() => !isPrint && openBufferConfig(porsi, idx, b)}
+                    className={`p-1 border border-black text-center w-[155px] min-w-[155px] bg-[#E6F0FA]/30 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/jumlah" : ""}`}
+                    title={!isPrint ? "Klik untuk mengatur rumus Jumlah + Buffer" : undefined}
+                  >
+                    <div className="flex flex-col items-center justify-center h-full min-h-[36px]">
+                      <span className="font-mono text-slate-950 text-xs font-bold text-indigo-950">
+                        {typeof b.butir === "number" && b.butir >= 0 ? b.butir.toFixed(3) : "-"}
                       </span>
                       {!isPrint && (
-                        <div className="flex items-center gap-1 no-print">
-                          <select
-                            value={b.jumlahBufferChoice || "auto"}
-                            onChange={(e) => handleRowChange(porsi, idx, "jumlahBufferChoice", e.target.value)}
-                            className="text-[9px] py-0 px-0.5 border border-slate-300 rounded bg-[#e8f0fe] hover:bg-indigo-50 text-indigo-700 font-sans cursor-pointer h-[18px] text-center w-[68px] focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                            title="Pilih rumus Jumlah + Buffer"
-                          >
-                            <option value="auto">Auto</option>
-                            <option value="kg_with">Kg+Buf</option>
-                            <option value="kg_without">Kg Saja</option>
-                            <option value="potong_with">Ptg+Buf</option>
-                            <option value="potong_without">Ptg Saja</option>
-                            <option value="ekor_with">Ekr+Buf</option>
-                            <option value="ekor_without">Ekr Saja</option>
-                            <option value="custom_with">Cust+Buf</option>
-                            <option value="custom_without">Cust Saja</option>
-                          </select>
-                          {(b.jumlahBufferChoice && b.jumlahBufferChoice.startsWith("custom")) && (
-                            <input
-                              type="text"
-                              placeholder="Nilai"
-                              value={b.jumlahBufferCustomVal ?? b.bufferCustomVal ?? ""}
-                              onChange={(e) => handleRowChange(porsi, idx, "jumlahBufferCustomVal", e.target.value)}
-                              className="text-[9px] py-0 px-0.5 border border-slate-300 rounded bg-white text-slate-700 font-mono text-center w-[36px] h-[18px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              title="Masukkan angka custom untuk Jumlah"
-                            />
-                          )}
-                        </div>
+                        <span className="text-[8px] text-indigo-700 font-extrabold uppercase tracking-wider block leading-none mt-0.5 opacity-70 group-hover/jumlah:opacity-100 transition-opacity">
+                          {(() => {
+                            const val = b.jumlahBufferChoice || "auto";
+                            if (val === "auto") return "Auto";
+                            if (val === "kg_with") return "KG + Buf";
+                            if (val === "kg_without") return "KG Saja";
+                            if (val === "potong_with") return "Ptg + Buf";
+                            if (val === "potong_without") return "Ptg Saja";
+                            if (val === "ekor_with") return "Ekr + Buf";
+                            if (val === "ekor_without") return "Ekr Saja";
+                            if (val === "custom_with") return "Cust + Buf";
+                            if (val === "custom_without") return "Cust Saja";
+                            return val;
+                          })()} ⚙️
+                        </span>
                       )}
                     </div>
                   </td>
                   
-                  <td className="p-1 border border-black text-center w-[96px] min-w-[96px]">
+                  <td className="p-1 border border-black text-center w-[130px] min-w-[130px]">
                     {isPrint ? (
                       <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-bold text-slate-950">
                         <span className="text-slate-500">Rp</span>
                         <span>{formatRupiah(b.hargaSatuan).replace("Rp", "").trim()}</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 bg-white/50 px-1 rounded border border-slate-200 w-full max-w-[84px] mx-auto">
-                        <span className="text-[10px] font-bold text-slate-400">Rp</span>
-                        <input
-                          id={`fc-input-price-${porsi}-${idx}`}
-                          type="text"
-                          inputMode="numeric"
-                          value={formatThousandSeparator(currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.hargaSatuan)}
-                          onChange={(e) => handleRowChange(porsi, idx, "hargaSatuan", parseThousandSeparator(e.target.value))}
-                          className="w-full text-right bg-transparent border-0 font-mono font-bold p-0 focus:ring-0 text-slate-950 text-xs"
+                      <div className="flex items-center justify-center gap-1 w-full">
+                        <div className="flex items-center gap-1 bg-white/50 px-1 rounded border border-slate-200 w-full max-w-[84px]">
+                          <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                          <input
+                            id={`fc-input-price-${porsi}-${idx}`}
+                            type="text"
+                            inputMode="numeric"
+                            value={formatThousandSeparator(currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.hargaSatuan)}
+                            onChange={(e) => handleRowChange(porsi, idx, "hargaSatuan", parseThousandSeparator(e.target.value))}
+                            className="w-full text-right bg-transparent border-0 font-mono font-bold p-0 focus:ring-0 text-slate-950 text-xs"
+                          />
+                        </div>
+                        <PriceCalculatorPopover
+                          initialValue={currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.hargaSatuan || 0}
+                          onApply={(val) => handleRowChange(porsi, idx, "hargaSatuan", val)}
+                          placeholder="Hitung Harga Satuan"
                         />
                       </div>
                     )}
@@ -1447,20 +1630,6 @@ export default function FoodCostTab({
                       <span className="text-slate-500 text-[10px] font-bold">Rp</span>
                       <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-950 whitespace-nowrap">
                         <span>{formatRupiah(b.hargaTotal).replace("Rp", "").trim()}</span>
-                        {!isPrint && (
-                          <select
-                            value={currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.formula || "kg"}
-                            onChange={(e) => handleRowChange(porsi, idx, "formula", e.target.value)}
-                            className="text-[9px] py-0 px-1 border border-slate-300 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-sans cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500 h-[18px] text-center w-[48px] inline-block no-print"
-                            title={`Rumus harga total: Harga Satuan x ${currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.formula || "kg"}`}
-                          >
-                            <option value="kg">kg</option>
-                            <option value="potong">{headerPotong.slice(0, 3)}</option>
-                            <option value="ekor">{headerEkor.slice(0, 3)}</option>
-                            <option value="buah">Buf</option>
-                            <option value="butir">J+B</option>
-                          </select>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -1469,7 +1638,7 @@ export default function FoodCostTab({
                       <button
                         id={`fc-btn-del-${porsi}-${idx}`}
                         type="button"
-                        onClick={() => removeIngredientRow(porsi, b.id)}
+                        onClick={() => removeIngredientRow(porsi, b.id, idx)}
                         className="p-0.5 text-slate-400 hover:text-rose-600 rounded"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -1491,16 +1660,16 @@ export default function FoodCostTab({
               <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[54px] min-w-[54px] bg-[#92D050]">
                 {sumEnergi.toFixed(1)}
               </td>
-              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {sumProtein.toFixed(1)}
               </td>
-              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {sumLemak.toFixed(1)}
               </td>
-              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {sumKH.toFixed(1)}
               </td>
-              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {sumSerat.toFixed(1)}
               </td>
 
@@ -1519,7 +1688,7 @@ export default function FoodCostTab({
               )}
             </tr>
 
-            {/* ROW 2: KEBUTUHAN RUJUKAN AKG + BUMBU 10% */}
+            {/* ROW 2: KEBUTUHAN RUJUKAN AKG + (BUMBU 10% OR HARGA PER PORSI) */}
             <tr className="border border-black">
               {/* Left Part: Rujukan AKG (cols 1-10) */}
               <td colSpan={5} className="p-1.5 border border-black font-extrabold text-black uppercase bg-[#92D050] text-center">
@@ -1557,21 +1726,15 @@ export default function FoodCostTab({
                     value={targetEnergi > 0 ? Number(targetEnergi.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      if (porsi === "besar") {
-                        setBesarAkgMode("custom");
-                        setCustomBesar(prev => ({ ...prev, energi: val }));
-                      } else {
-                        setKecilAkgMode("custom");
-                        setCustomKecil(prev => ({ ...prev, energi: val }));
-                      }
+                      handleAkgValChange(porsi, "energi", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* PROTEIN */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
                   <span>{targetProtein > 0 ? targetProtein.toFixed(1) : "-"}</span>
                 ) : (
@@ -1581,21 +1744,15 @@ export default function FoodCostTab({
                     value={targetProtein > 0 ? Number(targetProtein.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      if (porsi === "besar") {
-                        setBesarAkgMode("custom");
-                        setCustomBesar(prev => ({ ...prev, protein: val }));
-                      } else {
-                        setKecilAkgMode("custom");
-                        setCustomKecil(prev => ({ ...prev, protein: val }));
-                      }
+                      handleAkgValChange(porsi, "protein", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* LEMAK */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
                   <span>{targetLemak > 0 ? targetLemak.toFixed(1) : "-"}</span>
                 ) : (
@@ -1605,21 +1762,15 @@ export default function FoodCostTab({
                     value={targetLemak > 0 ? Number(targetLemak.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      if (porsi === "besar") {
-                        setBesarAkgMode("custom");
-                        setCustomBesar(prev => ({ ...prev, lemak: val }));
-                      } else {
-                        setKecilAkgMode("custom");
-                        setCustomKecil(prev => ({ ...prev, lemak: val }));
-                      }
+                      handleAkgValChange(porsi, "lemak", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* KH */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
                   <span>{targetKH > 0 ? targetKH.toFixed(1) : "-"}</span>
                 ) : (
@@ -1629,21 +1780,15 @@ export default function FoodCostTab({
                     value={targetKH > 0 ? Number(targetKH.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      if (porsi === "besar") {
-                        setBesarAkgMode("custom");
-                        setCustomBesar(prev => ({ ...prev, kh: val }));
-                      } else {
-                        setKecilAkgMode("custom");
-                        setCustomKecil(prev => ({ ...prev, kh: val }));
-                      }
+                      handleAkgValChange(porsi, "kh", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* SERAT */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
                   <span>{targetSerat > 0 ? targetSerat.toFixed(1) : "-"}</span>
                 ) : (
@@ -1653,35 +1798,49 @@ export default function FoodCostTab({
                     value={targetSerat > 0 ? Number(targetSerat.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      if (porsi === "besar") {
-                        setBesarAkgMode("custom");
-                        setCustomBesar(prev => ({ ...prev, serat: val }));
-                      } else {
-                        setKecilAkgMode("custom");
-                        setCustomKecil(prev => ({ ...prev, serat: val }));
-                      }
+                      handleAkgValChange(porsi, "serat", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
-              {/* Right Part: BUMBU 10% (cols 11-22) */}
-              <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#FFFF00]">
-                BUMBU 10%
-              </td>
-              <td className="p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 bg-[#FFFF00]">
-                <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950">
-                  <span className="text-slate-600 font-black">Rp</span>
-                  <span className="font-black">{formatRupiah(bumbuCost).replace("Rp", "").trim()}</span>
-                </div>
-              </td>
-              {!isPrint && (
-                <td className="p-1 border border-black border-l-2 border-l-slate-950 bg-[#FFFF00] no-print"></td>
+              {planningMode === "all_ingredients" ? (
+                <>
+                  {/* Right Part: HARGA PER PORSI (cols 11-22) */}
+                  <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#A9D08E]">
+                    HARGA PER PORSI
+                  </td>
+                  <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
+                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
+                      <span className="text-white/90 font-black">Rp</span>
+                      <span className="font-black text-white">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
+                    </div>
+                  </td>
+                  {!isPrint && (
+                    <td className={`p-1 border border-black border-l-2 border-l-slate-950 no-print ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}></td>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Right Part: BUMBU 10% (cols 11-22) */}
+                  <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#FFFF00]">
+                    BUMBU 10%
+                  </td>
+                  <td className="p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 bg-[#FFFF00]">
+                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950">
+                      <span className="text-slate-600 font-black">Rp</span>
+                      <span className="font-black">{formatRupiah(bumbuCost).replace("Rp", "").trim()}</span>
+                    </div>
+                  </td>
+                  {!isPrint && (
+                    <td className="p-1 border border-black border-l-2 border-l-slate-950 bg-[#FFFF00] no-print"></td>
+                  )}
+                </>
               )}
             </tr>
 
-            {/* ROW 3: KEBUTUHAN 90-110% + JUMLAH+BUMBU 10% */}
+            {/* ROW 3: KEBUTUHAN 90-110% + (JUMLAH+BUMBU 10% OR BLANK) */}
             <tr className="border border-black">
               {/* Left Part: Kebutuhan 90-110% (cols 1-10) */}
               <td colSpan={5} className="p-1.5 border border-black font-extrabold text-black uppercase bg-[#92D050] text-center">
@@ -1709,40 +1868,54 @@ export default function FoodCostTab({
                 );
               })}
 
-              {/* Right Part: JUMLAH+BUMBU 10% (cols 11-22) */}
-              <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#F8CBAD]">
-                JUMLAH+BUMBU 10%
-              </td>
-              <td className="p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 bg-[#F8CBAD]">
-                <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950">
-                  <span className="text-slate-600 font-black">Rp</span>
-                  <span className="font-black">{formatRupiah(subtotalCost).replace("Rp", "").trim()}</span>
-                </div>
-              </td>
-              {!isPrint && (
-                <td className="p-1 border border-black border-l-2 border-l-slate-950 bg-[#F8CBAD] no-print"></td>
+              {planningMode === "all_ingredients" ? (
+                <>
+                  <td colSpan={10} className="p-1.5 border border-black bg-slate-50/10"></td>
+                  <td className="p-1 border border-black bg-slate-50/10"></td>
+                  {!isPrint && (
+                    <td className="p-1 border border-black bg-slate-50/10 no-print"></td>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Right Part: JUMLAH+BUMBU 10% (cols 11-22) */}
+                  <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#F8CBAD]">
+                    JUMLAH+BUMBU 10%
+                  </td>
+                  <td className="p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 bg-[#F8CBAD]">
+                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950">
+                      <span className="text-slate-600 font-black">Rp</span>
+                      <span className="font-black">{formatRupiah(subtotalCost).replace("Rp", "").trim()}</span>
+                    </div>
+                  </td>
+                  {!isPrint && (
+                    <td className="p-1 border border-black border-l-2 border-l-slate-950 bg-[#F8CBAD] no-print"></td>
+                  )}
+                </>
               )}
             </tr>
 
             {/* ROW 4: HARGA PER PORSI */}
-            <tr className="border border-black font-extrabold text-black">
-              {/* Left Part: Empty (cols 1-10) */}
-              <td colSpan={10} className="p-1.5 border border-black bg-slate-50/30"></td>
+            {planningMode === "with_bumbu_10" && (
+              <tr className="border border-black font-extrabold text-black">
+                {/* Left Part: Empty (cols 1-10) */}
+                <td colSpan={10} className="p-1.5 border border-black bg-slate-50/30"></td>
 
-              {/* Right Part: HARGA PER PORSI (cols 11-22) */}
-              <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#A9D08E]">
-                HARGA PER PORSI
-              </td>
-              <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${costPerPorsi > 10000 ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
-                <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
-                  <span className="text-white/90 font-black">Rp</span>
-                  <span className="font-black text-white">{formatRupiah(costPerPorsi).replace("Rp", "").trim()}</span>
-                </div>
-              </td>
-              {!isPrint && (
-                <td className={`p-1 border border-black border-l-2 border-l-slate-950 no-print ${costPerPorsi > 10000 ? "bg-[#FF0000]" : "bg-[#00B050]"}`}></td>
-              )}
-            </tr>
+                {/* Right Part: HARGA PER PORSI (cols 11-22) */}
+                <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#A9D08E]">
+                  HARGA PER PORSI
+                </td>
+                <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
+                  <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
+                    <span className="text-white/90 font-black">Rp</span>
+                    <span className="font-black text-white">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
+                  </div>
+                </td>
+                {!isPrint && (
+                  <td className={`p-1 border border-black border-l-2 border-l-slate-950 no-print ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}></td>
+                )}
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>
@@ -1762,6 +1935,10 @@ export default function FoodCostTab({
     const costPerPorsi = table.porsi === "besar" ? results.costPerPorsiBesar : results.costPerPorsiKecil;
     const recipientCount = table.pmCount;
     const targetPrice = table.plafon;
+
+    const calculatedCostPerPorsi = planningMode === "all_ingredients"
+      ? (recipientCount > 0 ? totalBahanCost / recipientCount : 0)
+      : costPerPorsi;
 
     const akgType = table.akgType || (table.porsi === "besar" ? "sd_besar" : "sd_kecil");
     const akgMode = table.akgMode || "avg";
@@ -1893,16 +2070,16 @@ export default function FoodCostTab({
               <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[155px] min-w-[155px] bg-[#92D050] text-[10px] leading-tight select-none">
                 Jumlah+Buffer
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[96px] min-w-[96px]">Harga Satuan</th>
+              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[130px] min-w-[130px]">Harga Satuan</th>
               <th rowSpan={2} className="p-1 border border-black border-r-2 border-r-slate-950 text-center text-slate-950 font-extrabold w-[136px] min-w-[136px]">Harga Total</th>
               {!isPrint && <th rowSpan={2} className="p-1 border border-black border-l-2 border-l-slate-950 text-center text-rose-800 w-[44px] min-w-[44px] no-print">Aksi</th>}
             </tr>
             <tr>
               <th className="p-1 border border-black text-center w-[54px] min-w-[54px] bg-[#D8E4BC] text-slate-950 font-bold">ENERGI (Kal)</th>
-              <th className="p-1 border border-black text-center w-[48px] min-w-[48px] bg-[#D8E4BC] text-slate-950 font-bold">Protein (g)</th>
-              <th className="p-1 border border-black text-center w-[48px] min-w-[48px] bg-[#D8E4BC] text-slate-950 font-bold">LEMAK (g)</th>
-              <th className="p-1 border border-black text-center w-[48px] min-w-[48px] bg-[#D8E4BC] text-slate-950 font-bold">KH (g)</th>
-              <th className="p-1 border border-black text-center w-[48px] min-w-[48px] bg-[#D8E4BC] text-slate-950 font-bold">SERAT (g)</th>
+              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">Protein (g)</th>
+              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">LEMAK (g)</th>
+              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">KH (g)</th>
+              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">SERAT (g)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black text-[11px] text-slate-900 bg-white">
@@ -1973,10 +2150,10 @@ export default function FoodCostTab({
                     )}
                   </td>
                   <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[54px] min-w-[54px] text-xs">{b.energi.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[48px] min-w-[48px] text-xs">{b.protein.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[48px] min-w-[48px] text-xs">{b.lemak.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[48px] min-w-[48px] text-xs">{b.kh.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[48px] min-w-[48px] text-xs">{b.serat.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.protein.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.lemak.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.kh.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.serat.toFixed(1)}</td>
                   
                   <td className="p-1 border border-black text-center w-[56px] min-w-[56px]">
                     {isPrint ? (
@@ -2044,92 +2221,73 @@ export default function FoodCostTab({
                       </div>
                     )}
                   </td>
-                  <td className="p-1 border border-black text-center w-[115px] min-w-[115px] bg-slate-50/50">
-                    <div className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
-                      <span className="font-mono text-slate-950 text-xs font-semibold shrink-0">
-                        {typeof b.buah === "number" && b.buah > 0 ? b.buah.toFixed(3) : "-"}
+                  <td
+                    onClick={() => !isPrint && openBufferConfig(table.id, idx, b)}
+                    className={`p-1 border border-black text-center w-[115px] min-w-[115px] bg-slate-50/50 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/buffer" : ""}`}
+                    title={!isPrint ? "Klik untuk memilih basis Buffer (Kg, Potong, Ekor)" : undefined}
+                  >
+                    <div className="flex flex-col items-center justify-center h-full min-h-[36px]">
+                      <span className="font-mono text-slate-950 text-xs font-semibold">
+                        {typeof b.buah === "number" && b.buah >= 0 ? b.buah.toFixed(3) : "-"}
                       </span>
                       {!isPrint && (
-                        <div className="flex items-center gap-1 no-print">
-                          <select
-                            value={b.bufferBase || "auto"}
-                            onChange={(e) => editIngredientInCustomTable(table.id, idx, "bufferBase", e.target.value)}
-                            className="text-[9px] py-0 px-0.5 border border-slate-300 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-sans cursor-pointer h-[18px] text-center w-[44px] focus:outline-none focus:ring-1 focus:ring-rose-500"
-                            title="Pilih basis penyusutan (Buffer)"
-                          >
-                            <option value="auto">Auto</option>
-                            <option value="kg">Kg</option>
-                            <option value="potong">Ptg</option>
-                            <option value="ekor">Ekr</option>
-                            <option value="custom">Cust</option>
-                          </select>
-                          {(b.bufferBase === "custom") && (
-                            <input
-                              type="text"
-                              placeholder="Nilai"
-                              value={b.bufferCustomVal ?? ""}
-                              onChange={(e) => editIngredientInCustomTable(table.id, idx, "bufferCustomVal", e.target.value)}
-                              className="text-[9px] py-0 px-0.5 border border-slate-300 rounded bg-white text-slate-700 font-mono text-center w-[36px] h-[18px] focus:outline-none focus:ring-1 focus:ring-rose-500"
-                              title="Masukkan angka basis custom"
-                            />
-                          )}
-                        </div>
+                        <span className="text-[8px] text-indigo-600 font-extrabold uppercase tracking-wider block leading-none mt-0.5 opacity-70 group-hover/buffer:opacity-100 transition-opacity">
+                          {b.bufferBase === "kg" ? "KG" : b.bufferBase === "potong" ? "Ptg" : b.bufferBase === "ekor" ? "Ekr" : b.bufferBase === "custom" ? "Cust" : "Auto"} ⚙️
+                        </span>
                       )}
                     </div>
                   </td>
-                  <td className="p-1 border border-black text-center w-[155px] min-w-[155px] bg-[#E6F0FA]/30">
-                    <div className="flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5">
-                      <span className="font-mono text-slate-950 text-xs font-bold shrink-0">
-                        {typeof b.butir === "number" && b.butir > 0 ? b.butir.toFixed(3) : "-"}
+                  <td
+                    onClick={() => !isPrint && openBufferConfig(table.id, idx, b)}
+                    className={`p-1 border border-black text-center w-[155px] min-w-[155px] bg-[#E6F0FA]/30 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/jumlah" : ""}`}
+                    title={!isPrint ? "Klik untuk mengatur rumus Jumlah + Buffer" : undefined}
+                  >
+                    <div className="flex flex-col items-center justify-center h-full min-h-[36px]">
+                      <span className="font-mono text-slate-950 text-xs font-bold text-indigo-950">
+                        {typeof b.butir === "number" && b.butir >= 0 ? b.butir.toFixed(3) : "-"}
                       </span>
                       {!isPrint && (
-                        <div className="flex items-center gap-1 no-print">
-                          <select
-                            value={b.jumlahBufferChoice || "auto"}
-                            onChange={(e) => editIngredientInCustomTable(table.id, idx, "jumlahBufferChoice", e.target.value)}
-                            className="text-[9px] py-0 px-0.5 border border-slate-300 rounded bg-[#e8f0fe] hover:bg-indigo-50 text-indigo-700 font-sans cursor-pointer h-[18px] text-center w-[68px] focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
-                            title="Pilih rumus Jumlah + Buffer"
-                          >
-                            <option value="auto">Auto</option>
-                            <option value="kg_with">Kg+Buf</option>
-                            <option value="kg_without">Kg Saja</option>
-                            <option value="potong_with">Ptg+Buf</option>
-                            <option value="potong_without">Ptg Saja</option>
-                            <option value="ekor_with">Ekr+Buf</option>
-                            <option value="ekor_without">Ekr Saja</option>
-                            <option value="custom_with">Cust+Buf</option>
-                            <option value="custom_without">Cust Saja</option>
-                          </select>
-                          {(b.jumlahBufferChoice && b.jumlahBufferChoice.startsWith("custom")) && (
-                            <input
-                              type="text"
-                              placeholder="Nilai"
-                              value={b.jumlahBufferCustomVal ?? b.bufferCustomVal ?? ""}
-                              onChange={(e) => editIngredientInCustomTable(table.id, idx, "jumlahBufferCustomVal", e.target.value)}
-                              className="text-[9px] py-0 px-0.5 border border-slate-300 rounded bg-white text-slate-700 font-mono text-center w-[36px] h-[18px] focus:outline-none focus:ring-1 focus:ring-indigo-500"
-                              title="Masukkan angka custom untuk Jumlah"
-                            />
-                          )}
-                        </div>
+                        <span className="text-[8px] text-indigo-700 font-extrabold uppercase tracking-wider block leading-none mt-0.5 opacity-70 group-hover/jumlah:opacity-100 transition-opacity">
+                          {(() => {
+                            const val = b.jumlahBufferChoice || "auto";
+                            if (val === "auto") return "Auto";
+                            if (val === "kg_with") return "KG + Buf";
+                            if (val === "kg_without") return "KG Saja";
+                            if (val === "potong_with") return "Ptg + Buf";
+                            if (val === "potong_without") return "Ptg Saja";
+                            if (val === "ekor_with") return "Ekr + Buf";
+                            if (val === "ekor_without") return "Ekr Saja";
+                            if (val === "custom_with") return "Cust + Buf";
+                            if (val === "custom_without") return "Cust Saja";
+                            return val;
+                          })()} ⚙️
+                        </span>
                       )}
                     </div>
                   </td>
                   
-                  <td className="p-1 border border-black text-center w-[96px] min-w-[96px]">
+                  <td className="p-1 border border-black text-center w-[130px] min-w-[130px]">
                     {isPrint ? (
                       <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-bold text-slate-950">
                         <span className="text-slate-500">Rp</span>
                         <span>{formatRupiah(b.hargaSatuan).replace("Rp", "").trim()}</span>
                       </div>
                     ) : (
-                      <div className="flex items-center gap-1 bg-white/50 px-1 rounded border border-slate-200 w-full max-w-[84px] mx-auto">
-                        <span className="text-[10px] font-bold text-slate-400">Rp</span>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={formatThousandSeparator(b.hargaSatuan)}
-                          onChange={(e) => editIngredientInCustomTable(table.id, idx, "hargaSatuan", parseThousandSeparator(e.target.value))}
-                          className="w-full text-right bg-transparent border-0 font-mono font-bold p-0 focus:ring-0 text-slate-950 text-xs"
+                      <div className="flex items-center justify-center gap-1 w-full">
+                        <div className="flex items-center gap-1 bg-white/50 px-1 rounded border border-slate-200 w-full max-w-[84px]">
+                          <span className="text-[10px] font-bold text-slate-400">Rp</span>
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={formatThousandSeparator(b.hargaSatuan)}
+                            onChange={(e) => editIngredientInCustomTable(table.id, idx, "hargaSatuan", parseThousandSeparator(e.target.value))}
+                            className="w-full text-right bg-transparent border-0 font-mono font-bold p-0 focus:ring-0 text-slate-950 text-xs"
+                          />
+                        </div>
+                        <PriceCalculatorPopover
+                          initialValue={b.hargaSatuan || 0}
+                          onApply={(val) => editIngredientInCustomTable(table.id, idx, "hargaSatuan", val)}
+                          placeholder="Hitung Harga Satuan"
                         />
                       </div>
                     )}
@@ -2139,20 +2297,6 @@ export default function FoodCostTab({
                       <span className="text-slate-500 text-[10px] font-bold">Rp</span>
                       <div className="flex items-center gap-1 font-mono text-xs font-bold text-slate-950 whitespace-nowrap">
                         <span>{formatRupiah(b.hargaTotal).replace("Rp", "").trim()}</span>
-                        {!isPrint && (
-                          <select
-                            value={b.formula || "kg"}
-                            onChange={(e) => editIngredientInCustomTable(table.id, idx, "formula", e.target.value)}
-                            className="text-[9px] py-0 px-1 border border-slate-300 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 font-sans cursor-pointer focus:outline-none focus:ring-1 focus:ring-rose-500 h-[18px] text-center w-[48px] inline-block no-print"
-                            title={`Rumus harga total: Harga Satuan x ${b.formula || "kg"}`}
-                          >
-                            <option value="kg">kg</option>
-                            <option value="potong">{headerPotong.slice(0, 3)}</option>
-                            <option value="ekor">{headerEkor.slice(0, 3)}</option>
-                            <option value="buah">Buf</option>
-                            <option value="butir">J+B</option>
-                          </select>
-                        )}
                       </div>
                     </div>
                   </td>
@@ -2160,7 +2304,7 @@ export default function FoodCostTab({
                     <td className="p-1 border border-black border-l-2 border-l-slate-950 text-center w-[44px] min-w-[44px] no-print">
                       <button
                         type="button"
-                        onClick={() => removeIngredientFromCustomTable(table.id, b.id)}
+                        onClick={() => removeIngredientFromCustomTable(table.id, b.id, idx)}
                         className="p-0.5 text-slate-400 hover:text-rose-600 rounded"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
@@ -2182,16 +2326,16 @@ export default function FoodCostTab({
               <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[54px] min-w-[54px] bg-[#92D050]">
                 {sumEnergi.toFixed(1)}
               </td>
-              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {sumProtein.toFixed(1)}
               </td>
-              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {sumLemak.toFixed(1)}
               </td>
-              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {sumKH.toFixed(1)}
               </td>
-              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1.5 border border-black text-center font-mono font-extrabold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {sumSerat.toFixed(1)}
               </td>
 
@@ -2210,7 +2354,7 @@ export default function FoodCostTab({
               )}
             </tr>
 
-            {/* ROW 2: KEBUTUHAN RUJUKAN AKG + BUMBU 10% */}
+            {/* ROW 2: KEBUTUHAN RUJUKAN AKG + (BUMBU 10% OR HARGA PER PORSI) */}
             <tr className="border border-black">
               {/* Left Part: Rujukan AKG (cols 1-10) */}
               <td colSpan={5} className="p-1.5 border border-black font-extrabold text-black uppercase bg-[#92D050] text-center">
@@ -2242,21 +2386,15 @@ export default function FoodCostTab({
                     value={targetEnergi > 0 ? Number(targetEnergi.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      const isBesar = table.porsi === "besar";
-                      editCustomTableMeta(table.id, "akgMode", "custom");
-                      if (isBesar) {
-                        setCustomBesar(prev => ({ ...prev, energi: val }));
-                      } else {
-                        setCustomKecil(prev => ({ ...prev, energi: val }));
-                      }
+                      handleAkgValChange(table.porsi, "energi", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* PROTEIN */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
                   <span>{targetProtein > 0 ? targetProtein.toFixed(1) : "-"}</span>
                 ) : (
@@ -2266,21 +2404,15 @@ export default function FoodCostTab({
                     value={targetProtein > 0 ? Number(targetProtein.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      const isBesar = table.porsi === "besar";
-                      editCustomTableMeta(table.id, "akgMode", "custom");
-                      if (isBesar) {
-                        setCustomBesar(prev => ({ ...prev, protein: val }));
-                      } else {
-                        setCustomKecil(prev => ({ ...prev, protein: val }));
-                      }
+                      handleAkgValChange(table.porsi, "protein", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* LEMAK */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
                   <span>{targetLemak > 0 ? targetLemak.toFixed(1) : "-"}</span>
                 ) : (
@@ -2290,21 +2422,15 @@ export default function FoodCostTab({
                     value={targetLemak > 0 ? Number(targetLemak.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      const isBesar = table.porsi === "besar";
-                      editCustomTableMeta(table.id, "akgMode", "custom");
-                      if (isBesar) {
-                        setCustomBesar(prev => ({ ...prev, lemak: val }));
-                      } else {
-                        setCustomKecil(prev => ({ ...prev, lemak: val }));
-                      }
+                      handleAkgValChange(table.porsi, "lemak", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* KH */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
                   <span>{targetKH > 0 ? targetKH.toFixed(1) : "-"}</span>
                 ) : (
@@ -2314,21 +2440,15 @@ export default function FoodCostTab({
                     value={targetKH > 0 ? Number(targetKH.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      const isBesar = table.porsi === "besar";
-                      editCustomTableMeta(table.id, "akgMode", "custom");
-                      if (isBesar) {
-                        setCustomBesar(prev => ({ ...prev, kh: val }));
-                      } else {
-                        setCustomKecil(prev => ({ ...prev, kh: val }));
-                      }
+                      handleAkgValChange(table.porsi, "kh", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* SERAT */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[48px] min-w-[48px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
                   <span>{targetSerat > 0 ? targetSerat.toFixed(1) : "-"}</span>
                 ) : (
@@ -2338,35 +2458,49 @@ export default function FoodCostTab({
                     value={targetSerat > 0 ? Number(targetSerat.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      const isBesar = table.porsi === "besar";
-                      editCustomTableMeta(table.id, "akgMode", "custom");
-                      if (isBesar) {
-                        setCustomBesar(prev => ({ ...prev, serat: val }));
-                      } else {
-                        setCustomKecil(prev => ({ ...prev, serat: val }));
-                      }
+                      handleAkgValChange(table.porsi, "serat", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold p-0.5 rounded text-black text-xs"
+                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
-              {/* Right Part: BUMBU 10% (cols 11-22) */}
-              <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#FFFF00]">
-                BUMBU 10%
-              </td>
-              <td className="p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 bg-[#FFFF00]">
-                <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950">
-                  <span className="text-slate-600 font-black">Rp</span>
-                  <span className="font-black">{formatRupiah(bumbuCost).replace("Rp", "").trim()}</span>
-                </div>
-              </td>
-              {!isPrint && (
-                <td className="p-1 border border-black border-l-2 border-l-slate-950 bg-[#FFFF00] no-print"></td>
+              {planningMode === "all_ingredients" ? (
+                <>
+                  {/* Right Part: HARGA PER PORSI (cols 11-22) */}
+                  <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#A9D08E]">
+                    HARGA PER PORSI
+                  </td>
+                  <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
+                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
+                      <span className="text-white/90 font-black">Rp</span>
+                      <span className="font-black text-white">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
+                    </div>
+                  </td>
+                  {!isPrint && (
+                    <td className={`p-1 border border-black border-l-2 border-l-slate-950 no-print ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}></td>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Right Part: BUMBU 10% (cols 11-22) */}
+                  <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#FFFF00]">
+                    BUMBU 10%
+                  </td>
+                  <td className="p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 bg-[#FFFF00]">
+                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950">
+                      <span className="text-slate-600 font-black">Rp</span>
+                      <span className="font-black">{formatRupiah(bumbuCost).replace("Rp", "").trim()}</span>
+                    </div>
+                  </td>
+                  {!isPrint && (
+                    <td className="p-1 border border-black border-l-2 border-l-slate-950 bg-[#FFFF00] no-print"></td>
+                  )}
+                </>
               )}
             </tr>
 
-            {/* ROW 3: KEBUTUHAN 90-110% + JUMLAH+BUMBU 10% */}
+            {/* ROW 3: KEBUTUHAN 90-110% + (JUMLAH+BUMBU 10% OR BLANK) */}
             <tr className="border border-black">
               {/* Left Part: Kebutuhan 90-110% (cols 1-10) */}
               <td colSpan={5} className="p-1.5 border border-black font-extrabold text-black uppercase bg-[#92D050] text-center">
@@ -2394,40 +2528,54 @@ export default function FoodCostTab({
                 );
               })}
 
-              {/* Right Part: JUMLAH+BUMBU 10% (cols 11-22) */}
-              <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#F8CBAD]">
-                JUMLAH+BUMBU 10%
-              </td>
-              <td className="p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 bg-[#F8CBAD]">
-                <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950">
-                  <span className="text-slate-600 font-black">Rp</span>
-                  <span className="font-black">{formatRupiah(subtotalCost).replace("Rp", "").trim()}</span>
-                </div>
-              </td>
-              {!isPrint && (
-                <td className="p-1 border border-black border-l-2 border-l-slate-950 bg-[#F8CBAD] no-print"></td>
+              {planningMode === "all_ingredients" ? (
+                <>
+                  <td colSpan={10} className="p-1.5 border border-black bg-slate-50/10"></td>
+                  <td className="p-1 border border-black bg-slate-50/10"></td>
+                  {!isPrint && (
+                    <td className="p-1 border border-black bg-slate-50/10 no-print"></td>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Right Part: JUMLAH+BUMBU 10% (cols 11-22) */}
+                  <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#F8CBAD]">
+                    JUMLAH+BUMBU 10%
+                  </td>
+                  <td className="p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 bg-[#F8CBAD]">
+                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950">
+                      <span className="text-slate-600 font-black">Rp</span>
+                      <span className="font-black">{formatRupiah(subtotalCost).replace("Rp", "").trim()}</span>
+                    </div>
+                  </td>
+                  {!isPrint && (
+                    <td className="p-1 border border-black border-l-2 border-l-slate-950 bg-[#F8CBAD] no-print"></td>
+                  )}
+                </>
               )}
             </tr>
 
             {/* ROW 4: HARGA PER PORSI */}
-            <tr className="border border-black font-extrabold text-black">
-              {/* Left Part: Empty (cols 1-10) */}
-              <td colSpan={10} className="p-1.5 border border-black bg-slate-50/30"></td>
+            {planningMode === "with_bumbu_10" && (
+              <tr className="border border-black font-extrabold text-black">
+                {/* Left Part: Empty (cols 1-10) */}
+                <td colSpan={10} className="p-1.5 border border-black bg-slate-50/30"></td>
 
-              {/* Right Part: HARGA PER PORSI (cols 11-22) */}
-              <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#A9D08E]">
-                HARGA PER PORSI
-              </td>
-              <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${costPerPorsi > 10000 ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
-                <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
-                  <span className="text-white/90 font-black">Rp</span>
-                  <span className="font-black text-white">{formatRupiah(costPerPorsi).replace("Rp", "").trim()}</span>
-                </div>
-              </td>
-              {!isPrint && (
-                <td className={`p-1 border border-black border-l-2 border-l-slate-950 no-print ${costPerPorsi > 10000 ? "bg-[#FF0000]" : "bg-[#00B050]"}`}></td>
-              )}
-            </tr>
+                {/* Right Part: HARGA PER PORSI (cols 11-22) */}
+                <td colSpan={10} className="p-1.5 border border-black border-r-2 border-r-slate-950 text-right pr-4 uppercase text-slate-950 font-black bg-[#A9D08E]">
+                  HARGA PER PORSI
+                </td>
+                <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
+                  <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
+                    <span className="text-white/90 font-black">Rp</span>
+                    <span className="font-black text-white">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
+                  </div>
+                </td>
+                {!isPrint && (
+                  <td className={`p-1 border border-black border-l-2 border-l-slate-950 no-print ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}></td>
+                )}
+              </tr>
+            )}
           </tfoot>
         </table>
       </div>
@@ -2558,7 +2706,7 @@ export default function FoodCostTab({
         <div className="space-y-6 no-print">
           {/* Interactive Filters Panel */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 flex-grow">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 flex-grow">
               {/* 1. Cycle Day Selector */}
               <div className="space-y-1">
                 <label className="text-[10px] font-bold text-slate-400 uppercase block">Siklus Menu</label>
@@ -2652,50 +2800,17 @@ export default function FoodCostTab({
                 </div>
               </div>
 
-              {/* 5. Table Density Selector */}
+              {/* 5. Spice Planning Selector */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase block">Kerapatan Tabel</label>
-                <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-1 justify-between items-center h-10">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTableDensity("cramped");
-                      localStorage.setItem("fc_table_density", "cramped");
-                    }}
-                    className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all ${
-                      tableDensity === "cramped" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                    title="Rapat (Cramped)"
-                  >
-                    Rapat
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTableDensity("normal");
-                      localStorage.setItem("fc_table_density", "normal");
-                    }}
-                    className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all ${
-                      tableDensity === "normal" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                    title="Sedang (Normal)"
-                  >
-                    Sedang
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setTableDensity("spacious");
-                      localStorage.setItem("fc_table_density", "spacious");
-                    }}
-                    className={`flex-1 py-1 text-[10px] font-bold rounded-lg transition-all ${
-                      tableDensity === "spacious" ? "bg-white text-indigo-600 shadow-xs" : "text-slate-500 hover:text-slate-800"
-                    }`}
-                    title="Longgar (Spacious)"
-                  >
-                    Longgar
-                  </button>
-                </div>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block">Perencanaan Bumbu</label>
+                <select
+                  value={planningMode}
+                  onChange={(e) => handlePlanningModeChange(e.target.value as any)}
+                  className="bg-slate-50 border border-slate-200 rounded-xl text-xs px-3 py-2.5 text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full cursor-pointer h-10"
+                >
+                  <option value="with_bumbu_10">Bumbu Tambahan 10%</option>
+                  <option value="all_ingredients">Semua Bahan Termasuk Bumbu</option>
+                </select>
               </div>
             </div>
 
@@ -2719,6 +2834,76 @@ export default function FoodCostTab({
                   Salin ke Food Costing
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* RAB & Realisasi Belanja Dashboard */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* 1. Rencana Anggaran Biaya (RAB) */}
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 p-4 rounded-2xl border border-emerald-100 shadow-xs flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">
+                  Rencana Anggaran Biaya (RAB Harian)
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-xl font-black text-emerald-900 font-mono">
+                    Rp {formatThousandSeparator(rabPorsiKecil + rabPorsiBesar)}
+                  </span>
+                </div>
+              </div>
+              <div className="text-[10px] text-emerald-700 font-semibold mt-3 space-y-0.5 border-t border-emerald-200/50 pt-2 font-mono">
+                <div>Kecil: {pmKecil} PM x Rp {formatThousandSeparator(activeTargetPriceKecil)} = Rp {formatThousandSeparator(pmKecil * activeTargetPriceKecil)}</div>
+                <div>Besar: {pmBesar} PM x Rp {formatThousandSeparator(activeTargetPriceBesar)} = Rp {formatThousandSeparator(pmBesar * activeTargetPriceBesar)}</div>
+              </div>
+            </div>
+
+            {/* 2. Realisasi Belanja Harian */}
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/40 p-4 rounded-2xl border border-indigo-100 shadow-xs flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-black text-indigo-800 uppercase tracking-wider block">
+                  Realisasi Belanja Harian (Actual)
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-xl font-black text-indigo-900 font-mono">
+                    Rp {formatThousandSeparator(results.subtotalKecilCost + results.subtotalBesarCost)}
+                  </span>
+                </div>
+              </div>
+              <div className="text-[10px] text-indigo-700 font-semibold mt-3 space-y-0.5 border-t border-indigo-200/50 pt-2 font-mono">
+                <div>Kecil: Rp {formatThousandSeparator(results.subtotalKecilCost)} (Rp {formatThousandSeparator(Math.round(results.costPerPorsiKecil))}/porsi)</div>
+                <div>Besar: Rp {formatThousandSeparator(results.subtotalBesarCost)} (Rp {formatThousandSeparator(Math.round(results.costPerPorsiBesar))}/porsi)</div>
+              </div>
+            </div>
+
+            {/* 3. Sisa / Efisiensi Saldo */}
+            <div className={`p-4 rounded-2xl border shadow-xs flex flex-col justify-between ${
+              (pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost) >= 0 
+                ? "bg-gradient-to-br from-teal-50 to-teal-100/40 border-teal-100" 
+                : "bg-gradient-to-br from-rose-50 to-rose-100/40 border-rose-100"
+            }`}>
+              <div>
+                <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                  (pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost) >= 0 ? "text-teal-800" : "text-rose-800"
+                }`}>
+                  {((pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost)) >= 0 ? "Sisa / Efisiensi Anggaran (Surplus)" : "Defisit / Melebihi Anggaran"}
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className={`text-xl font-black font-mono ${
+                    (pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost) >= 0 ? "text-teal-900" : "text-rose-900"
+                  }`}>
+                    {((pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost)) >= 0 ? "+" : ""}{formatRupiah((pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost))}
+                  </span>
+                </div>
+              </div>
+              <div className={`text-[10px] font-semibold mt-3 border-t pt-2 ${
+                (pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost) >= 0 
+                  ? "text-teal-700 border-teal-200/50" 
+                  : "text-rose-700 border-rose-200/50"
+              }`}>
+                {((pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost)) >= 0 
+                  ? "✓ Komponen belanja aman di bawah plafon harian." 
+                  : "⚠️ Perhatian: Anggaran belanja melebihi pagu dana yang diatur!"}
+              </div>
             </div>
           </div>
 
@@ -2797,22 +2982,28 @@ export default function FoodCostTab({
                       <button
                         type="button"
                         onClick={() => {
-                          if (window.confirm("Kembalikan target harga porsi ke standar juknis (Rp 8.000 & Rp 10.000)?")) {
-                            setSasaranTargets({
-                              tk_paud_lb: 8000,
-                              sd_kelas_1_3: 8000,
-                              sd_kelas_4_6: 8000,
-                              smp_mts_smplb: 8000,
-                              sma_smk_ma: 8000,
-                              pendidik: 8000,
-                              tenaga_kependidikan: 8000,
-                              anak_balita: 8000,
-                              anak_balita_13_59: 8000,
-                              balita_6_11: 8000,
-                              ibu_hamil: 10000,
-                              ibu_menyusui: 10000
-                            });
-                          }
+                          triggerConfirm({
+                            title: "Reset Target Harga Porsi",
+                            message: "Apakah Anda yakin ingin mengembalikan target harga (plafon) porsi setiap sasaran ke standar juknis (Porsi Kecil Rp 8.000 & Porsi Besar Rp 10.000)?",
+                            confirmText: "Reset",
+                            variant: "warning",
+                            onConfirm: () => {
+                              setSasaranTargets({
+                                tk_paud_lb: 8000,
+                                sd_kelas_1_3: 8000,
+                                sd_kelas_4_6: 8000,
+                                smp_mts_smplb: 8000,
+                                sma_smk_ma: 8000,
+                                pendidik: 8000,
+                                tenaga_kependidikan: 8000,
+                                anak_balita: 8000,
+                                anak_balita_13_59: 8000,
+                                balita_6_11: 8000,
+                                ibu_hamil: 10000,
+                                ibu_menyusui: 10000
+                              });
+                            }
+                          });
                         }}
                         className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1.5 transition-all"
                       >
@@ -2856,228 +3047,156 @@ export default function FoodCostTab({
                 {/* Tab 2: Merge settings for Porsi Besar */}
                 {activeConfigTab === "mergeBesar" && (
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
-                        Metode Penentuan Penerima Manfaat (Porsi Besar)
+                    {/* Target Price Input for Porsi Besar */}
+                    <div className="space-y-1.5 max-w-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200/60">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
+                        Plafon Target Porsi Besar (Rp / Porsi)
                       </label>
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setPmSelectionModeBesar("standard")}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border transition-all ${
-                            pmSelectionModeBesar === "standard"
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs"
-                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                          }`}
-                        >
-                          📋 Standar Juknis Kelompok
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPmSelectionModeBesar("merge")}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border transition-all ${
-                            pmSelectionModeBesar === "merge"
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs"
-                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                          }`}
-                        >
-                          🔗 Pilih & Gabungkan Kriteria
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPmSelectionModeBesar("custom")}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border transition-all ${
-                            pmSelectionModeBesar === "custom"
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs"
-                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                          }`}
-                        >
-                          ✍️ Custom (Input Manual)
-                        </button>
+                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                        <span className="text-xs font-bold text-slate-400 font-semibold">Rp</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="500"
+                          value={settings.porsiBesarHarga}
+                          onChange={(e) => updateSetting("porsiBesarHarga", Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-full text-xs font-bold text-slate-800 bg-transparent border-none p-0 focus:outline-none focus:ring-0 font-mono"
+                        />
+                        <span className="text-[10px] text-slate-400 font-bold shrink-0">/ porsi</span>
                       </div>
                     </div>
 
-                    {pmSelectionModeBesar === "merge" && (
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                            Pilih Kriteria PM yang digabung ke Porsi Besar:
-                          </span>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedSasaransBesar(DEFAULT_SASARAN_LIST.map(x => x.id))}
-                              className="text-[10px] font-bold text-indigo-600 hover:underline"
-                            >
-                              Pilih Semua
-                            </button>
-                            <span className="text-slate-300">|</span>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedSasaransBesar([])}
-                              className="text-[10px] font-bold text-rose-600 hover:underline"
-                            >
-                              Kosongkan
-                            </button>
-                          </div>
-                        </div>
+                    <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="font-bold text-slate-700 block mb-1">Klasifikasi Sasaran Terpilih:</span>
+                      <p className="text-slate-500 text-[11px]">
+                        {porsiBesarLabels || "Belum ada sasaran terpilih. Atur klasifikasi di bawah."}
+                      </p>
+                    </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {DEFAULT_SASARAN_LIST.map((sas) => {
-                            const isChecked = selectedSasaransBesar.includes(sas.id);
+                    {/* Accordion Toggle for Porsi Besar Classifications */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowBesarSasaranEditor(!showBesarSasaranEditor)}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-cyan-50 hover:bg-cyan-100/80 text-cyan-700 rounded-xl text-[11px] font-bold transition cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1">
+                          <Settings className="w-3.5 h-3.5" />
+                          Pilih Klasifikasi Sasaran Porsi Besar
+                        </span>
+                        {showBesarSasaranEditor ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {showBesarSasaranEditor && (
+                        <div className="mt-2 p-3 bg-white border border-slate-150 rounded-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px] max-h-[180px] overflow-y-auto animate-in fade-in duration-150">
+                          {DEFAULT_SASARAN_LIST.map((s) => {
+                            const isChecked = settings.porsiBesarSasaranIds.includes(s.id);
                             const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
-                            const sasItem = dayPM.sasaran.find(x => x.id === sas.id);
+                            const sasItem = dayPM.sasaran.find(x => x.id === s.id);
                             const activeCount = sasItem ? (Number(sasItem.porsiBesar) || 0) : 0;
-
                             return (
                               <label
-                                key={sas.id}
-                                className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
-                                  isChecked
-                                    ? "bg-white border-indigo-400 ring-2 ring-indigo-50 shadow-xs"
-                                    : "bg-white/60 border-slate-200 text-slate-400 hover:bg-white"
+                                key={s.id}
+                                className={`flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition ${
+                                  isChecked 
+                                    ? "bg-cyan-50/40 border-cyan-200 text-cyan-950 font-semibold" 
+                                    : "border-slate-100 text-slate-600 hover:bg-slate-50"
                                 }`}
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedSasaransBesar([...selectedSasaransBesar, sas.id]);
-                                    } else {
-                                      setSelectedSasaransBesar(selectedSasaransBesar.filter(x => x !== sas.id));
-                                    }
-                                  }}
-                                  className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
-                                />
-                                <div className="space-y-0.5 leading-none">
-                                  <span className="text-xs font-bold text-slate-700 block">
-                                    {sas.label}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-slate-400 block font-mono">
-                                    Hari ini: {activeCount} PM porsi besar
-                                  </span>
-                                </div>
+                                <span className="flex items-center gap-2 truncate">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleBesarSasaran(s.id)}
+                                    className="rounded text-cyan-600 focus:ring-cyan-500 w-3.5 h-3.5"
+                                  />
+                                  <span className="truncate">{s.label}</span>
+                                </span>
+                                <span className="font-mono text-[9px] text-slate-400 shrink-0 pr-1">({activeCount} PM)</span>
                               </label>
                             );
                           })}
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
 
                 {/* Tab 3: Merge settings for Porsi Kecil */}
                 {activeConfigTab === "mergeKecil" && (
                   <div className="space-y-4">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">
-                        Metode Penentuan Penerima Manfaat (Porsi Kecil)
+                    {/* Target Price Input for Porsi Kecil */}
+                    <div className="space-y-1.5 max-w-xs bg-slate-50 p-3.5 rounded-xl border border-slate-200/60">
+                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wide block">
+                        Plafon Target Porsi Kecil (Rp / Porsi)
                       </label>
-                      <div className="flex flex-col sm:flex-row gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setPmSelectionModeKecil("standard")}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border transition-all ${
-                            pmSelectionModeKecil === "standard"
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs"
-                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                          }`}
-                        >
-                          📋 Standar Juknis Kelompok
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPmSelectionModeKecil("merge")}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border transition-all ${
-                            pmSelectionModeKecil === "merge"
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs"
-                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                          }`}
-                        >
-                          🔗 Pilih & Gabungkan Kriteria
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPmSelectionModeKecil("custom")}
-                          className={`flex-1 py-2.5 rounded-xl text-xs font-extrabold border transition-all ${
-                            pmSelectionModeKecil === "custom"
-                              ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-xs"
-                              : "bg-white border-slate-200 text-slate-600 hover:bg-slate-50"
-                          }`}
-                        >
-                          ✍️ Custom (Input Manual)
-                        </button>
+                      <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-2.5 py-1.5">
+                        <span className="text-xs font-bold text-slate-400 font-semibold">Rp</span>
+                        <input
+                          type="number"
+                          min="0"
+                          step="500"
+                          value={settings.porsiKecilHarga}
+                          onChange={(e) => updateSetting("porsiKecilHarga", Math.max(0, parseInt(e.target.value) || 0))}
+                          className="w-full text-xs font-bold text-slate-800 bg-transparent border-none p-0 focus:outline-none focus:ring-0 font-mono"
+                        />
+                        <span className="text-[10px] text-slate-400 font-bold shrink-0">/ porsi</span>
                       </div>
                     </div>
 
-                    {pmSelectionModeKecil === "merge" && (
-                      <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/80 space-y-3">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-                            Pilih Kriteria PM yang digabung ke Porsi Kecil:
-                          </span>
-                          <div className="flex gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setSelectedSasaransKecil(DEFAULT_SASARAN_LIST.map(x => x.id))}
-                              className="text-[10px] font-bold text-indigo-600 hover:underline"
-                            >
-                              Pilih Semua
-                            </button>
-                            <span className="text-slate-300">|</span>
-                            <button
-                              type="button"
-                              onClick={() => setSelectedSasaransKecil([])}
-                              className="text-[10px] font-bold text-rose-600 hover:underline"
-                            >
-                              Kosongkan
-                            </button>
-                          </div>
-                        </div>
+                    <div className="text-xs text-slate-600 leading-relaxed bg-slate-50 p-3 rounded-xl border border-slate-100">
+                      <span className="font-bold text-slate-700 block mb-1">Klasifikasi Sasaran Terpilih:</span>
+                      <p className="text-slate-500 text-[11px]">
+                        {porsiKecilLabels || "Belum ada sasaran terpilih. Atur klasifikasi di bawah."}
+                      </p>
+                    </div>
 
-                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-                          {DEFAULT_SASARAN_LIST.map((sas) => {
-                            const isChecked = selectedSasaransKecil.includes(sas.id);
+                    {/* Accordion Toggle for Porsi Kecil Classifications */}
+                    <div className="pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowKecilSasaranEditor(!showKecilSasaranEditor)}
+                        className="w-full flex items-center justify-between px-3 py-2 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-700 rounded-xl text-[11px] font-bold transition cursor-pointer"
+                      >
+                        <span className="flex items-center gap-1">
+                          <Settings className="w-3.5 h-3.5" />
+                          Pilih Klasifikasi Sasaran Porsi Kecil
+                        </span>
+                        {showKecilSasaranEditor ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                      </button>
+
+                      {showKecilSasaranEditor && (
+                        <div className="mt-2 p-3 bg-white border border-slate-150 rounded-xl grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 text-[11px] max-h-[180px] overflow-y-auto animate-in fade-in duration-150">
+                          {DEFAULT_SASARAN_LIST.map((s) => {
+                            const isChecked = settings.porsiKecilSasaranIds.includes(s.id);
                             const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
-                            const sasItem = dayPM.sasaran.find(x => x.id === sas.id);
+                            const sasItem = dayPM.sasaran.find(x => x.id === s.id);
                             const activeCount = sasItem ? (Number(sasItem.porsiKecil) || 0) : 0;
-
                             return (
                               <label
-                                key={sas.id}
-                                className={`p-3 rounded-xl border flex items-start gap-2.5 cursor-pointer transition-all ${
-                                  isChecked
-                                    ? "bg-white border-indigo-400 ring-2 ring-indigo-50 shadow-xs"
-                                    : "bg-white/60 border-slate-200 text-slate-400 hover:bg-white"
+                                key={s.id}
+                                className={`flex items-center justify-between p-1.5 rounded-lg border cursor-pointer transition ${
+                                  isChecked 
+                                    ? "bg-indigo-50/40 border-indigo-200 text-indigo-950 font-semibold" 
+                                    : "border-slate-100 text-slate-600 hover:bg-slate-50"
                                 }`}
                               >
-                                <input
-                                  type="checkbox"
-                                  checked={isChecked}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedSasaransKecil([...selectedSasaransKecil, sas.id]);
-                                    } else {
-                                      setSelectedSasaransKecil(selectedSasaransKecil.filter(x => x !== sas.id));
-                                    }
-                                  }}
-                                  className="mt-0.5 rounded text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5"
-                                />
-                                <div className="space-y-0.5 leading-none">
-                                  <span className="text-xs font-bold text-slate-700 block">
-                                    {sas.label}
-                                  </span>
-                                  <span className="text-[10px] font-bold text-slate-400 block font-mono">
-                                    Hari ini: {activeCount} PM porsi kecil
-                                  </span>
-                                </div>
+                                <span className="flex items-center gap-2 truncate">
+                                  <input
+                                    type="checkbox"
+                                    checked={isChecked}
+                                    onChange={() => handleToggleKecilSasaran(s.id)}
+                                    className="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5"
+                                  />
+                                  <span className="truncate">{s.label}</span>
+                                </span>
+                                <span className="font-mono text-[9px] text-slate-400 shrink-0 pr-1">({activeCount} PM)</span>
                               </label>
                             );
                           })}
                         </div>
-                      </div>
-                    )}
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -3087,139 +3206,93 @@ export default function FoodCostTab({
           {/* Recipient info & targets summary */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 pr-3">
                 <span className="text-xs text-slate-500 font-semibold uppercase block">PM PORSI BESAR (Plafon: {formatRupiah(activeTargetPriceBesar)})</span>
-                {pmSelectionModeBesar === "merge" ? (
-                  <p className="text-[11px] text-indigo-600 mt-0.5 font-semibold truncate" title={selectedSasaransBesar.map(s => DEFAULT_SASARAN_LIST.find(x => x.id === s)?.label).filter(Boolean).join(", ")}>
-                    Gabungan: {selectedSasaransBesar.length > 0 ? selectedSasaransBesar.map(s => DEFAULT_SASARAN_LIST.find(x => x.id === s)?.label).filter(Boolean).join(", ") : "Tidak ada sasaran terpilih"}
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-slate-400 mt-0.5">Siswa SD 4-6, SMP, SMA, Bumil, Busui, Custom</p>
-                )}
+                <p className="text-[11px] text-cyan-600 mt-0.5 font-semibold truncate" title={porsiBesarLabels}>
+                  {porsiBesarLabels || "Tidak ada sasaran aktif"}
+                </p>
               </div>
-              {pmSelectionModeBesar === "custom" ? (
-                <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shrink-0">
-                  <span className="text-[10px] font-black text-slate-400 uppercase">Jumlah:</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border shadow-xs transition ${currentDayData.customPmBesarCount !== undefined ? 'bg-cyan-50 border-cyan-200 text-cyan-700' : 'bg-white border-slate-200 text-slate-800'}`}>
+                  <span className="text-[9px] font-extrabold uppercase text-slate-400">Hari ini:</span>
                   <input
                     type="number"
-                    min="1"
-                    value={customPmBesarCount}
-                    onChange={(e) => setCustomPmBesarCount(Math.max(1, Number(e.target.value)))}
-                    className="w-16 text-center text-xs font-bold font-mono text-slate-800 bg-transparent border-0 p-0 focus:outline-none focus:ring-0"
+                    min="0"
+                    placeholder={String(
+                      settings.porsiBesarSasaranIds.reduce((acc, sId) => {
+                        const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
+                        const sasItem = dayPM.sasaran.find(x => x.id === sId);
+                        return acc + (sasItem ? (Number(sasItem.porsiBesar) || 0) : 0);
+                      }, 0)
+                    )}
+                    value={currentDayData.customPmBesarCount !== undefined ? currentDayData.customPmBesarCount : ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : Math.max(0, Number(e.target.value));
+                      updateDayData({ ...currentDayData, customPmBesarCount: val });
+                    }}
+                    className="w-14 text-center text-xs font-black font-mono bg-transparent border-0 p-0 focus:outline-none focus:ring-0"
+                    title="Ubah angka ini untuk menyesuaikan jumlah porsi besar khusus hari ini saja"
                   />
-                  <span className="text-xs font-bold text-slate-500">PM</span>
+                  <span className="text-xs font-bold font-mono">PM</span>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border shadow-xs transition ${currentDayData.customPmBesarCount !== undefined ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-800'}`}>
-                    <span className="text-[9px] font-extrabold uppercase text-slate-400">Hari ini:</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder={String(
-                        pmSelectionModeBesar === "merge"
-                          ? getPmCountAndTargetPrice("besar").count
-                          : selectedGroup === "tigaB"
-                          ? dayCounts.pmBesar3B
-                          : dayCounts.pmBesarSekolah
-                      )}
-                      value={currentDayData.customPmBesarCount !== undefined ? currentDayData.customPmBesarCount : ""}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? undefined : Math.max(0, Number(e.target.value));
-                        updateDayData({ ...currentDayData, customPmBesarCount: val });
-                      }}
-                      className="w-14 text-center text-xs font-black font-mono bg-transparent border-0 p-0 focus:outline-none focus:ring-0"
-                      title="Ubah angka ini untuk menyesuaikan jumlah porsi besar khusus hari ini saja"
-                    />
-                    <span className="text-xs font-bold font-mono">PM</span>
-                  </div>
-                  {currentDayData.customPmBesarCount !== undefined && (
-                    <button
-                      type="button"
-                      onClick={() => updateDayData({ ...currentDayData, customPmBesarCount: undefined })}
-                      className="text-[10px] text-rose-500 hover:text-rose-700 font-bold underline shrink-0"
-                      title="Kembalikan ke nilai default dari database"
-                    >
-                      Batal
-                    </button>
-                  )}
-                </div>
-              )}
+                {currentDayData.customPmBesarCount !== undefined && (
+                  <button
+                    type="button"
+                    onClick={() => updateDayData({ ...currentDayData, customPmBesarCount: undefined })}
+                    className="text-[10px] text-rose-500 hover:text-rose-700 font-bold underline shrink-0 cursor-pointer"
+                    title="Kembalikan ke nilai default dari database"
+                  >
+                    Batal
+                  </button>
+                )}
+              </div>
             </div>
 
             <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 flex items-center justify-between">
-              <div className="min-w-0 flex-1">
+              <div className="min-w-0 flex-1 pr-3">
                 <span className="text-xs text-slate-500 font-semibold uppercase block">PM PORSI KECIL (Plafon: {formatRupiah(activeTargetPriceKecil)})</span>
-                {pmSelectionModeKecil === "merge" ? (
-                  <p className="text-[11px] text-indigo-600 mt-0.5 font-semibold truncate" title={selectedSasaransKecil.map(s => DEFAULT_SASARAN_LIST.find(x => x.id === s)?.label).filter(Boolean).join(", ")}>
-                    Gabungan: {selectedSasaransKecil.length > 0 ? selectedSasaransKecil.map(s => DEFAULT_SASARAN_LIST.find(x => x.id === s)?.label).filter(Boolean).join(", ") : "Tidak ada sasaran terpilih"}
-                  </p>
-                ) : (
-                  <p className="text-[11px] text-slate-400 mt-0.5">Balita, TK/PAUD, Siswa SD 1-3, Custom</p>
-                )}
+                <p className="text-[11px] text-indigo-600 mt-0.5 font-semibold truncate" title={porsiKecilLabels}>
+                  {porsiKecilLabels || "Tidak ada sasaran aktif"}
+                </p>
               </div>
-              {pmSelectionModeKecil === "custom" ? (
-                <div className="flex items-center gap-1.5 bg-white px-2.5 py-1.5 rounded-lg border border-slate-200 shrink-0">
-                  <span className="text-[10px] font-black text-slate-400 uppercase">Jumlah:</span>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border shadow-xs transition ${currentDayData.customPmKecilCount !== undefined ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-800'}`}>
+                  <span className="text-[9px] font-extrabold uppercase text-slate-400">Hari ini:</span>
                   <input
                     type="number"
-                    min="1"
-                    value={customPmKecilCount}
-                    onChange={(e) => setCustomPmKecilCount(Math.max(1, Number(e.target.value)))}
-                    className="w-16 text-center text-xs font-bold font-mono text-slate-800 bg-transparent border-0 p-0 focus:outline-none focus:ring-0"
+                    min="0"
+                    placeholder={String(
+                      settings.porsiKecilSasaranIds.reduce((acc, sId) => {
+                        const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
+                        const sasItem = dayPM.sasaran.find(x => x.id === sId);
+                        return acc + (sasItem ? (Number(sasItem.porsiKecil) || 0) : 0);
+                      }, 0)
+                    )}
+                    value={currentDayData.customPmKecilCount !== undefined ? currentDayData.customPmKecilCount : ""}
+                    onChange={(e) => {
+                      const val = e.target.value === "" ? undefined : Math.max(0, Number(e.target.value));
+                      updateDayData({ ...currentDayData, customPmKecilCount: val });
+                    }}
+                    className="w-14 text-center text-xs font-black font-mono bg-transparent border-0 p-0 focus:outline-none focus:ring-0"
+                    title="Ubah angka ini untuk menyesuaikan jumlah porsi kecil khusus hari ini saja"
                   />
-                  <span className="text-xs font-bold text-slate-500 font-mono">PM</span>
+                  <span className="text-xs font-bold font-mono">PM</span>
                 </div>
-              ) : (
-                <div className="flex items-center gap-2 shrink-0">
-                  <div className={`flex items-center gap-1 px-2.5 py-1.5 rounded-lg border shadow-xs transition ${currentDayData.customPmKecilCount !== undefined ? 'bg-indigo-50 border-indigo-200 text-indigo-700' : 'bg-white border-slate-200 text-slate-800'}`}>
-                    <span className="text-[9px] font-extrabold uppercase text-slate-400">Hari ini:</span>
-                    <input
-                      type="number"
-                      min="0"
-                      placeholder={String(
-                        pmSelectionModeKecil === "merge"
-                          ? getPmCountAndTargetPrice("kecil").count
-                          : selectedGroup === "tigaB"
-                          ? dayCounts.pmKecil3B
-                          : dayCounts.pmKecilSekolah
-                      )}
-                      value={currentDayData.customPmKecilCount !== undefined ? currentDayData.customPmKecilCount : ""}
-                      onChange={(e) => {
-                        const val = e.target.value === "" ? undefined : Math.max(0, Number(e.target.value));
-                        updateDayData({ ...currentDayData, customPmKecilCount: val });
-                      }}
-                      className="w-14 text-center text-xs font-black font-mono bg-transparent border-0 p-0 focus:outline-none focus:ring-0"
-                      title="Ubah angka ini untuk menyesuaikan jumlah porsi kecil khusus hari ini saja"
-                    />
-                    <span className="text-xs font-bold font-mono">PM</span>
-                  </div>
-                  {currentDayData.customPmKecilCount !== undefined && (
-                    <button
-                      type="button"
-                      onClick={() => updateDayData({ ...currentDayData, customPmKecilCount: undefined })}
-                      className="text-[10px] text-rose-500 hover:text-rose-700 font-bold underline shrink-0"
-                      title="Kembalikan ke nilai default dari database"
-                    >
-                      Batal
-                    </button>
-                  )}
-                </div>
-              )}
+                {currentDayData.customPmKecilCount !== undefined && (
+                  <button
+                    type="button"
+                    onClick={() => updateDayData({ ...currentDayData, customPmKecilCount: undefined })}
+                    className="text-[10px] text-rose-500 hover:text-rose-700 font-bold underline shrink-0 cursor-pointer"
+                    title="Kembalikan ke nilai default dari database"
+                  >
+                    Batal
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Formula Explanation Accordion Header */}
-          <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs text-slate-600 flex items-center gap-2 shadow-xs">
-            <Info className="w-4 h-4 text-indigo-500 shrink-0" />
-            <div className="leading-normal">
-              <span className="font-bold text-slate-700">Metodologi Perhitungan:</span>
-              {" "}
-              <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">BK (Berat Kotor) = Berat BB / (BDD%)</span>
-              {" | "}
-              <span className="font-mono bg-white px-1.5 py-0.5 rounded border border-slate-200 text-[10px]">Total Belanja = Bahan + Buffer + Bumbu (10%)</span>
-            </div>
-          </div>
+
 
           {/* Table 1: Porsi Besar Block */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden space-y-3 p-4">
@@ -3246,12 +3319,16 @@ export default function FoodCostTab({
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("Hapus semua komponen bahan baku porsi besar hari ini?")) {
-                      updateDayData({
-                        ...currentDayData,
-                        porsiBesarBahan: []
-                      });
-                    }
+                    triggerConfirm({
+                      title: "Hapus Semua Bahan Porsi Besar",
+                      message: "Apakah Anda yakin ingin menghapus seluruh komponen bahan baku porsi besar hari ini?",
+                      onConfirm: () => {
+                        updateDayData({
+                          ...currentDayData,
+                          porsiBesarBahan: []
+                        });
+                      }
+                    });
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition shadow-xs"
                 >
@@ -3309,12 +3386,16 @@ export default function FoodCostTab({
                 <button
                   type="button"
                   onClick={() => {
-                    if (window.confirm("Hapus semua komponen bahan baku porsi kecil hari ini?")) {
-                      updateDayData({
-                        ...currentDayData,
-                        porsiKecilBahan: []
-                      });
-                    }
+                    triggerConfirm({
+                      title: "Hapus Semua Bahan Porsi Kecil",
+                      message: "Apakah Anda yakin ingin menghapus seluruh komponen bahan baku porsi kecil hari ini?",
+                      onConfirm: () => {
+                        updateDayData({
+                          ...currentDayData,
+                          porsiKecilBahan: []
+                        });
+                      }
+                    });
                   }}
                   className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg text-xs font-bold transition shadow-xs"
                 >
@@ -3997,6 +4078,546 @@ export default function FoodCostTab({
                 className="py-3 px-4 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl text-sm transition-all shadow-md shadow-emerald-950/20 uppercase"
               >
                 Simpan
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BUFFER & JUMLAH CONFIG MODAL */}
+      {activeBufferConfig && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in no-print p-4">
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col relative text-slate-800 animate-in zoom-in-95 duration-200">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-5 pb-4 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-2xl">
+                  <Settings className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-base text-slate-900 leading-tight">
+                    Konfigurasi Penyusutan (Buffer) & Jumlah + Buffer
+                  </h3>
+                  <p className="text-xs text-slate-500 font-medium mt-0.5">
+                    Bahan: <span className="text-indigo-600 font-bold font-mono">{activeBufferConfig.namaBahan}</span>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveBufferConfig(null)}
+                className="text-slate-400 hover:text-slate-600 hover:bg-slate-100 p-1.5 rounded-full transition cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Scrollable Content */}
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1">
+              
+              {/* Bagian 1: BUFFER */}
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 bg-indigo-100 text-indigo-700 text-xs font-black rounded-full">
+                    1
+                  </span>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Pilih Basis Perhitungan Nilai Penyusutan (Buffer)
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Tentukan basis perhitungan untuk menentukan nilai penyusutan (Buffer):
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                  {/* Option: Total Kilogram */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, bufferBase: "kg" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.bufferBase === "kg"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="bufferBase"
+                      checked={activeBufferConfig.bufferBase === "kg"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total kilogram
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Penyusutan dihitung berdasarkan total berat kebutuhan bersih (KG)
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Total Potongan */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, bufferBase: "potong" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.bufferBase === "potong"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="bufferBase"
+                      checked={activeBufferConfig.bufferBase === "potong"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total potongan
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Penyusutan dihitung berdasarkan total jumlah potong porsi PM
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Total Ekor */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, bufferBase: "ekor" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.bufferBase === "ekor"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="bufferBase"
+                      checked={activeBufferConfig.bufferBase === "ekor"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total ekor
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Penyusutan dihitung berdasarkan total jumlah ekor porsi PM
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Custom Manual Input */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, bufferBase: "custom" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.bufferBase === "custom"
+                        ? "bg-rose-50/50 border-rose-400 ring-2 ring-rose-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="bufferBase"
+                      checked={activeBufferConfig.bufferBase === "custom"}
+                      onChange={() => {}}
+                      className="mt-1 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-rose-800 block">
+                        Gunakan Manual (Custom)
+                      </span>
+                      <span className="text-[10px] text-rose-500 font-medium block leading-tight">
+                        Gunakan angka kustom manual sebagai basis penyusutan
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {/* If custom is selected for Buffer */}
+                {activeBufferConfig.bufferBase === "custom" && (
+                  <div className="p-3 bg-rose-50/60 border border-rose-200 rounded-2xl space-y-1 mt-2 animate-in slide-in-from-top-2 duration-150">
+                    <label className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">
+                      Isi Nilai Custom Buffer
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 15"
+                      value={activeBufferConfig.bufferCustomVal ?? ""}
+                      onChange={(e) => setActiveBufferConfig({ ...activeBufferConfig, bufferCustomVal: e.target.value })}
+                      className="w-full max-w-xs text-xs border border-rose-200 rounded-xl bg-white p-2 text-rose-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* Bagian 2: JUMLAH & BUFFER */}
+              <div className="space-y-4 pt-4 border-t border-slate-100">
+                <div className="flex items-center gap-2">
+                  <span className="flex items-center justify-center w-5 h-5 bg-indigo-100 text-indigo-700 text-xs font-black rounded-full">
+                    2
+                  </span>
+                  <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
+                    Pilih Basis Perhitungan Nilai Jumlah + Buffer
+                  </h4>
+                </div>
+                <p className="text-xs text-slate-500 font-medium leading-relaxed">
+                  Pilih nilai dasar yang akan ditambahkan dengan buffer untuk masuk secara otomatis ke kolom <strong>Jumlah + Buffer</strong>:
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Option: Total kilo */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kg_without" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "kg_without"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "kg_without"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total kilo
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Mengambil nilai berat total (kg) saja tanpa buffer
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Kilogram */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kilogram_without" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "kilogram_without"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "kilogram_without"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Kilogram
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Mengambil nilai kilogram dasar (kg) saja tanpa buffer
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Total potong */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "potong_without" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "potong_without"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "potong_without"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total potong
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Mengambil nilai total potongan porsi saja tanpa buffer
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Total ekor */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "ekor_without" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "ekor_without"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "ekor_without"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total ekor
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Mengambil nilai total ekor porsi saja tanpa buffer
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Total kilo + total nilai buffer */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kg_with" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "kg_with"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "kg_with"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total kilo + total nilai buffer
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Kebutuhan (kg) ditambah nilai penyusutan (buffer)
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Kilogram + total nilai buffer */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kilogram_with" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "kilogram_with"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "kilogram_with"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Kilogram + total nilai buffer
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Kilogram dasar ditambah nilai penyusutan (buffer)
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Total potong + total nilai buffer */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "potong_with" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "potong_with"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "potong_with"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total potong + total nilai buffer
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Total potongan porsi ditambah nilai penyusutan (buffer)
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Total ekor + total nilai buffer */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "ekor_with" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "ekor_with"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "ekor_with"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total ekor + total nilai buffer
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Total ekor porsi ditambah nilai penyusutan (buffer)
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Custom Manual (With Buffer) */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "custom_with" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "custom_with"
+                        ? "bg-rose-50/50 border-rose-400 ring-2 ring-rose-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "custom_with"}
+                      onChange={() => {}}
+                      className="mt-1 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-rose-800 block">
+                        Manual Custom + Nilai Buffer
+                      </span>
+                      <span className="text-[10px] text-rose-500 font-medium block leading-tight">
+                        Angka kustom manual ditambah nilai penyusutan (buffer)
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Custom Manual (Without Buffer) */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "custom_without" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "custom_without"
+                        ? "bg-rose-50/50 border-rose-400 ring-2 ring-rose-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "custom_without"}
+                      onChange={() => {}}
+                      className="mt-1 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-rose-800 block">
+                        Hanya Ambil Manual Custom Saja
+                      </span>
+                      <span className="text-[10px] text-rose-500 font-medium block leading-tight">
+                        Angka kustom manual saja tanpa tambahan buffer
+                      </span>
+                    </div>
+                  </label>
+                </div>
+
+                {/* If custom is selected for Jumlah */}
+                {(activeBufferConfig.jumlahBufferChoice === "custom_with" || activeBufferConfig.jumlahBufferChoice === "custom_without") && (
+                  <div className="p-3 bg-rose-50/60 border border-rose-200 rounded-2xl space-y-1 mt-2 animate-in slide-in-from-top-2 duration-150">
+                    <label className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">
+                      Isi Nilai Custom Jumlah
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Contoh: 120"
+                      value={activeBufferConfig.jumlahBufferCustomVal ?? ""}
+                      onChange={(e) => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferCustomVal: e.target.value })}
+                      className="w-full max-w-xs text-xs border border-rose-200 rounded-xl bg-white p-2 text-rose-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                  </div>
+                )}
+              </div>
+
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-3 mt-6 pt-4 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setActiveBufferConfig(null)}
+                className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-600 text-xs font-bold rounded-xl transition cursor-pointer"
+              >
+                Batal
+              </button>
+              <button
+                type="button"
+                onClick={() => saveBufferConfig(activeBufferConfig)}
+                className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-extrabold rounded-xl transition shadow-md shadow-indigo-100 cursor-pointer"
+              >
+                Simpan Konfigurasi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CUSTOM NON-BLOCKING CONFIRMATION MODAL */}
+      {confirmModal.isOpen && (
+        <div 
+          className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-[9999] p-4 no-print animate-fade-in"
+          onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+        >
+          <div 
+            className="bg-white border border-slate-100 rounded-3xl p-6 shadow-2xl w-full max-w-sm animate-in zoom-in-95 duration-150 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start gap-3.5">
+              <div className={`p-2.5 rounded-full shrink-0 ${
+                confirmModal.variant === "warning" 
+                  ? "bg-amber-50 text-amber-600" 
+                  : confirmModal.variant === "info" 
+                    ? "bg-indigo-50 text-indigo-600" 
+                    : "bg-rose-50 text-rose-600"
+              }`}>
+                <AlertTriangle className="w-5 h-5" />
+              </div>
+              <div className="space-y-1">
+                <h4 className="font-black text-slate-900 text-sm tracking-tight">
+                  {confirmModal.title}
+                </h4>
+                <p className="text-[11px] text-slate-500 font-semibold leading-relaxed">
+                  {confirmModal.message}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2.5 pt-2">
+              <button
+                type="button"
+                onClick={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))}
+                className="px-3.5 py-2 text-xs font-bold text-slate-600 hover:text-slate-800 bg-slate-100 hover:bg-slate-200 rounded-xl transition"
+              >
+                {confirmModal.cancelText || "Batal"}
+              </button>
+              <button
+                type="button"
+                onClick={confirmModal.onConfirm}
+                className={`px-4 py-2 text-xs font-black text-white rounded-xl transition shadow-xs ${
+                  confirmModal.variant === "warning"
+                    ? "bg-amber-600 hover:bg-amber-700"
+                    : confirmModal.variant === "info"
+                      ? "bg-indigo-600 hover:bg-indigo-700"
+                      : "bg-rose-600 hover:bg-rose-700"
+                }`}
+              >
+                {confirmModal.confirmText || "Hapus"}
               </button>
             </div>
           </div>

@@ -7,6 +7,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { SPPGProfile, HariPM, FoodCostDay, TKPIItem, MasterMenu } from "../types";
 import { calculateDay, getCountsForDay } from "../utils/calc";
 import { Printer, Download, RefreshCw, Plus, Trash2, Calendar, FileText, Check, Combine, Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
+import { PriceCalculatorPopover } from "./PriceCalculatorPopover";
 import * as XLSX from "xlsx";
 
 interface NotaPesananLogistikTabProps {
@@ -115,6 +116,8 @@ export default function NotaPesananLogistikTab({
   const [mode, setMode] = useState<"harian" | "gabungan">("harian");
   const [selectedDays, setSelectedDays] = useState<number[]>(Array.from({ length: 12 }, (_, i) => i + 1));
   const [items, setItems] = useState<NotaItem[]>([]);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingVal, setEditingVal] = useState<string>("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // Customizable Logos states (Left & Right) synchronized via props
@@ -340,120 +343,142 @@ export default function NotaPesananLogistikTab({
       defaultUnit: string;
     }> = {};
 
-    dayNums.forEach((dayNum) => {
-      const schoolDayData = foodCostDays.find((d) => d.hariKe === dayNum && d.jenisMenu === "Basah");
-      const threeBDayData = foodCostDays.find((d) => d.hariKe === dayNum && d.jenisMenu === "MP-ASI");
-
-      const dCounts = getCountsForDay(harianPM, dayNum);
-
-      let pmKecilSch = dCounts.pmKecilSekolah;
-      let pmBesarSch = dCounts.pmBesarSekolah;
-      if (schoolDayData) {
-        if (schoolDayData.customPmBesarCount !== undefined) pmBesarSch = schoolDayData.customPmBesarCount;
-        if (schoolDayData.customPmKecilCount !== undefined) pmKecilSch = schoolDayData.customPmKecilCount;
-      }
-
-      let pmKecil3 = dCounts.pmKecil3B;
-      let pmBesar3 = dCounts.pmBesar3B;
-      if (threeBDayData) {
-        if (threeBDayData.customPmBesarCount !== undefined) pmBesar3 = threeBDayData.customPmBesarCount;
-        if (threeBDayData.customPmKecilCount !== undefined) pmKecil3 = threeBDayData.customPmKecilCount;
-      }
-
-      const getFoodCostUnitAndQty = (item: any, pmCount: number, bufferPct: number) => {
-        const qty = item.butir || 0; // The actual precalculated "Jumlah+Buffer"
-        const jChoice = item.jumlahBufferChoice || "auto";
-        let unit = "Kg";
-        if (jChoice === "auto") {
+    const getFoodCostUnitAndQty = (item: any, pmCount: number, bufferPct: number) => {
+      const qty = item.butir || 0; // The actual precalculated "Jumlah+Buffer"
+      const jChoice = item.jumlahBufferChoice || "auto";
+      let unit = "Kg";
+      if (jChoice === "auto") {
+        const selectedBase = item.bufferBase || "auto";
+        if (selectedBase === "kg") {
+          unit = "Kg";
+        } else if (selectedBase === "potong") {
+          unit = "Potong";
+        } else if (selectedBase === "ekor") {
+          unit = "Ekor";
+        } else if (selectedBase === "custom") {
+          unit = "Custom";
+        } else {
+          // "auto" legacy detection
           if (parseVal(item.potong) > 0) unit = "Potong";
           else if (parseVal(item.ekor) > 0) unit = "Ekor";
           else unit = "Kg";
-        } else {
-          const parts = jChoice.split("_");
-          const baseType = parts[0];
-          if (baseType === "kg") unit = "Kg";
-          else if (baseType === "potong") unit = "Potong";
-          else if (baseType === "ekor") unit = "Ekor";
-          else if (baseType === "custom") unit = "Custom";
         }
-        
-        let displayUnit = "Kg";
-        if (unit === "Potong") displayUnit = "Potong";
-        else if (unit === "Ekor") displayUnit = "Ekor";
-        else if (unit === "Custom") {
-          displayUnit = guessSatuan(item.nama);
+      } else {
+        const parts = jChoice.split("_");
+        const baseType = parts[0];
+        if (baseType === "kg") unit = "Kg";
+        else if (baseType === "potong") unit = "Potong";
+        else if (baseType === "ekor") unit = "Ekor";
+        else if (baseType === "custom") unit = "Custom";
+      }
+      
+      let displayUnit = "Kg";
+      if (unit === "Potong") displayUnit = "Potong";
+      else if (unit === "Ekor") displayUnit = "Ekor";
+      else if (unit === "Custom") {
+        displayUnit = guessSatuan(item.nama);
+      } else {
+        displayUnit = "Kg";
+      }
+      
+      return { unit: displayUnit, qty };
+    };
+
+    const processItems = (itemsList: any[], pmCount: number, bufferPct: number) => {
+      itemsList.forEach((item) => {
+        const rawName = item.nama;
+        if (!rawName || rawName.trim() === "") return;
+        const key = rawName.trim().toLowerCase();
+
+        const addBuffer = !item.jumlahBufferChoice || item.jumlahBufferChoice.endsWith("_with") || item.jumlahBufferChoice === "auto";
+        const rowBufferPct = item.bufferBase === "custom" && item.bufferCustomVal !== undefined ? parseVal(item.bufferCustomVal) : bufferPct;
+        const bufMult = addBuffer ? (1 + rowBufferPct / 100) : 1;
+
+        const kgVal = (item.totalKebutuhanKg || 0) * bufMult;
+        const potongVal = parseVal(item.potong) * pmCount * bufMult;
+        const ekorVal = parseVal(item.ekor) * pmCount * bufMult;
+        const activeVal = item.butir || 0;
+        const { unit: activeUnit } = getFoodCostUnitAndQty(item, pmCount, rowBufferPct);
+
+        if (!aggregated[key]) {
+          aggregated[key] = {
+            nama: rawName.trim(),
+            sumKg: kgVal,
+            sumPotong: potongVal,
+            sumEkor: ekorVal,
+            sumButir: activeVal,
+            hargaSatuan: item.hargaSatuan,
+            defaultUnit: activeUnit,
+          };
         } else {
-          displayUnit = "Kg";
-        }
-        
-        return { unit: displayUnit, qty };
-      };
-
-      const processItems = (itemsList: any[], pmCount: number, bufferPct: number) => {
-        itemsList.forEach((item) => {
-          const rawName = item.nama;
-          if (!rawName || rawName.trim() === "") return;
-          const key = rawName.trim().toLowerCase();
-
-          const addBuffer = !item.jumlahBufferChoice || item.jumlahBufferChoice.endsWith("_with") || item.jumlahBufferChoice === "auto";
-          const rowBufferPct = item.bufferBase === "custom" && item.bufferCustomVal !== undefined ? parseVal(item.bufferCustomVal) : bufferPct;
-          const bufMult = addBuffer ? (1 + rowBufferPct / 100) : 1;
-
-          const kgVal = (item.totalKebutuhanKg || 0) * bufMult;
-          const potongVal = parseVal(item.potong) * pmCount * bufMult;
-          const ekorVal = parseVal(item.ekor) * pmCount * bufMult;
-          const activeVal = item.butir || 0;
-          const { unit: activeUnit } = getFoodCostUnitAndQty(item, pmCount, rowBufferPct);
-
-          if (!aggregated[key]) {
-            aggregated[key] = {
-              nama: rawName.trim(),
-              sumKg: kgVal,
-              sumPotong: potongVal,
-              sumEkor: ekorVal,
-              sumButir: activeVal,
-              hargaSatuan: item.hargaSatuan,
-              defaultUnit: activeUnit,
-            };
-          } else {
-            aggregated[key].sumKg += kgVal;
-            aggregated[key].sumPotong += potongVal;
-            aggregated[key].sumEkor += ekorVal;
-            aggregated[key].sumButir += activeVal;
-            if (item.hargaSatuan > aggregated[key].hargaSatuan) {
-              aggregated[key].hargaSatuan = item.hargaSatuan;
-            }
+          aggregated[key].sumKg += kgVal;
+          aggregated[key].sumPotong += potongVal;
+          aggregated[key].sumEkor += ekorVal;
+          aggregated[key].sumButir += activeVal;
+          if (item.hargaSatuan > aggregated[key].hargaSatuan) {
+            aggregated[key].hargaSatuan = item.hargaSatuan;
           }
-        });
-      };
+        }
+      });
+    };
 
-      if (schoolDayData) {
+    // 1. Process standard menus for all specified dayNums
+    dayNums.forEach((dayNum) => {
+      const dCounts = getCountsForDay(harianPM, dayNum);
+
+      const pmKecilSch = dCounts.pmKecilSekolah;
+      const pmBesarSch = dCounts.pmBesarSekolah;
+      const pmKecil3 = dCounts.pmKecil3B;
+      const pmBesar3 = dCounts.pmBesar3B;
+
+      // Filter all foodCostDays for this dayNum
+      const matchingDays = foodCostDays.filter((d) => d.hariKe === dayNum);
+
+      matchingDays.forEach((dayData) => {
+        const isSchool = ["Basah", "Alergi", "Kering"].includes(dayData.jenisMenu);
+        let pmBesar = isSchool ? pmBesarSch : pmBesar3;
+        let pmKecil = isSchool ? pmKecilSch : pmKecil3;
+
+        if (dayData.customPmBesarCount !== undefined) pmBesar = dayData.customPmBesarCount;
+        if (dayData.customPmKecilCount !== undefined) pmKecil = dayData.customPmKecilCount;
+
         const result = calculateDay(
-          schoolDayData.porsiBesarBahan,
-          schoolDayData.porsiKecilBahan,
-          pmBesarSch,
-          pmKecilSch,
-          schoolDayData.bufferPct,
+          dayData.porsiBesarBahan,
+          dayData.porsiKecilBahan,
+          pmBesar,
+          pmKecil,
+          dayData.bufferPct,
           tkpiList
         );
-        processItems(result.porsiBesarItems, result.jumlahPMBesar, schoolDayData.bufferPct);
-        processItems(result.porsiKecilItems, result.jumlahPMKecil, schoolDayData.bufferPct);
-      }
-
-      if (threeBDayData) {
-        const result = calculateDay(
-          threeBDayData.porsiBesarBahan,
-          threeBDayData.porsiKecilBahan,
-          pmBesar3,
-          pmKecil3,
-          threeBDayData.bufferPct,
-          tkpiList
-        );
-        processItems(result.porsiBesarItems, result.jumlahPMBesar, threeBDayData.bufferPct);
-        processItems(result.porsiKecilItems, result.jumlahPMKecil, threeBDayData.bufferPct);
-      }
+        processItems(result.porsiBesarItems, result.jumlahPMBesar, dayData.bufferPct);
+        processItems(result.porsiKecilItems, result.jumlahPMKecil, dayData.bufferPct);
+      });
     });
 
+    // 2. Process Custom Tables from localStorage
+    let customTables: any[] = [];
+    try {
+      const saved = localStorage.getItem("sppg_custom_fc_tables_v1");
+      if (saved) {
+        customTables = JSON.parse(saved);
+      }
+    } catch (e) {
+      console.error("Error reading custom tables:", e);
+    }
+
+    customTables.forEach((table) => {
+      const resultsCustom = table.porsi === "besar"
+        ? calculateDay(table.bahanList, [], table.pmCount, 0, table.bufferPct || 5, tkpiList)
+        : calculateDay([], table.bahanList, 0, table.pmCount, table.bufferPct || 5, tkpiList);
+      
+      const itemsCustom = table.porsi === "besar" ? resultsCustom.porsiBesarItems : resultsCustom.porsiKecilItems;
+      const pmCountCustom = table.pmCount;
+      const bufferPctCustom = table.bufferPct || 5;
+
+      processItems(itemsCustom, pmCountCustom, bufferPctCustom);
+    });
+
+    // 3. Map to final output items
     const mapped: NotaItem[] = Object.values(aggregated).map((x, idx) => {
       const initialUnit = x.defaultUnit || guessSatuan(x.nama);
       const initialJumlah = x.sumButir > 0 ? x.sumButir : x.sumKg;
@@ -461,14 +486,14 @@ export default function NotaPesananLogistikTab({
       return {
         id: `merged_${idx}_${Date.now()}`,
         nama: x.nama,
-        jumlah: parseFloat(initialJumlah.toFixed(3)),
+        jumlah: parseFloat(initialJumlah.toFixed(1)),
         satuan: initialUnit,
         hargaSatuan: x.hargaSatuan,
         
-        sumKg: parseFloat(x.sumKg.toFixed(3)),
-        sumPotong: parseFloat(x.sumPotong.toFixed(2)),
-        sumEkor: parseFloat(x.sumEkor.toFixed(2)),
-        sumButir: parseFloat(x.sumButir.toFixed(3)),
+        sumKg: parseFloat(x.sumKg.toFixed(1)),
+        sumPotong: parseFloat(x.sumPotong.toFixed(1)),
+        sumEkor: parseFloat(x.sumEkor.toFixed(1)),
+        sumButir: parseFloat(x.sumButir.toFixed(1)),
         defaultUnit: initialUnit,
         selectedUnitType: "foodcost",
         customUnit: "",
@@ -549,16 +574,16 @@ export default function NotaPesananLogistikTab({
 
         if (type === "foodcost") {
           updated.satuan = it.defaultUnit || "Kg";
-          updated.jumlah = parseFloat((it.sumButir || 0).toFixed(3));
+          updated.jumlah = parseFloat((it.sumButir || 0).toFixed(1));
         } else if (type === "kg") {
           updated.satuan = "Kg";
-          updated.jumlah = parseFloat((it.sumKg || 0).toFixed(3));
+          updated.jumlah = parseFloat((it.sumKg || 0).toFixed(1));
         } else if (type === "potong") {
           updated.satuan = "Potong";
-          updated.jumlah = parseFloat((it.sumPotong || 0).toFixed(3));
+          updated.jumlah = parseFloat((it.sumPotong || 0).toFixed(1));
         } else if (type === "ekor") {
           updated.satuan = "Ekor";
-          updated.jumlah = parseFloat((it.sumEkor || 0).toFixed(3));
+          updated.jumlah = parseFloat((it.sumEkor || 0).toFixed(1));
         } else {
           updated.satuan = customUnitValue !== undefined ? customUnitValue : (it.customUnit || "Kg");
         }
@@ -599,11 +624,11 @@ export default function NotaPesananLogistikTab({
         aggregated[key] = { ...item, nama: item.nama.trim() };
       } else {
         // Accumulate amount
-        aggregated[key].jumlah = parseFloat((aggregated[key].jumlah + item.jumlah).toFixed(3));
-        aggregated[key].sumKg = parseFloat(((aggregated[key].sumKg || 0) + (item.sumKg || 0)).toFixed(3));
-        aggregated[key].sumPotong = parseFloat(((aggregated[key].sumPotong || 0) + (item.sumPotong || 0)).toFixed(2));
-        aggregated[key].sumEkor = parseFloat(((aggregated[key].sumEkor || 0) + (item.sumEkor || 0)).toFixed(2));
-        aggregated[key].sumButir = parseFloat(((aggregated[key].sumButir || 0) + (item.sumButir || 0)).toFixed(3));
+        aggregated[key].jumlah = parseFloat((aggregated[key].jumlah + item.jumlah).toFixed(1));
+        aggregated[key].sumKg = parseFloat(((aggregated[key].sumKg || 0) + (item.sumKg || 0)).toFixed(1));
+        aggregated[key].sumPotong = parseFloat(((aggregated[key].sumPotong || 0) + (item.sumPotong || 0)).toFixed(1));
+        aggregated[key].sumEkor = parseFloat(((aggregated[key].sumEkor || 0) + (item.sumEkor || 0)).toFixed(1));
+        aggregated[key].sumButir = parseFloat(((aggregated[key].sumButir || 0) + (item.sumButir || 0)).toFixed(1));
         if (item.hargaSatuan > aggregated[key].hargaSatuan) {
           aggregated[key].hargaSatuan = item.hargaSatuan;
         }
@@ -699,7 +724,7 @@ export default function NotaPesananLogistikTab({
         sheetData.push([
           String(idx + 1),
           row.nama,
-          row.jumlah === 0 ? "" : String(row.jumlah),
+          row.jumlah === 0 ? "" : Number(row.jumlah).toFixed(1),
           row.satuan,
           row.hargaSatuan === 0 ? "Rp -" : `Rp ${formatNumber(row.hargaSatuan)}`,
           rowTotal === 0 ? "Rp -" : `Rp ${formatNumber(rowTotal)}`,
@@ -1980,11 +2005,28 @@ export default function NotaPesananLogistikTab({
                           <input
                             id={`item-qty-${row.id}`}
                             type="text"
-                            value={row.jumlah === 0 ? "" : row.jumlah}
+                            value={
+                              editingId === row.id
+                                ? editingVal
+                                : row.jumlah === 0
+                                ? ""
+                                : typeof row.jumlah === "number"
+                                ? row.jumlah.toFixed(1)
+                                : row.jumlah
+                            }
                             placeholder="-"
+                            onFocus={() => {
+                              setEditingId(row.id);
+                              setEditingVal(row.jumlah === 0 ? "" : String(row.jumlah));
+                            }}
+                            onBlur={() => {
+                              setEditingId(null);
+                              const num = editingVal === "" ? 0 : parseFloat(editingVal);
+                              handleEditItem(row.id, "jumlah", isNaN(num) ? 0 : parseFloat(num.toFixed(1)));
+                            }}
                             onChange={(e) => {
                               const val = e.target.value.replace(/[^0-9.]/g, "");
-                              handleEditItem(row.id, "jumlah", val);
+                              setEditingVal(val);
                             }}
                             className="w-full bg-transparent border-0 p-0 m-0 text-center focus:outline-none focus:ring-0 font-bold placeholder:text-slate-300 print:placeholder:text-transparent text-slate-850 text-xs"
                           />
@@ -2021,20 +2063,28 @@ export default function NotaPesananLogistikTab({
 
                         {/* Harga Satuan */}
                         <td className="border border-black px-1.5 py-0.5 font-mono">
-                          <div className="flex justify-between items-center w-full">
+                          <div className="flex justify-between items-center w-full gap-1">
                             <span className="text-slate-400 print:text-black pr-0.5 font-bold">Rp</span>
-                            <input
-                              id={`item-price-${row.id}`}
-                              type="text"
-                              value={row.hargaSatuan === 0 ? "" : Number(row.hargaSatuan).toLocaleString("id-ID")}
-                              placeholder="-"
-                              onChange={(e) => {
-                                const rawVal = e.target.value.replace(/\D/g, "");
-                                const numVal = rawVal ? parseInt(rawVal, 10) : 0;
-                                handleEditItem(row.id, "hargaSatuan", numVal);
-                              }}
-                              className="w-full bg-transparent border-0 p-0 m-0 text-right focus:outline-none focus:ring-0 font-bold placeholder:text-slate-400 print:placeholder:text-transparent text-xs text-slate-900"
-                            />
+                            <div className="flex-1 flex items-center justify-end gap-1">
+                              <input
+                                id={`item-price-${row.id}`}
+                                type="text"
+                                value={row.hargaSatuan === 0 ? "" : Number(row.hargaSatuan).toLocaleString("id-ID")}
+                                placeholder="-"
+                                onChange={(e) => {
+                                  const rawVal = e.target.value.replace(/\D/g, "");
+                                  const numVal = rawVal ? parseInt(rawVal, 10) : 0;
+                                  handleEditItem(row.id, "hargaSatuan", numVal);
+                                }}
+                                className="w-full bg-transparent border-0 p-0 m-0 text-right focus:outline-none focus:ring-0 font-bold placeholder:text-slate-400 print:placeholder:text-transparent text-xs text-slate-900"
+                              />
+                              <PriceCalculatorPopover
+                                initialValue={row.hargaSatuan || 0}
+                                onApply={(val) => handleEditItem(row.id, "hargaSatuan", val)}
+                                placeholder="Hitung Harga Satuan"
+                                className="no-print custom-btn"
+                              />
+                            </div>
                           </div>
                         </td>
 
