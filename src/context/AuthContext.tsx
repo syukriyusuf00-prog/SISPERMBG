@@ -616,7 +616,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // 2. Status validation
       if (data.statusPersetujuan !== "aktif") {
-        throw new Error("Akun Anda belum disetujui oleh admin atau dalam status pending. Silakan hubungi admin GiziSync.");
+        throw new Error(
+          `Akun Anda ("${data.email}") masih dalam status MENUNGGU KONFIRMASI AKSES ADMIN.\n\nSesuai prosedur, silakan hubungi Administrator agar akses akun Anda dapat segera dikonfirmasi dan diaktifkan:\n• Admin: Syukri_Odhe | Ahli Gizi\n• WhatsApp: 082271095251 / 0822271059251`
+        );
       }
 
       // 3. Expiration date validation
