@@ -89,21 +89,14 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
   // Handle toggling approval status
   const handleToggleStatus = async (userId: string, currentStatus: string) => {
-    let newStatus = "aktif";
-    if (currentStatus === "aktif") {
-      newStatus = "diblokir";
-    } else if (currentStatus === "diblokir") {
-      newStatus = "aktif";
-    } else {
-      newStatus = "aktif";
-    }
+    const newStatus = currentStatus === "aktif" ? "diblokir" : "aktif";
     const userRef = doc(db, "users", userId);
     try {
       await updateDoc(userRef, {
         statusPersetujuan: newStatus,
         updatedAt: serverTimestamp()
       });
-      setUsers(users.map(u => u.uid === userId ? { ...u, statusPersetujuan: newStatus } : u));
+      setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, statusPersetujuan: newStatus } : u));
     } catch (err) {
       console.error("Gagal memperbarui status:", err);
       alert("Gagal memperbarui status persetujuan. Pastikan Anda memiliki hak akses penuh.");
@@ -451,29 +444,23 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
                         {/* Status Persetujuan */}
                         <td className="p-4 text-center">
                           <button
-                            onClick={() => handleToggleStatus(item.uid, item.statusPersetujuan)}
-                            className={`inline-flex items-center gap-1 px-3 py-1 text-[10px] font-bold rounded-full cursor-pointer uppercase tracking-wide shadow-2xs transition ${
+                            onClick={() => handleToggleStatus(item.uid || item.id, item.statusPersetujuan)}
+                            title="Klik untuk mengubah status persetujuan"
+                            className={`inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold rounded-full cursor-pointer transition shadow-2xs ${
                               item.statusPersetujuan === "aktif"
-                                ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
-                                : item.statusPersetujuan === "menunggu"
-                                ? "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300 animate-pulse"
-                                : "bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-300"
+                                ? "bg-emerald-100/90 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
+                                : "bg-rose-100/90 text-rose-800 hover:bg-rose-200 border border-rose-300"
                             }`}
                           >
                             {item.statusPersetujuan === "aktif" ? (
                               <>
-                                <CheckCircle className="w-3 h-3" />
-                                Aktif
-                              </>
-                            ) : item.statusPersetujuan === "menunggu" ? (
-                              <>
-                                <Clock className="w-3 h-3" />
-                                Menunggu
+                                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                Disetujui
                               </>
                             ) : (
                               <>
-                                <ShieldAlert className="w-3 h-3" />
-                                Diblokir
+                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
+                                Menunggu / Diblokir
                               </>
                             )}
                           </button>
