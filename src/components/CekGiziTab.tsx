@@ -28,7 +28,7 @@ interface CekGiziTabProps {
   setRightLogo: (val: string) => void;
 }
 
-export default function CekGiziTab({ 
+function CekGiziTab({ 
   tkpiList,
   items,
   setItems,
@@ -45,6 +45,13 @@ export default function CekGiziTab({
   rightLogo,
   setRightLogo
 }: CekGiziTabProps) {
+  const tkpiMap = React.useMemo(() => {
+    const map = new Map<string, TKPIItem>();
+    for (let i = 0; i < tkpiList.length; i++) {
+      map.set(tkpiList[i].id, tkpiList[i]);
+    }
+    return map;
+  }, [tkpiList]);
   const [rujukanAkgType, setRujukanAkgType] = useState<string>("sd_besar");
   const [customRujukanAkg, setCustomRujukanAkg] = useState<number>(700); // kkal
   const [showTargetsEditor, setShowTargetsEditor] = useState<boolean>(false);
@@ -694,3 +701,5 @@ export default function CekGiziTab({
     </div>
   );
 }
+
+export default React.memo(CekGiziTab);

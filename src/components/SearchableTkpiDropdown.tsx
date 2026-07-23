@@ -3,9 +3,9 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo, memo } from "react";
 import { TKPIItem } from "../types";
-import { ChevronDown, AlertCircle } from "lucide-react";
+import { ChevronDown, AlertCircle, Plus } from "lucide-react";
 
 interface SearchableTkpiDropdownProps {
   tkpiList: TKPIItem[];
@@ -15,7 +15,7 @@ interface SearchableTkpiDropdownProps {
   minimal?: boolean;
 }
 
-export default function SearchableTkpiDropdown({
+function SearchableTkpiDropdownComponent({
   tkpiList,
   selectedValue,
   onChange,
@@ -24,9 +24,19 @@ export default function SearchableTkpiDropdown({
 }: SearchableTkpiDropdownProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [displayLimit, setDisplayLimit] = useState(25);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedItem = tkpiList.find((t) => t.id === selectedValue);
+  // Indexed Map for O(1) selected item lookup
+  const tkpiMap = useMemo(() => {
+    const map = new Map<string, TKPIItem>();
+    for (let i = 0; i < tkpiList.length; i++) {
+      map.set(tkpiList[i].id, tkpiList[i]);
+    }
+    return map;
+  }, [tkpiList]);
+
+  const selectedItem = tkpiMap.get(selectedValue);
 
   // Sync state when selection changes
   useEffect(() => {
@@ -55,17 +65,24 @@ export default function SearchableTkpiDropdown({
     };
   }, [selectedItem]);
 
-  // Filter list based on search input
-  const filteredList = tkpiList.filter((item) => {
-    if (!searchQuery) return true;
+  // Memoized filter list based on search input
+  const filteredList = useMemo(() => {
+    if (!searchQuery) return tkpiList;
     const q = searchQuery.toLowerCase();
     
-    const nameMatch = (item.nama || "").toLowerCase().includes(q);
-    const categoryMatch = (item.kategori || "").toLowerCase().includes(q);
-    const sourceMatch = (item.sumber || "").toLowerCase().includes(q);
-    
-    return nameMatch || categoryMatch || sourceMatch;
-  });
+    return tkpiList.filter((item) => {
+      const nameMatch = (item.nama || "").toLowerCase().includes(q);
+      const categoryMatch = (item.kategori || "").toLowerCase().includes(q);
+      const sourceMatch = (item.sumber || "").toLowerCase().includes(q);
+      
+      return nameMatch || categoryMatch || sourceMatch;
+    });
+  }, [tkpiList, searchQuery]);
+
+  // Staged data slice
+  const visibleItems = useMemo(() => {
+    return filteredList.slice(0, displayLimit);
+  }, [filteredList, displayLimit]);
 
   const handleSelect = (item: TKPIItem) => {
     onChange(item.id);
@@ -81,10 +98,12 @@ export default function SearchableTkpiDropdown({
           value={searchQuery}
           onFocus={(e) => {
             setIsOpen(true);
+            setDisplayLimit(25);
             e.target.select();
           }}
           onChange={(e) => {
             setIsOpen(true);
+            setDisplayLimit(25);
             setSearchQuery(e.target.value);
           }}
           placeholder={minimal ? "Pilih bahan..." : "Ketik untuk mencari bahan..."}
@@ -96,7 +115,10 @@ export default function SearchableTkpiDropdown({
         />
         <button
           type="button"
-          onClick={() => setIsOpen(!isOpen)}
+          onClick={() => {
+            setIsOpen(!isOpen);
+            if (!isOpen) setDisplayLimit(25);
+          }}
           className={
             minimal
               ? "absolute right-0 top-0 bottom-0 px-0.5 flex items-center justify-center text-slate-400 hover:text-slate-600"
@@ -110,19 +132,31 @@ export default function SearchableTkpiDropdown({
       {isOpen && (
         <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto divide-y divide-slate-50">
           {filteredList.length > 0 ? (
-            filteredList.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => handleSelect(t)}
-                className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition flex flex-col space-y-0.5 ${t.id === selectedValue ? "bg-indigo-50/50 font-semibold text-indigo-700" : "text-slate-700"}`}
-              >
-                <span className="font-bold text-slate-800">{t.nama}</span>
-                <span className="text-[10px] text-slate-400 font-medium">
-                  [{t.kategori || t.sumber || "Umum"}] {t.sumber}
-                </span>
-              </button>
-            ))
+            <>
+              {visibleItems.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleSelect(t)}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition flex flex-col space-y-0.5 ${t.id === selectedValue ? "bg-indigo-50/50 font-semibold text-indigo-700" : "text-slate-700"}`}
+                >
+                  <span className="font-bold text-slate-800">{t.nama}</span>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    [{t.kategori || t.sumber || "Umum"}] {t.sumber}
+                  </span>
+                </button>
+              ))}
+              {filteredList.length > displayLimit && (
+                <button
+                  type="button"
+                  onClick={() => setDisplayLimit((prev) => prev + 25)}
+                  className="w-full text-center py-2 text-xs font-bold text-indigo-600 hover:bg-indigo-50/50 flex items-center justify-center gap-1 bg-slate-50"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Tampilkan 25 bahan lagi ({filteredList.length - displayLimit} tersisa)</span>
+                </button>
+              )}
+            </>
           ) : (
             <div className="p-3 text-center text-xs text-rose-600 font-semibold flex flex-col items-center justify-center gap-1.5 bg-rose-50/20">
               <AlertCircle className="w-4 h-4 text-rose-500" />
@@ -134,3 +168,5 @@ export default function SearchableTkpiDropdown({
     </div>
   );
 }
+
+export default memo(SearchableTkpiDropdownComponent);

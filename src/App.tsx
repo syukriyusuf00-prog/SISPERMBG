@@ -2624,27 +2624,27 @@ export default function App() {
                               {t.beratStandar !== undefined ? t.beratStandar : 100} g
                             </td>
                             <td className="p-2.5 text-center font-mono font-bold text-slate-600">{t.bdd}%</td>
-                            <td className="p-2.5 text-center font-mono text-amber-700 font-extrabold">{t.energi.toFixed(0)}</td>
-                            <td className="p-2.5 text-center font-mono text-indigo-700 font-bold">{t.protein.toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-rose-700 font-bold">{t.lemak.toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-cyan-700 font-bold">{t.kh.toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-emerald-700 font-bold">{t.serat.toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-slate-500">{t.abu !== undefined ? t.abu.toFixed(1) : "0.0"}g</td>
+                            <td className="p-2.5 text-center font-mono text-amber-700 font-extrabold">{(t.energi ?? 0).toFixed(0)}</td>
+                            <td className="p-2.5 text-center font-mono text-indigo-700 font-bold">{(t.protein ?? 0).toFixed(1)}g</td>
+                            <td className="p-2.5 text-center font-mono text-rose-700 font-bold">{(t.lemak ?? 0).toFixed(1)}g</td>
+                            <td className="p-2.5 text-center font-mono text-cyan-700 font-bold">{(t.kh ?? 0).toFixed(1)}g</td>
+                            <td className="p-2.5 text-center font-mono text-emerald-700 font-bold">{(t.serat ?? 0).toFixed(1)}g</td>
+                            <td className="p-2.5 text-center font-mono text-slate-500">{typeof t.abu === "number" ? t.abu.toFixed(1) : "0.0"}g</td>
                             <td className="p-2.5 text-center font-mono text-teal-700 font-semibold">{t.ca !== undefined ? t.ca : 0}</td>
                             <td className="p-2.5 text-center font-mono text-purple-700">{t.p !== undefined ? t.p : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-pink-700 font-semibold">{t.fe !== undefined ? t.fe.toFixed(1) : "0.0"}</td>
+                            <td className="p-2.5 text-center font-mono text-pink-700 font-semibold">{typeof t.fe === "number" ? t.fe.toFixed(1) : "0.0"}</td>
                             <td className="p-2.5 text-center font-mono text-blue-700">{t.na !== undefined ? t.na : 0}</td>
                             <td className="p-2.5 text-center font-mono text-orange-700">{t.k !== undefined ? t.k : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-yellow-800">{t.cu !== undefined ? t.cu.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-violet-800">{t.zn !== undefined ? t.zn.toFixed(1) : "0.0"}</td>
+                            <td className="p-2.5 text-center font-mono text-yellow-800">{typeof t.cu === "number" ? t.cu.toFixed(2) : "0.00"}</td>
+                            <td className="p-2.5 text-center font-mono text-violet-800">{typeof t.zn === "number" ? t.zn.toFixed(1) : "0.0"}</td>
                             <td className="p-2.5 text-center font-mono text-red-600">{t.retinol !== undefined ? t.retinol : 0}</td>
                             <td className="p-2.5 text-center font-mono text-orange-600">{t.b_karoten !== undefined ? t.b_karoten : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-amber-600 font-medium">{t.thiamin !== undefined ? t.thiamin.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-lime-600 font-medium">{t.riboflavin !== undefined ? t.riboflavin.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-indigo-500">{t.niasin !== undefined ? t.niasin.toFixed(1) : "0.0"}</td>
-                            <td className="p-2.5 text-center font-mono text-red-500 font-semibold">{t.vit_c !== undefined ? t.vit_c.toFixed(1) : "0.0"}</td>
+                            <td className="p-2.5 text-center font-mono text-amber-600 font-medium">{typeof t.thiamin === "number" ? t.thiamin.toFixed(2) : "0.00"}</td>
+                            <td className="p-2.5 text-center font-mono text-lime-600 font-medium">{typeof t.riboflavin === "number" ? t.riboflavin.toFixed(2) : "0.00"}</td>
+                            <td className="p-2.5 text-center font-mono text-indigo-500">{typeof t.niasin === "number" ? t.niasin.toFixed(1) : "0.0"}</td>
+                            <td className="p-2.5 text-center font-mono text-red-500 font-semibold">{typeof t.vit_c === "number" ? t.vit_c.toFixed(1) : "0.0"}</td>
                             <td className="p-2.5 text-center font-mono text-sky-600 font-semibold bg-sky-50/10">
-                              {t.air !== undefined ? t.air.toFixed(1) : "0.0"}g
+                              {typeof t.air === "number" ? t.air.toFixed(1) : "0.0"}g
                             </td>
                             <td className="p-2.5 text-center">
                               <button

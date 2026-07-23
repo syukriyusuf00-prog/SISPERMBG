@@ -34,7 +34,7 @@ interface AdminPanelProps {
   onClose: () => void;
 }
 
-export default function AdminPanel({ onClose }: AdminPanelProps) {
+function AdminPanel({ onClose }: AdminPanelProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -632,3 +632,5 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     </div>
   );
 }
+
+export default React.memo(AdminPanel);

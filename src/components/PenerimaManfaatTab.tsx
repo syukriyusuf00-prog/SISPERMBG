@@ -35,7 +35,7 @@ interface PenerimaManfaatTabProps {
   setPmSettings?: (updated: any) => void;
 }
 
-export default function PenerimaManfaatTab({
+function PenerimaManfaatTab({
   harianPM,
   onChange,
   pmSettings,
@@ -738,3 +738,5 @@ export default function PenerimaManfaatTab({
     </div>
   );
 }
+
+export default React.memo(PenerimaManfaatTab);

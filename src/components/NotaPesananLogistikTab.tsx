@@ -91,7 +91,7 @@ const guessSatuan = (name: string): string => {
   return "Kg";
 };
 
-export default function NotaPesananLogistikTab({
+function NotaPesananLogistikTab({
   profile,
   foodCostDays,
   tkpiList,
@@ -110,6 +110,13 @@ export default function NotaPesananLogistikTab({
   rightLogo,
   setRightLogo,
 }: NotaPesananLogistikTabProps) {
+  const tkpiMap = React.useMemo(() => {
+    const map = new Map<string, TKPIItem>();
+    for (let i = 0; i < tkpiList.length; i++) {
+      map.set(tkpiList[i].id, tkpiList[i]);
+    }
+    return map;
+  }, [tkpiList]);
   const logoSrc = localStorage.getItem("sisper_custom_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg";
 
   const [selectedDay, setSelectedDay] = useState<number>(1);
@@ -448,7 +455,7 @@ export default function NotaPesananLogistikTab({
           pmBesar,
           pmKecil,
           dayData.bufferPct,
-          tkpiList
+          tkpiMap
         );
         processItems(result.porsiBesarItems, result.jumlahPMBesar, dayData.bufferPct);
         processItems(result.porsiKecilItems, result.jumlahPMKecil, dayData.bufferPct);
@@ -468,8 +475,8 @@ export default function NotaPesananLogistikTab({
 
     customTables.forEach((table) => {
       const resultsCustom = table.porsi === "besar"
-        ? calculateDay(table.bahanList, [], table.pmCount, 0, table.bufferPct || 5, tkpiList)
-        : calculateDay([], table.bahanList, 0, table.pmCount, table.bufferPct || 5, tkpiList);
+        ? calculateDay(table.bahanList, [], table.pmCount, 0, table.bufferPct || 5, tkpiMap)
+        : calculateDay([], table.bahanList, 0, table.pmCount, table.bufferPct || 5, tkpiMap);
       
       const itemsCustom = table.porsi === "besar" ? resultsCustom.porsiBesarItems : resultsCustom.porsiKecilItems;
       const pmCountCustom = table.pmCount;
@@ -2126,3 +2133,5 @@ export default function NotaPesananLogistikTab({
     </div>
   );
 }
+
+export default React.memo(NotaPesananLogistikTab);

@@ -88,11 +88,18 @@ export function formatRupiah(value: number): string {
 
 export function calculateIngredient(
   input: BahanMakananInput,
-  tkpiList: TKPIItem[],
+  tkpiList: TKPIItem[] | Map<string, TKPIItem>,
   jumlahPM: number,
   bufferPct: number = 3
 ): CalcIngredientResult {
-  const tkpi = tkpiList.find((t) => t.id === input.tkpiId) || {
+  let tkpiItem: TKPIItem | undefined;
+  if (tkpiList instanceof Map) {
+    tkpiItem = tkpiList.get(input.tkpiId);
+  } else if (Array.isArray(tkpiList)) {
+    tkpiItem = tkpiList.find((t) => t.id === input.tkpiId);
+  }
+
+  const tkpi = tkpiItem || {
     id: "unknown",
     nama: "Bahan Tidak Diketahui",
     sumber: "Umum",
@@ -296,7 +303,7 @@ export function calculateDay(
   jumlahPMBesar: number,
   jumlahPMKecil: number,
   bufferPct: number, // 3 or 5
-  tkpiList: TKPIItem[]
+  tkpiList: TKPIItem[] | Map<string, TKPIItem>
 ): DayCalculatedResult {
   const besarItems = porsiBesarBahan.map((b) => calculateIngredient(b, tkpiList, jumlahPMBesar, bufferPct));
   const kecilItems = porsiKecilBahan.map((b) => calculateIngredient(b, tkpiList, jumlahPMKecil, bufferPct));

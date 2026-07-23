@@ -104,7 +104,7 @@ function EditableBddCell({ value, isCustom, onChange }: EditableBddCellProps) {
   );
 }
 
-export default function FoodCostTab({
+function FoodCostTab({
   foodCostDays,
   tkpiList,
   masterMenu,
@@ -127,6 +127,14 @@ export default function FoodCostTab({
   pmSettings,
   setPmSettings
 }: FoodCostTabProps) {
+  // O(1) indexed Map for TKPI item lookups across all calculateDay operations
+  const tkpiMap = React.useMemo(() => {
+    const map = new Map<string, TKPIItem>();
+    for (let i = 0; i < tkpiList.length; i++) {
+      map.set(tkpiList[i].id, tkpiList[i]);
+    }
+    return map;
+  }, [tkpiList]);
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [selectedGroup, setSelectedGroup] = useState<"sekolah" | "tigaB" | "custom">("sekolah");
   const [selectedType, setSelectedType] = useState<"Basah" | "Alergi" | "Kering" | "MP-ASI">("Basah");
@@ -793,7 +801,7 @@ export default function FoodCostTab({
     pmBesar,
     pmKecil,
     currentDayData.bufferPct,
-    tkpiList
+    tkpiMap
   );
 
   const updateDayData = (updatedDay: FoodCostDay) => {
@@ -1139,8 +1147,8 @@ export default function FoodCostTab({
     // Append custom tables to Excel
     customTables.forEach((table, index) => {
       const resultsCustom = table.porsi === "besar"
-        ? calculateDay(table.bahanList, [], table.pmCount, 0, table.bufferPct || 5, tkpiList)
-        : calculateDay([], table.bahanList, 0, table.pmCount, table.bufferPct || 5, tkpiList);
+        ? calculateDay(table.bahanList, [], table.pmCount, 0, table.bufferPct || 5, tkpiMap)
+        : calculateDay([], table.bahanList, 0, table.pmCount, table.bufferPct || 5, tkpiMap);
 
       const itemsCustom = table.porsi === "besar" ? resultsCustom.porsiBesarItems : resultsCustom.porsiKecilItems;
       const totalBahanCustom = table.porsi === "besar" ? resultsCustom.totalBesarBahanCost : resultsCustom.totalKecilBahanCost;
@@ -1478,11 +1486,11 @@ export default function FoodCostTab({
                       />
                     )}
                   </td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[54px] min-w-[54px] text-xs">{b.energi.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.protein.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.lemak.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.kh.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.serat.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[54px] min-w-[54px] text-xs">{(b.energi ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{(b.protein ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{(b.lemak ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{(b.kh ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{(b.serat ?? 0).toFixed(1)}</td>
                   
                   <td className="p-1 border border-black text-center w-[56px] min-w-[56px]">
                     {isPrint ? (
@@ -1495,7 +1503,7 @@ export default function FoodCostTab({
                       />
                     )}
                   </td>
-                  <td className="p-1 border border-black text-center font-mono text-indigo-955 font-bold bg-[#E6F0FA]/20 w-[64px] min-w-[64px] text-slate-950 text-xs">{b.beratKotor.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-indigo-955 font-bold bg-[#E6F0FA]/20 w-[64px] min-w-[64px] text-slate-950 text-xs">{(b.beratKotor ?? 0).toFixed(1)}</td>
                   
                   {idx === 0 && (
                     <td rowSpan={items.length} className="p-1 border border-black text-center font-extrabold bg-[#FFF2CC] align-middle font-mono w-[64px] min-w-[64px] text-slate-950 text-xs">
@@ -1503,8 +1511,8 @@ export default function FoodCostTab({
                     </td>
                   )}
                   
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 w-[72px] min-w-[72px] font-semibold text-xs">{b.totalKebutuhanGram.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono font-bold text-slate-950 w-[72px] min-w-[72px] text-xs">{b.totalKebutuhanKg.toFixed(3)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 w-[72px] min-w-[72px] font-semibold text-xs">{(b.totalKebutuhanGram ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono font-bold text-slate-950 w-[72px] min-w-[72px] text-xs">{(b.totalKebutuhanKg ?? 0).toFixed(3)}</td>
                   
                    <td className="p-1 border border-black text-center w-[48px] min-w-[48px]">
                     {isPrint ? (
@@ -1921,8 +1929,8 @@ export default function FoodCostTab({
 
   const renderCustomFoodCostTable = (table: any, isPrint: boolean) => {
     const results = table.porsi === "besar"
-      ? calculateDay(table.bahanList, [], table.pmCount, 0, table.bufferPct || 5, tkpiList)
-      : calculateDay([], table.bahanList, 0, table.pmCount, table.bufferPct || 5, tkpiList);
+      ? calculateDay(table.bahanList, [], table.pmCount, 0, table.bufferPct || 5, tkpiMap)
+      : calculateDay([], table.bahanList, 0, table.pmCount, table.bufferPct || 5, tkpiMap);
 
     const items = table.porsi === "besar" ? results.porsiBesarItems : results.porsiKecilItems;
     const totalBahanCost = table.porsi === "besar" ? results.totalBesarBahanCost : results.totalKecilBahanCost;
@@ -2146,11 +2154,11 @@ export default function FoodCostTab({
                       />
                     )}
                   </td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[54px] min-w-[54px] text-xs">{b.energi.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.protein.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.lemak.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.kh.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{b.serat.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[54px] min-w-[54px] text-xs">{(b.energi ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{(b.protein ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{(b.lemak ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{(b.kh ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 font-semibold bg-slate-50/30 w-[56px] min-w-[56px] text-xs">{(b.serat ?? 0).toFixed(1)}</td>
                   
                   <td className="p-1 border border-black text-center w-[56px] min-w-[56px]">
                     {isPrint ? (
@@ -2163,7 +2171,7 @@ export default function FoodCostTab({
                       />
                     )}
                   </td>
-                  <td className="p-1 border border-black text-center font-mono text-indigo-955 font-bold bg-[#E6F0FA]/20 w-[64px] min-w-[64px] text-slate-950 text-xs">{b.beratKotor.toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-indigo-955 font-bold bg-[#E6F0FA]/20 w-[64px] min-w-[64px] text-slate-950 text-xs">{(b.beratKotor ?? 0).toFixed(1)}</td>
                   
                   {idx === 0 && (
                     <td rowSpan={items.length} className="p-1 border border-black text-center font-extrabold bg-[#FFF2CC] align-middle font-mono w-[64px] min-w-[64px] text-slate-950 text-xs">
@@ -2171,8 +2179,8 @@ export default function FoodCostTab({
                     </td>
                   )}
                   
-                  <td className="p-1 border border-black text-center font-mono text-slate-950 w-[72px] min-w-[72px] font-semibold text-xs">{b.totalKebutuhanGram.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono font-bold text-slate-950 w-[72px] min-w-[72px] text-xs">{b.totalKebutuhanKg.toFixed(3)}</td>
+                  <td className="p-1 border border-black text-center font-mono text-slate-950 w-[72px] min-w-[72px] font-semibold text-xs">{(b.totalKebutuhanGram ?? 0).toFixed(1)}</td>
+                  <td className="p-1 border border-black text-center font-mono font-bold text-slate-950 w-[72px] min-w-[72px] text-xs">{(b.totalKebutuhanKg ?? 0).toFixed(3)}</td>
                   
                   <td className="p-1 border border-black text-center w-[48px] min-w-[48px]">
                     {isPrint ? (
@@ -4623,3 +4631,5 @@ export default function FoodCostTab({
     </div>
   );
 }
+
+export default React.memo(FoodCostTab);
