@@ -41,7 +41,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<"manajemen" | "riwayat" | "diagnostik">("manajemen");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Load all users from Firestore (only works if logged in as Admin)
+  // Load all users from Firestore
   useEffect(() => {
     const fetchUsers = async () => {
       setLoading(true);
@@ -49,24 +49,17 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         const usersCol = collection(db, "users");
         const snapshot = await getDocs(usersCol);
         const userList: any[] = [];
-        const thresholdTime = new Date("2026-07-06T01:10:00-07:00").getTime();
 
         for (const docSnap of snapshot.docs) {
           const data = docSnap.data();
-          const emailLower = (data.email || "").toLowerCase().trim();
-          const isAdminEmail = emailLower === "syukriyusuf82@gmail.com" || emailLower === "sukriyusuf82@gmail.com";
-          
-          // Verify if it is the authentic main admin
-          const isRealAdmin = isAdminEmail && data.peran === "ADMIN" && data.namaLengkap === "LA ODE MUHAMMAD SUKRI YUSUF";
-          
-          if (!isRealAdmin) {
+          // Auto-clean duplicate/legacy admin document (admin_sukriyusuf82 or sukriyusuf82@gmail.com)
+          if (docSnap.id === "admin_sukriyusuf82" || (data.email && data.email.toLowerCase().trim() === "sukriyusuf82@gmail.com")) {
             try {
               await deleteDoc(doc(db, "users", docSnap.id));
-              console.log(`Auto-cleaned test account or duplicate: ${docSnap.id} (${emailLower})`);
-            } catch (delErr) {
-              console.error(`Failed to auto-clean ${docSnap.id}:`, delErr);
+            } catch (cleanErr) {
+              console.warn("Gagal menghapus dokumen admin ganda secara otomatis:", cleanErr);
             }
-            continue; // Skip adding to displayed list
+            continue; // Skip adding duplicate to list
           }
 
           userList.push({ 
@@ -101,7 +94,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       newStatus = "diblokir";
     } else if (currentStatus === "diblokir") {
       newStatus = "aktif";
-    } else if (currentStatus === "menunggu") {
+    } else {
       newStatus = "aktif";
     }
     const userRef = doc(db, "users", userId);
@@ -117,24 +110,9 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     }
   };
 
-  // Handle toggling role (USER <=> ADMIN)
-  const handleToggleRole = async (userId: string, currentRole: string) => {
-    // Prevent self-demotion
-    const userRef = doc(db, "users", userId);
-    const newRole = currentRole === "ADMIN" ? "USER" : "ADMIN";
-    
-    if (confirm(`Ubah peran pengguna ini menjadi ${newRole}?`)) {
-      try {
-        await updateDoc(userRef, {
-          peran: newRole,
-          updatedAt: serverTimestamp()
-        });
-        setUsers(users.map(u => u.uid === userId ? { ...u, peran: newRole } : u));
-      } catch (err) {
-        console.error("Gagal memperbarui peran:", err);
-        alert("Gagal memperbarui peran.");
-      }
-    }
+  // Enforce Single Main Admin rule
+  const handleToggleRole = async (_userId: string, _currentRole: string) => {
+    alert("Sistem dirancang secara khusus hanya memiliki 1 Administrator Utama (Main Admin). Pengguna lain terdaftar sebagai USER terisolasi.");
   };
 
   // Handle update expiration date
@@ -153,8 +131,8 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
   // Handle delete user
   const handleDeleteUser = async (userId: string, email: string) => {
-    const lowerEmail = email.toLowerCase().trim();
-    if (lowerEmail === "syukriyusuf82@gmail.com" || lowerEmail === "sukriyusuf82@gmail.com") {
+    const lowerEmail = (email || "").toLowerCase().trim();
+    if (userId === "admin_syukriyusuf82" || lowerEmail === "syukriyusuf82@gmail.com") {
       alert(`Admin Utama (${email}) tidak dapat dihapus!`);
       return;
     }
@@ -163,7 +141,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       const userRef = doc(db, "users", userId);
       try {
         await deleteDoc(userRef);
-        setUsers(users.filter(u => u.uid !== userId));
+        setUsers(users.filter(u => u.uid !== userId && u.id !== userId));
       } catch (err) {
         console.error("Gagal menghapus pengguna:", err);
         alert("Gagal menghapus pengguna.");
@@ -173,10 +151,10 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
   // Handle clearing all users with the "USER" role
   const handleClearAllUsers = async () => {
-    // Exclude the admins
+    // Exclude the main admin
     const usersWithUserRole = users.filter(u => {
       const emailLower = (u.email || "").toLowerCase().trim();
-      const isAdmin = emailLower === "syukriyusuf82@gmail.com" || emailLower === "sukriyusuf82@gmail.com";
+      const isAdmin = u.uid === "admin_syukriyusuf82" || emailLower === "syukriyusuf82@gmail.com";
       const isRoleAdmin = u.peran === "ADMIN";
       return !isAdmin && !isRoleAdmin;
     });

@@ -48,6 +48,12 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export const isMainAdminEmail = (email?: string | null) => {
+  if (!email) return false;
+  const lower = email.toLowerCase().trim();
+  return lower === "syukriyusuf82@gmail.com" || lower === "sukriyusuf82@gmail.com" || lower === "syukriyusuf00@gmail.com";
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     const customUid = localStorage.getItem("custom_logged_in_uid");
@@ -99,10 +105,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const fetchUserProfile = async (currentUser: User) => {
     const lowerEmail = currentUser.email?.toLowerCase();
-    const isMainAdmin = lowerEmail === "syukriyusuf82@gmail.com" || lowerEmail === "sukriyusuf82@gmail.com";
+    const isMainAdmin = isMainAdminEmail(lowerEmail);
     const userRef = doc(db, "users", currentUser.uid);
     const path = `users/${currentUser.uid}`;
-    const mainAdminPhone = lowerEmail === "sukriyusuf82@gmail.com" ? "0822271059251" : "081111111111";
+    const mainAdminPhone = "0822271059251";
 
     if (isMainAdmin) {
       try {
@@ -114,11 +120,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             await setDoc(userRef, {
               peran: "ADMIN",
               statusPersetujuan: "aktif",
-              namaLengkap: data.namaLengkap || "Syukri Yusuf (Admin)",
+              namaLengkap: data.namaLengkap || "LA ODE MUHAMMAD SUKRI YUSUF",
               profesi: data.profesi || "Administrator Utama",
-              namaSPPG: data.namaSPPG || "Pusat Gizi SPPG",
+              namaSPPG: data.namaSPPG || "SPPG MUNA BARAT SAWERIGADI ONDOKE",
               noHp: data.noHp || mainAdminPhone,
-              berakhirPada: "2030-12-31",
+              berakhirPada: "2035-12-31",
               updatedAt: serverTimestamp(),
               loginTerakhir: serverTimestamp()
             }, { merge: true });
@@ -137,14 +143,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           // Document does not exist yet, create it!
           const adminProfile = {
             uid: currentUser.uid,
-            email: currentUser.email || "sukriyusuf82@gmail.com",
-            namaLengkap: "Syukri Yusuf (Admin)",
+            email: currentUser.email || "syukriyusuf82@gmail.com",
+            namaLengkap: "LA ODE MUHAMMAD SUKRI YUSUF",
             profesi: "Administrator Utama",
-            namaSPPG: "Pusat Gizi SPPG",
+            namaSPPG: "SPPG MUNA BARAT SAWERIGADI ONDOKE",
             noHp: mainAdminPhone,
             peran: "ADMIN" as const,
             statusPersetujuan: "aktif" as const,
-            berakhirPada: "2030-12-31",
+            berakhirPada: "2035-12-31",
             createdAt: serverTimestamp(),
             updatedAt: serverTimestamp(),
             loginTerakhir: serverTimestamp()
@@ -155,17 +161,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
       } catch (err) {
         console.error("Error setting up main admin profile:", err);
-        // Bulletproof local fallback for main admin to guarantee zero lockouts
         updateSession(currentUser, {
           uid: currentUser.uid,
-          email: currentUser.email || "sukriyusuf82@gmail.com",
-          namaLengkap: "Syukri Yusuf (Admin)",
+          email: currentUser.email || "syukriyusuf82@gmail.com",
+          namaLengkap: "LA ODE MUHAMMAD SUKRI YUSUF",
           profesi: "Administrator Utama",
-          namaSPPG: "Pusat Gizi SPPG",
+          namaSPPG: "SPPG MUNA BARAT SAWERIGADI ONDOKE",
           noHp: mainAdminPhone,
           peran: "ADMIN",
           statusPersetujuan: "aktif",
-          berakhirPada: "2030-12-31"
+          berakhirPada: "2035-12-31"
         });
       }
       return;
@@ -479,14 +484,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setAuthError(null);
     try {
       const lowerEmail = formData.email.toLowerCase().trim();
-      const isAdminEmail = lowerEmail === "syukriyusuf82@gmail.com" || lowerEmail === "sukriyusuf82@gmail.com";
+      const isAdminEmail = isMainAdminEmail(lowerEmail);
       const customUid = isAdminEmail 
-        ? (lowerEmail === "sukriyusuf82@gmail.com" ? "admin_sukriyusuf82" : "admin_syukriyusuf82")
+        ? "admin_syukriyusuf82"
         : `custom_user_${lowerEmail.replace(/[@.]/g, "_")}`;
         
       const userRef = doc(db, "users", customUid);
       
-      // For Admin registration, we can overwrite or update if requested, otherwise check existence
       if (!isAdminEmail) {
         const userSnap = await getDoc(userRef);
         if (userSnap.exists()) {
@@ -496,14 +500,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       const profileData = {
         uid: customUid,
-        email: lowerEmail,
+        email: isAdminEmail ? "syukriyusuf82@gmail.com" : lowerEmail,
         namaLengkap: isAdminEmail ? "LA ODE MUHAMMAD SUKRI YUSUF" : formData.namaLengkap,
         profesi: isAdminEmail ? "AHLI GIZI" : formData.profesi,
         namaSPPG: isAdminEmail ? "SPPG MUNA BARAT SAWERIGADI ONDOKE" : formData.namaSPPG,
         sandi: isAdminEmail ? "Syukri@123" : formData.sandi,
         peran: isAdminEmail ? ("ADMIN" as const) : ("USER" as const),
-        statusPersetujuan: isAdminEmail ? ("aktif" as const) : ("pending" as const), // Automatically active for the admin
-        berakhirPada: isAdminEmail ? "2035-12-31" : "", // Expiry set for user or empty
+        statusPersetujuan: isAdminEmail ? ("aktif" as const) : ("menunggu" as const), // New users wait for admin approval
+        berakhirPada: isAdminEmail ? "2035-12-31" : "2027-12-31",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
         loginTerakhir: null
@@ -535,18 +539,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const lowerEmail = email.toLowerCase().trim();
       
       // Override for official Admin credentials requested by user
-      if (lowerEmail === "sukriyusuf82@gmail.com" || lowerEmail === "syukriyusuf82@gmail.com") {
+      if (isMainAdminEmail(lowerEmail)) {
         const cleanSandi = sandi ? sandi.trim() : "";
         if (cleanSandi !== "Syukri@123" && cleanSandi !== "Syukri Odhe" && cleanSandi !== "Odhe@1998") {
           throw new Error("Kata sandi admin salah. Silakan masukkan kata sandi yang benar.");
         }
         
-        const adminUid = lowerEmail === "sukriyusuf82@gmail.com" ? "admin_sukriyusuf82" : "admin_syukriyusuf82";
+        const adminUid = "admin_syukriyusuf82";
         const userRef = doc(db, "users", adminUid);
         
         const profileData = {
           uid: adminUid,
-          email: lowerEmail,
+          email: "syukriyusuf82@gmail.com",
           namaLengkap: "LA ODE MUHAMMAD SUKRI YUSUF",
           profesi: "AHLI GIZI",
           namaSPPG: "SPPG MUNA BARAT SAWERIGADI ONDOKE",
@@ -614,16 +618,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         throw new Error("Kata sandi salah. Silakan coba lagi.");
       }
 
-      // 2. Status validation
-      if (data.statusPersetujuan !== "aktif") {
-        throw new Error("Akun Anda belum disetujui oleh admin atau dalam status pending. Silakan hubungi admin GiziSync.");
-      }
-
-      // 3. Expiration date validation
-      if (data.berakhirPada) {
+      // 2. Expiration date validation if active
+      if (data.statusPersetujuan === "aktif" && data.berakhirPada) {
         const expirationDate = new Date(data.berakhirPada);
         const today = new Date();
-        // Reset time parts for accurate day-to-day comparison
         expirationDate.setHours(23, 59, 59, 999);
         today.setHours(0, 0, 0, 0);
         if (today > expirationDate) {

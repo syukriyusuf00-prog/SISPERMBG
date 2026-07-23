@@ -75,7 +75,7 @@ import {
   X
 } from "lucide-react";
 import * as XLSX from "xlsx";
-import { useAuth } from "./context/AuthContext.tsx";
+import { useAuth, isMainAdminEmail } from "./context/AuthContext.tsx";
 import { db } from "./lib/firebase.ts";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 
@@ -284,7 +284,7 @@ export default function App() {
           const cloudPmSettings = await loadStateFromCloud("pmSettings");
 
           // Determine if user is the main admin or has an approved admin role
-          const isAdminUser = user.email === "sukriyusuf82@gmail.com" || user.email === "syukriyusuf82@gmail.com" || userProfile?.peran === "ADMIN";
+          const isAdminUser = isMainAdminEmail(user.email) || userProfile?.peran === "ADMIN";
 
           // Restore existing cloud states or seed with clean system defaults to guarantee strict isolation
           if (cloudProfile) {
@@ -1692,7 +1692,7 @@ export default function App() {
   }
 
   // If user is pending approval
-  if (userProfile?.statusPersetujuan === "menunggu") {
+  if (userProfile?.statusPersetujuan === "menunggu" || userProfile?.statusPersetujuan === "pending") {
     return (
       <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col justify-center items-center p-6 relative overflow-hidden font-sans">
         <div className="absolute top-0 left-0 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
@@ -1780,7 +1780,7 @@ export default function App() {
   return (
     <div id="sisper-app-root" className="min-h-screen bg-slate-50 text-slate-800 font-sans flex flex-col">
       {/* HEADER BANNER */}
-      <header className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white shadow-md py-5 px-6 shrink-0 relative overflow-hidden">
+      <header className="bg-gradient-to-r from-indigo-900 via-indigo-950 to-slate-900 text-white shadow-md py-5 px-6 shrink-0 relative overflow-hidden no-print">
         {/* Abstract design elements to express high craftsmanship */}
         <div className="absolute right-0 top-0 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none"></div>
         <div className="absolute left-1/3 bottom-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none"></div>
@@ -1877,7 +1877,7 @@ export default function App() {
       </header>
 
       {/* CORE STATS BAR */}
-      <section className="bg-white border-b border-slate-200 py-3.5 px-6 sticky top-0 z-40 shadow-sm shrink-0">
+      <section className="bg-white border-b border-slate-200 py-3.5 px-6 sticky top-0 z-40 shadow-sm shrink-0 no-print">
         <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
           
           {/* Main Navigation Tabs */}

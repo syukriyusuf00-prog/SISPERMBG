@@ -1332,22 +1332,22 @@ export default function FoodCostTab({
     }
 
     return (
-      <div className="overflow-x-auto border border-black rounded-lg shadow-xs">
-        <table className="w-full border-collapse border border-black font-sans text-xs text-center" style={{ fontSize: '12px' }}>
+      <div className={isPrint ? "w-full border border-black rounded-lg shadow-xs overflow-hidden" : "overflow-x-auto border border-black rounded-lg shadow-xs"}>
+        <table className={`w-full border-collapse border border-black font-sans text-center ${isPrint ? "table-fixed text-[9px] leading-tight" : "text-xs"}`} style={isPrint ? { tableLayout: 'fixed', width: '100%' } : { fontSize: '12px' }}>
           <thead className="bg-[#92D050] text-black font-bold uppercase border border-black text-center">
             <tr>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[110px] min-w-[110px]">KRITERIA PM</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[110px] min-w-[110px]">MENU</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[160px] min-w-[160px]">BAHAN MAKANAN</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[56px] min-w-[56px]">BERAT (BB)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[56px] min-w-[56px]">URT</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>KRITERIA PM</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>MENU</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[160px] min-w-[160px]"}`} style={isPrint ? { width: '10%' } : undefined}>BAHAN MAKANAN</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BERAT (BB)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>URT</th>
               <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-extrabold bg-[#76933C] text-white">KOMPOSISI ZAT GIZI MAKANAN</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[56px] min-w-[56px]">BDD (%)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[64px] min-w-[64px]">BK (g)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[64px] min-w-[64px]">Jumlah Manfaat</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[72px] min-w-[72px]">Gram (g)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[72px] min-w-[72px]">Kg (kg)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[48px] min-w-[48px] bg-[#92D050]">
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BDD (%)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>BK (g)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>Jumlah Manfaat</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[72px] min-w-[72px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Gram (g)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[72px] min-w-[72px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Kg (kg)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[48px] min-w-[48px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>
                 {isPrint ? (
                   headerPotong
                 ) : (
@@ -1363,7 +1363,7 @@ export default function FoodCostTab({
                   />
                 )}
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[48px] min-w-[48px] bg-[#92D050]">
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[48px] min-w-[48px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>
                 {isPrint ? (
                   headerEkor
                 ) : (
@@ -1379,22 +1379,22 @@ export default function FoodCostTab({
                   />
                 )}
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[115px] min-w-[115px] bg-[#92D050] text-[10px] leading-tight select-none">
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[115px] min-w-[115px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>
                 Buffer ({currentDayData.bufferPct}%)
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[155px] min-w-[155px] bg-[#92D050] text-[10px] leading-tight select-none">
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[155px] min-w-[155px]"}`} style={isPrint ? { width: '6.5%' } : undefined}>
                 Jumlah+Buffer
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[130px] min-w-[130px]">Harga Satuan</th>
-              <th rowSpan={2} className="p-1 border border-black border-r-2 border-r-slate-950 text-center text-slate-950 font-extrabold w-[136px] min-w-[136px]">Harga Total</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[130px] min-w-[130px]"}`} style={isPrint ? { width: '7.5%' } : undefined}>Harga Satuan</th>
+              <th rowSpan={2} className={`p-1 border border-black border-r-2 border-r-slate-950 text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[136px] min-w-[136px]"}`} style={isPrint ? { width: '8.5%' } : undefined}>Harga Total</th>
               {!isPrint && <th rowSpan={2} className="p-1 border border-black border-l-2 border-l-slate-950 text-center text-rose-800 w-[44px] min-w-[44px] no-print">Aksi</th>}
             </tr>
             <tr>
-              <th className="p-1 border border-black text-center w-[54px] min-w-[54px] bg-[#D8E4BC] text-slate-950 font-bold">ENERGI (Kal)</th>
-              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">Protein (g)</th>
-              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">LEMAK (g)</th>
-              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">KH (g)</th>
-              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">SERAT (g)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[54px] min-w-[54px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>ENERGI (Kal)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>Protein (g)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>LEMAK (g)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>KH (g)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>SERAT (g)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black text-[11px] text-slate-900 bg-white">
@@ -2014,22 +2014,22 @@ export default function FoodCostTab({
     const customBufferPct = table.bufferPct || 5;
 
     return (
-      <div className="overflow-x-auto border border-black rounded-lg shadow-xs">
-        <table className="w-full border-collapse border border-black font-sans text-xs text-center" style={{ fontSize: '12px' }}>
+      <div className={isPrint ? "w-full border border-black rounded-lg shadow-xs overflow-hidden" : "overflow-x-auto border border-black rounded-lg shadow-xs"}>
+        <table className={`w-full border-collapse border border-black font-sans text-center ${isPrint ? "table-fixed text-[9px] leading-tight" : "text-xs"}`} style={isPrint ? { tableLayout: 'fixed', width: '100%' } : { fontSize: '12px' }}>
           <thead className="bg-[#92D050] text-black font-bold uppercase border border-black text-center">
             <tr>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[110px] min-w-[110px]">KRITERIA PM</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[110px] min-w-[110px]">MENU</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[160px] min-w-[160px]">BAHAN MAKANAN</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[56px] min-w-[56px]">BERAT (BB)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[56px] min-w-[56px]">URT</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>KRITERIA PM</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>MENU</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[160px] min-w-[160px]"}`} style={isPrint ? { width: '10%' } : undefined}>BAHAN MAKANAN</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BERAT (BB)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>URT</th>
               <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-extrabold bg-[#76933C] text-white">KOMPOSISI ZAT GIZI MAKANAN</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[56px] min-w-[56px]">BDD (%)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[64px] min-w-[64px]">BK (g)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[64px] min-w-[64px]">Jumlah Manfaat</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[72px] min-w-[72px]">Gram (g)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[72px] min-w-[72px]">Kg (kg)</th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[48px] min-w-[48px] bg-[#92D050]">
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BDD (%)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>BK (g)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>Jumlah Manfaat</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[72px] min-w-[72px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Gram (g)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[72px] min-w-[72px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Kg (kg)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[48px] min-w-[48px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>
                 {isPrint ? (
                   headerPotong
                 ) : (
@@ -2045,7 +2045,7 @@ export default function FoodCostTab({
                   />
                 )}
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[48px] min-w-[48px] bg-[#92D050]">
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[48px] min-w-[48px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>
                 {isPrint ? (
                   headerEkor
                 ) : (
@@ -2061,22 +2061,22 @@ export default function FoodCostTab({
                   />
                 )}
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[115px] min-w-[115px] bg-[#92D050] text-[10px] leading-tight select-none">
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[115px] min-w-[115px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>
                 Buffer ({customBufferPct}%)
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[155px] min-w-[155px] bg-[#92D050] text-[10px] leading-tight select-none">
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[155px] min-w-[155px]"}`} style={isPrint ? { width: '6.5%' } : undefined}>
                 Jumlah+Buffer
               </th>
-              <th rowSpan={2} className="p-1 border border-black text-center text-slate-950 font-extrabold w-[130px] min-w-[130px]">Harga Satuan</th>
-              <th rowSpan={2} className="p-1 border border-black border-r-2 border-r-slate-950 text-center text-slate-950 font-extrabold w-[136px] min-w-[136px]">Harga Total</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[130px] min-w-[130px]"}`} style={isPrint ? { width: '7.5%' } : undefined}>Harga Satuan</th>
+              <th rowSpan={2} className={`p-1 border border-black border-r-2 border-r-slate-950 text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[136px] min-w-[136px]"}`} style={isPrint ? { width: '8.5%' } : undefined}>Harga Total</th>
               {!isPrint && <th rowSpan={2} className="p-1 border border-black border-l-2 border-l-slate-950 text-center text-rose-800 w-[44px] min-w-[44px] no-print">Aksi</th>}
             </tr>
             <tr>
-              <th className="p-1 border border-black text-center w-[54px] min-w-[54px] bg-[#D8E4BC] text-slate-950 font-bold">ENERGI (Kal)</th>
-              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">Protein (g)</th>
-              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">LEMAK (g)</th>
-              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">KH (g)</th>
-              <th className="p-1 border border-black text-center w-[56px] min-w-[56px] bg-[#D8E4BC] text-slate-950 font-bold">SERAT (g)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[54px] min-w-[54px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>ENERGI (Kal)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>Protein (g)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>LEMAK (g)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>KH (g)</th>
+              <th className={`p-1 border border-black text-center bg-[#D8E4BC] text-slate-950 font-bold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>SERAT (g)</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-black text-[11px] text-slate-900 bg-white">
@@ -2588,13 +2588,16 @@ export default function FoodCostTab({
             size: A4 landscape;
             margin: 6mm 8mm;
           }
-          body {
+          html, body, #sisper-app-root, main, #food-cost-container {
+            height: auto !important;
+            overflow: visible !important;
+            max-width: none !important;
+            margin: 0 !important;
+            padding: 0 !important;
             background-color: white !important;
             color: black !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
-            margin: 0 !important;
-            padding: 0 !important;
           }
           .no-print, header, nav, footer, .sidebar, button, .tab-bar, #select-fc-day, #select-fc-group, #select-fc-type {
             display: none !important;
@@ -2602,23 +2605,19 @@ export default function FoodCostTab({
           #print-area-food-cost {
             display: block !important;
             width: 100% !important;
-            position: absolute !important;
+            position: relative !important;
             left: 0 !important;
             right: 0 !important;
             top: 0 !important;
             margin: 0 auto !important;
             padding: 0 !important;
-            zoom: 70% !important; /* Auto scale down to ensure fitting in standard A4 landscape */
           }
           /* Centered block layout */
           #print-area-food-cost > div {
             margin: 0 auto !important;
             width: 100% !important;
             max-width: 100% !important;
-            display: flex !important;
-            flex-direction: column !important;
-            align-items: center !important;
-            justify-content: center !important;
+            display: block !important;
           }
           /* Enforce compact layout and prevent spill */
           #print-area-food-cost table {
@@ -2629,25 +2628,14 @@ export default function FoodCostTab({
           }
           #print-area-food-cost th, #print-area-food-cost td {
             font-size: 8px !important;
-            padding: 2px 3px !important;
-            line-height: 1.15 !important;
+            padding: 2px 2px !important;
+            line-height: 1.12 !important;
             word-wrap: break-word !important;
             white-space: normal !important;
             overflow: hidden !important;
             text-overflow: ellipsis !important;
             border: 1px solid black !important;
           }
-          /* Set proportionate percentages for high-density column layout to prevent overflow */
-          #print-area-food-cost th.w-\\[110px\\], #print-area-food-cost td.w-\\[110px\\] { width: 5.5% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[160px\\], #print-area-food-cost td.w-\\[160px\\] { width: 9% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[56px\\], #print-area-food-cost td.w-\\[56px\\] { width: 3.5% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[64px\\], #print-area-food-cost td.w-\\[64px\\] { width: 4% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[72px\\], #print-area-food-cost td.w-\\[72px\\] { width: 4.5% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[48px\\], #print-area-food-cost td.w-\\[48px\\] { width: 3% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[115px\\], #print-area-food-cost td.w-\\[115px\\] { width: 6% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[155px\\], #print-area-food-cost td.w-\\[155px\\] { width: 8% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[130px\\], #print-area-food-cost td.w-\\[130px\\] { width: 7% !important; min-width: auto !important; }
-          #print-area-food-cost th.w-\\[145px\\], #print-area-food-cost td.w-\\[145px\\] { width: 8% !important; min-width: auto !important; }
 
           input, select {
             border: none !important;
