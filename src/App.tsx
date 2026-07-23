@@ -231,7 +231,6 @@ export default function App() {
 
   const [isRegistering, setIsRegistering] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
-  const [registeredSuccessInfo, setRegisteredSuccessInfo] = useState<{ email: string; nama: string; instansi: string } | null>(null);
 
   // Fallback / legacy profile registration form states
   const [regNama, setRegNama] = useState("");
@@ -1148,12 +1147,9 @@ export default function App() {
         sandi: regSandiSingle
       });
 
-      // Show high-visibility modal & instruction to contact admin
-      setRegisteredSuccessInfo({
-        email: regEmailSingle,
-        nama: regNamaSingle,
-        instansi: regInstansiSingle
-      });
+      alert(
+        `Pendaftaran Berhasil!\n\nAkun Anda dengan email "${regEmailSingle}" telah didaftarkan dan sedang menunggu persetujuan (acc) oleh administrator untuk diatur masa aktifnya.\n\nSilakan hubungi administrator utama untuk persetujuan akun Anda.`
+      );
       
       // Auto-prefill the login fields and switch to login tab
       setLoginEmail(regEmailSingle);
@@ -1222,89 +1218,7 @@ export default function App() {
   // If user is not logged in, show beautiful GiziSync / SISPERMBG Login screen
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#F1F3F9] text-slate-700 flex items-center justify-center p-4 md:p-8 font-sans relative">
-        {/* On-Screen Notification Modal after successful registration */}
-        {registeredSuccessInfo && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-fadeIn">
-            <div className="w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden text-slate-800">
-              {/* Header */}
-              <div className="bg-gradient-to-r from-emerald-600 to-teal-700 p-6 text-white text-center relative">
-                <div className="w-14 h-14 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 backdrop-blur-xs">
-                  <Sparkles className="w-8 h-8 text-white" />
-                </div>
-                <span className="px-3 py-1 bg-emerald-500/40 text-emerald-100 font-extrabold text-[10px] rounded-full uppercase tracking-wider border border-emerald-300/30 inline-block mb-2">
-                  ⚡ Notifikasi Real-Time Terkirim
-                </span>
-                <h3 className="text-xl font-extrabold text-white tracking-tight">Pendaftaran Akses Berhasil!</h3>
-                <p className="text-xs text-emerald-100 mt-1">Pengajuan akses Anda telah masuk ke Panel Admin secara real-time</p>
-              </div>
-
-              {/* Body */}
-              <div className="p-6 space-y-4">
-                <div className="bg-slate-50 border border-slate-200 p-4 rounded-2xl text-xs space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Nama Pendaftar:</span>
-                    <span className="font-extrabold text-slate-900">{registeredSuccessInfo.nama}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Email Pendaftaran:</span>
-                    <span className="font-bold text-slate-900">{registeredSuccessInfo.email}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-500">Instansi / SPPG:</span>
-                    <span className="font-bold text-slate-900">{registeredSuccessInfo.instansi}</span>
-                  </div>
-                  <div className="flex justify-between items-center pt-2 border-t border-slate-200/80">
-                    <span className="text-slate-500">Status Akses:</span>
-                    <span className="px-2.5 py-1 bg-amber-100 text-amber-900 border border-amber-300 rounded-full font-extrabold text-[10px] uppercase flex items-center gap-1.5 animate-pulse">
-                      <Clock className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-                      Menunggu Konfirmasi Admin
-                    </span>
-                  </div>
-                </div>
-
-                {/* Instruction Card */}
-                <div className="bg-amber-50/90 border-2 border-amber-300/90 p-4 rounded-2xl text-xs space-y-3">
-                  <div className="flex items-start gap-2.5">
-                    <Info className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-                    <div>
-                      <h4 className="font-extrabold text-amber-950 text-xs uppercase tracking-wide">INSTRUKSI ABLIKASI & KONFIRMASI:</h4>
-                      <p className="text-amber-900 text-[11px] leading-relaxed mt-1">
-                        Sesuai standar keamanan sistem SISPERMBG, mohon <strong>segera hubungi Administrator</strong> agar pendaftaran akun Anda langsung di-ACC dan diaktifkan.
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="bg-white p-3 rounded-xl border border-amber-200 text-slate-800 space-y-1 text-[11px]">
-                    <p className="text-indigo-950 font-black">👤 Administrator: Syukri_Odhe | Ahli Gizi</p>
-                    <p className="text-emerald-700 font-extrabold">📱 WhatsApp: 082271095251 / 0822271059251</p>
-                  </div>
-
-                  <a
-                    href={`https://wa.me/6282271095251?text=${encodeURIComponent(
-                      `Halo Admin GiziSync SISPERMBG, saya baru saja mendaftar akun atas nama: ${registeredSuccessInfo.nama} (${registeredSuccessInfo.email}) dari ${registeredSuccessInfo.instansi}. Mohon persetujuan dan konfirmasi akses akun saya. Terima kasih!`
-                    )}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold rounded-xl transition flex items-center justify-center gap-2 shadow-md shadow-emerald-600/20 text-xs cursor-pointer"
-                  >
-                    <span>Hubungi Admin via WhatsApp Sekarang</span>
-                    <ArrowRight className="w-4 h-4" />
-                  </a>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setRegisteredSuccessInfo(null)}
-                  className="w-full py-3 bg-slate-100 hover:bg-slate-200 text-slate-700 font-extrabold rounded-xl transition text-xs cursor-pointer"
-                >
-                  Tutup & Ke Halaman Masuk
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-
+      <div className="min-h-screen bg-[#F1F3F9] text-slate-700 flex items-center justify-center p-4 md:p-8 font-sans">
         {/* Main responsive container card matching picture structure */}
         <div className="w-full max-w-5xl bg-white rounded-3xl shadow-2xl flex flex-col md:flex-row overflow-hidden border border-slate-200/80">
           
@@ -1377,27 +1291,17 @@ export default function App() {
               </p>
 
               {/* Alert Box matching screenshot info banner */}
-              <div className="bg-[#FFF8E1] border border-amber-200 rounded-2xl p-4 my-5 text-left flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <div>
-                  <h4 className="text-xs font-black text-amber-900 mb-1 flex items-center gap-1.5 uppercase tracking-wide">
-                    <Info className="w-4 h-4 text-amber-600 shrink-0" />
-                    Konfirmasi Akses & Kendala Login:
-                  </h4>
-                  <div className="text-[11px] text-amber-900 leading-relaxed font-bold space-y-0.5">
-                    <p>Pendaftaran baru langsung terhubung ke Panel Admin secara Real-Time.</p>
-                    <p className="text-indigo-900 font-extrabold mt-0.5">Admin: Syukri_Odhe | Ahli Gizi</p>
-                    <p className="text-emerald-700 font-extrabold">WA : 082271095251 / 0822271059251</p>
-                  </div>
+              <div className="bg-[#FFF8E1] border border-amber-200 rounded-2xl p-4 my-5 text-left">
+                <h4 className="text-xs font-black text-amber-900 mb-1 flex items-center gap-1.5 uppercase tracking-wide">
+                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                  Informasi :
+                </h4>
+                <div className="text-[11px] text-amber-900 leading-relaxed font-bold space-y-0.5">
+                  <p>Kendala Login SISPERMBG</p>
+                  <p>Hubungi Admin GiziSync SISPERMBG</p>
+                  <p className="text-indigo-900 font-extrabold mt-1">Syukri_Odhe | Ahli Gizi</p>
+                  <p className="text-emerald-700 font-extrabold">WA : 082271095251</p>
                 </div>
-                <a
-                  href="https://wa.me/6282271095251?text=Halo%20Admin%20GiziSync,%20saya%20ingin%20mengonfirmasi%20akses%20pendaftaran%20akun%20saya."
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="shrink-0 px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-extrabold rounded-xl transition flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/15 cursor-pointer"
-                >
-                  <span>Hubungi Admin WA</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </a>
               </div>
 
               {/* Modern tab selectors inside right column */}
@@ -2720,27 +2624,27 @@ export default function App() {
                               {t.beratStandar !== undefined ? t.beratStandar : 100} g
                             </td>
                             <td className="p-2.5 text-center font-mono font-bold text-slate-600">{t.bdd}%</td>
-                            <td className="p-2.5 text-center font-mono text-amber-700 font-extrabold">{(t.energi ?? 0).toFixed(0)}</td>
-                            <td className="p-2.5 text-center font-mono text-indigo-700 font-bold">{(t.protein ?? 0).toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-rose-700 font-bold">{(t.lemak ?? 0).toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-cyan-700 font-bold">{(t.kh ?? 0).toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-emerald-700 font-bold">{(t.serat ?? 0).toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-slate-500">{typeof t.abu === "number" ? t.abu.toFixed(1) : "0.0"}g</td>
+                            <td className="p-2.5 text-center font-mono text-amber-700 font-extrabold">{t.energi.toFixed(0)}</td>
+                            <td className="p-2.5 text-center font-mono text-indigo-700 font-bold">{t.protein.toFixed(1)}g</td>
+                            <td className="p-2.5 text-center font-mono text-rose-700 font-bold">{t.lemak.toFixed(1)}g</td>
+                            <td className="p-2.5 text-center font-mono text-cyan-700 font-bold">{t.kh.toFixed(1)}g</td>
+                            <td className="p-2.5 text-center font-mono text-emerald-700 font-bold">{t.serat.toFixed(1)}g</td>
+                            <td className="p-2.5 text-center font-mono text-slate-500">{t.abu !== undefined ? t.abu.toFixed(1) : "0.0"}g</td>
                             <td className="p-2.5 text-center font-mono text-teal-700 font-semibold">{t.ca !== undefined ? t.ca : 0}</td>
                             <td className="p-2.5 text-center font-mono text-purple-700">{t.p !== undefined ? t.p : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-pink-700 font-semibold">{typeof t.fe === "number" ? t.fe.toFixed(1) : "0.0"}</td>
+                            <td className="p-2.5 text-center font-mono text-pink-700 font-semibold">{t.fe !== undefined ? t.fe.toFixed(1) : "0.0"}</td>
                             <td className="p-2.5 text-center font-mono text-blue-700">{t.na !== undefined ? t.na : 0}</td>
                             <td className="p-2.5 text-center font-mono text-orange-700">{t.k !== undefined ? t.k : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-yellow-800">{typeof t.cu === "number" ? t.cu.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-violet-800">{typeof t.zn === "number" ? t.zn.toFixed(1) : "0.0"}</td>
+                            <td className="p-2.5 text-center font-mono text-yellow-800">{t.cu !== undefined ? t.cu.toFixed(2) : "0.00"}</td>
+                            <td className="p-2.5 text-center font-mono text-violet-800">{t.zn !== undefined ? t.zn.toFixed(1) : "0.0"}</td>
                             <td className="p-2.5 text-center font-mono text-red-600">{t.retinol !== undefined ? t.retinol : 0}</td>
                             <td className="p-2.5 text-center font-mono text-orange-600">{t.b_karoten !== undefined ? t.b_karoten : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-amber-600 font-medium">{typeof t.thiamin === "number" ? t.thiamin.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-lime-600 font-medium">{typeof t.riboflavin === "number" ? t.riboflavin.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-indigo-500">{typeof t.niasin === "number" ? t.niasin.toFixed(1) : "0.0"}</td>
-                            <td className="p-2.5 text-center font-mono text-red-500 font-semibold">{typeof t.vit_c === "number" ? t.vit_c.toFixed(1) : "0.0"}</td>
+                            <td className="p-2.5 text-center font-mono text-amber-600 font-medium">{t.thiamin !== undefined ? t.thiamin.toFixed(2) : "0.00"}</td>
+                            <td className="p-2.5 text-center font-mono text-lime-600 font-medium">{t.riboflavin !== undefined ? t.riboflavin.toFixed(2) : "0.00"}</td>
+                            <td className="p-2.5 text-center font-mono text-indigo-500">{t.niasin !== undefined ? t.niasin.toFixed(1) : "0.0"}</td>
+                            <td className="p-2.5 text-center font-mono text-red-500 font-semibold">{t.vit_c !== undefined ? t.vit_c.toFixed(1) : "0.0"}</td>
                             <td className="p-2.5 text-center font-mono text-sky-600 font-semibold bg-sky-50/10">
-                              {typeof t.air === "number" ? t.air.toFixed(1) : "0.0"}g
+                              {t.air !== undefined ? t.air.toFixed(1) : "0.0"}g
                             </td>
                             <td className="p-2.5 text-center">
                               <button

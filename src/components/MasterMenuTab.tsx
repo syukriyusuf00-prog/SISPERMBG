@@ -58,7 +58,7 @@ const formatIndonesianDate = (dateStr: string): string => {
   }
 };
 
-function MasterMenuTab({ 
+export default function MasterMenuTab({ 
   menu, 
   onChange, 
   profile, 
@@ -1411,5 +1411,3 @@ function MasterMenuTab({
     </div>
   );
 }
-
-export default React.memo(MasterMenuTab);

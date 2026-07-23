@@ -28,7 +28,7 @@ interface HandbookSection {
   content: React.ReactNode;
 }
 
-function HandbookTab() {
+export default function HandbookTab() {
   const [activeSection, setActiveSection] = useState<string>("pengenalan");
   const [searchTerm, setSearchTerm] = useState<string>("");
 
@@ -375,5 +375,3 @@ function HandbookTab() {
     </div>
   );
 }
-
-export default React.memo(HandbookTab);

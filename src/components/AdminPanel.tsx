@@ -5,8 +5,7 @@ import {
   doc, 
   updateDoc, 
   deleteDoc, 
-  serverTimestamp,
-  onSnapshot 
+  serverTimestamp 
 } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase.ts";
 import { 
@@ -35,45 +34,64 @@ interface AdminPanelProps {
   onClose: () => void;
 }
 
-function AdminPanel({ onClose }: AdminPanelProps) {
+export default function AdminPanel({ onClose }: AdminPanelProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"manajemen" | "riwayat" | "diagnostik">("manajemen");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Load all users from Firestore with real-time onSnapshot synchronization
+  // Load all users from Firestore (only works if logged in as Admin)
   useEffect(() => {
-    setLoading(true);
-    const usersCol = collection(db, "users");
-    
-    const unsubscribe = onSnapshot(usersCol, (snapshot) => {
-      const userList: any[] = [];
+    const fetchUsers = async () => {
+      setLoading(true);
+      try {
+        const usersCol = collection(db, "users");
+        const snapshot = await getDocs(usersCol);
+        const userList: any[] = [];
+        const thresholdTime = new Date("2026-07-06T01:10:00-07:00").getTime();
 
-      for (const docSnap of snapshot.docs) {
-        const data = docSnap.data();
-        userList.push({ 
-          id: docSnap.id, 
-          uid: data.uid || docSnap.id, 
-          ...data 
+        for (const docSnap of snapshot.docs) {
+          const data = docSnap.data();
+          const emailLower = (data.email || "").toLowerCase().trim();
+          const isAdminEmail = emailLower === "syukriyusuf82@gmail.com" || emailLower === "sukriyusuf82@gmail.com";
+          
+          // Verify if it is the authentic main admin
+          const isRealAdmin = isAdminEmail && data.peran === "ADMIN" && data.namaLengkap === "LA ODE MUHAMMAD SUKRI YUSUF";
+          
+          if (!isRealAdmin) {
+            try {
+              await deleteDoc(doc(db, "users", docSnap.id));
+              console.log(`Auto-cleaned test account or duplicate: ${docSnap.id} (${emailLower})`);
+            } catch (delErr) {
+              console.error(`Failed to auto-clean ${docSnap.id}:`, delErr);
+            }
+            continue; // Skip adding to displayed list
+          }
+
+          userList.push({ 
+            id: docSnap.id, 
+            uid: data.uid || docSnap.id, 
+            ...data 
+          });
+        }
+        
+        // Sort users: latest registered/login first
+        userList.sort((a, b) => {
+          const timeA = a.createdAt?.seconds || 0;
+          const timeB = b.createdAt?.seconds || 0;
+          return timeB - timeA;
         });
+        
+        setUsers(userList);
+      } catch (err) {
+        console.error("Gagal memuat pengguna:", err);
+      } finally {
+        setLoading(false);
       }
-      
-      // Sort users: latest registered/login first
-      userList.sort((a, b) => {
-        const timeA = a.createdAt?.seconds || (a.createdAt ? new Date(a.createdAt).getTime() / 1000 : 0);
-        const timeB = b.createdAt?.seconds || (b.createdAt ? new Date(b.createdAt).getTime() / 1000 : 0);
-        return timeB - timeA;
-      });
-      
-      setUsers(userList);
-      setLoading(false);
-    }, (err) => {
-      console.error("Gagal berlangganan pembaruan real-time pengguna:", err);
-      setLoading(false);
-    });
+    };
 
-    return () => unsubscribe();
+    fetchUsers();
   }, [refreshTrigger]);
 
   // Handle toggling approval status
@@ -83,28 +101,16 @@ function AdminPanel({ onClose }: AdminPanelProps) {
       newStatus = "diblokir";
     } else if (currentStatus === "diblokir") {
       newStatus = "aktif";
-    } else {
-      // "pending" or "menunggu" -> activate
+    } else if (currentStatus === "menunggu") {
       newStatus = "aktif";
     }
-
     const userRef = doc(db, "users", userId);
     try {
-      const updateData: any = {
+      await updateDoc(userRef, {
         statusPersetujuan: newStatus,
         updatedAt: serverTimestamp()
-      };
-      
-      // If approving for the first time and expiration date is missing, set default 5-year expiration
-      const userObj = users.find(u => u.uid === userId);
-      if (newStatus === "aktif" && (!userObj?.berakhirPada || userObj?.berakhirPada === "")) {
-        const fiveYearsFromNow = new Date();
-        fiveYearsFromNow.setFullYear(fiveYearsFromNow.getFullYear() + 5);
-        updateData.berakhirPada = fiveYearsFromNow.toISOString().split("T")[0];
-      }
-
-      await updateDoc(userRef, updateData);
-      setUsers(users.map(u => u.uid === userId ? { ...u, ...updateData } : u));
+      });
+      setUsers(users.map(u => u.uid === userId ? { ...u, statusPersetujuan: newStatus } : u));
     } catch (err) {
       console.error("Gagal memperbarui status:", err);
       alert("Gagal memperbarui status persetujuan. Pastikan Anda memiliki hak akses penuh.");
@@ -471,25 +477,20 @@ function AdminPanel({ onClose }: AdminPanelProps) {
                             className={`inline-flex items-center gap-1 px-3 py-1 text-[10px] font-bold rounded-full cursor-pointer uppercase tracking-wide shadow-2xs transition ${
                               item.statusPersetujuan === "aktif"
                                 ? "bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
-                                : item.statusPersetujuan === "menunggu" || item.statusPersetujuan === "pending"
+                                : item.statusPersetujuan === "menunggu"
                                 ? "bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300 animate-pulse"
                                 : "bg-rose-100 text-rose-800 hover:bg-rose-200 border border-rose-300"
                             }`}
-                            title={
-                              item.statusPersetujuan === "pending" || item.statusPersetujuan === "menunggu"
-                                ? "Klik untuk konfirmasi & aktifkan akses akun ini"
-                                : "Klik untuk mengubah status"
-                            }
                           >
                             {item.statusPersetujuan === "aktif" ? (
                               <>
                                 <CheckCircle className="w-3 h-3" />
                                 Aktif
                               </>
-                            ) : item.statusPersetujuan === "menunggu" || item.statusPersetujuan === "pending" ? (
+                            ) : item.statusPersetujuan === "menunggu" ? (
                               <>
                                 <Clock className="w-3 h-3" />
-                                Menunggu Konfirmasi
+                                Menunggu
                               </>
                             ) : (
                               <>
@@ -631,5 +632,3 @@ function AdminPanel({ onClose }: AdminPanelProps) {
     </div>
   );
 }
-
-export default React.memo(AdminPanel);

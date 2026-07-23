@@ -29,7 +29,7 @@ interface DashboardOutputsProps {
   setRightLogo: (val: string) => void;
 }
 
-function DashboardOutputs({
+export default function DashboardOutputs({
   foodCostDays,
   tkpiList,
   masterMenu,
@@ -47,13 +47,6 @@ function DashboardOutputs({
   rightLogo,
   setRightLogo
 }: DashboardOutputsProps) {
-  const tkpiMap = React.useMemo(() => {
-    const map = new Map<string, TKPIItem>();
-    for (let i = 0; i < tkpiList.length; i++) {
-      map.set(tkpiList[i].id, tkpiList[i]);
-    }
-    return map;
-  }, [tkpiList]);
   const [activeOutputTab, setActiveOutputTab] = useState<"rekap" | "nota">("rekap");
   const [targetBudgetPorsiBesar, setTargetBudgetPorsiBesar] = useState<number>(10000); // Default IDR 10,000 for Porsi Besar
   const [targetBudgetPorsiKecil, setTargetBudgetPorsiKecil] = useState<number>(8000);  // Default IDR 8,000 for Porsi Kecil
@@ -107,7 +100,7 @@ function DashboardOutputs({
       dayCounts.pmBesarSekolah,
       dayCounts.pmKecilSekolah,
       schoolDayData.bufferPct,
-      tkpiMap
+      tkpiList
     );
 
     // 3B Group (MP-ASI)
@@ -125,7 +118,7 @@ function DashboardOutputs({
       dayCounts.pmBesar3B,
       dayCounts.pmKecil3B,
       threeBDayData.bufferPct,
-      tkpiMap
+      tkpiList
     );
 
     return {
@@ -185,7 +178,7 @@ function DashboardOutputs({
       group === "sekolah" ? dayCounts.pmBesarSekolah : dayCounts.pmBesar3B,
       group === "sekolah" ? dayCounts.pmKecilSekolah : dayCounts.pmKecil3B,
       dayData.bufferPct,
-      tkpiMap
+      tkpiList
     );
 
     // Group items by tkpiId to avoid multiple entries of the same food
@@ -529,41 +522,41 @@ function DashboardOutputs({
                         
                         {/* Berat Bersih */}
                         <td className="p-3 text-right font-mono font-semibold text-indigo-700">
-                          {(beratBersih || 0) > 0 ? `${(beratBersih || 0).toFixed(1)}g` : "-"}
+                          {beratBersih > 0 ? `${beratBersih.toFixed(1)}g` : "-"}
                         </td>
 
                         {/* Energi */}
                         <td className="p-3 text-right font-mono">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border font-semibold ${nEnergy.text}`}>
-                            {(energi || 0).toFixed(0)} ({((nEnergy && nEnergy.pct) || 0).toFixed(0)}%)
+                            {energi.toFixed(0)} ({nEnergy.pct.toFixed(0)}%)
                           </span>
                         </td>
 
                         {/* Protein */}
                         <td className="p-3 text-right font-mono">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border font-semibold ${nProtein.text}`}>
-                            {(protein || 0).toFixed(1)}g ({((nProtein && nProtein.pct) || 0).toFixed(0)}%)
+                            {protein.toFixed(1)}g ({nProtein.pct.toFixed(0)}%)
                           </span>
                         </td>
 
                         {/* Lemak */}
                         <td className="p-3 text-right font-mono">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border font-semibold ${nLemak.text}`}>
-                            {(lemak || 0).toFixed(1)}g ({((nLemak && nLemak.pct) || 0).toFixed(0)}%)
+                            {lemak.toFixed(1)}g ({nLemak.pct.toFixed(0)}%)
                           </span>
                         </td>
 
                         {/* KH */}
                         <td className="p-3 text-right font-mono">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border font-semibold ${nKh.text}`}>
-                            {(kh || 0).toFixed(1)}g ({((nKh && nKh.pct) || 0).toFixed(0)}%)
+                            {kh.toFixed(1)}g ({nKh.pct.toFixed(0)}%)
                           </span>
                         </td>
 
                         {/* Serat */}
                         <td className="p-3 text-right font-mono">
                           <span className={`inline-block px-1.5 py-0.5 rounded text-[10px] border font-semibold ${nSerat.text}`}>
-                            {(serat || 0).toFixed(1)}g ({((nSerat && nSerat.pct) || 0).toFixed(0)}%)
+                            {serat.toFixed(1)}g ({nSerat.pct.toFixed(0)}%)
                           </span>
                         </td>
 
@@ -693,7 +686,7 @@ function DashboardOutputs({
                         <tr key={idx} className="hover:bg-slate-50/50">
                           <td className="p-2.5 pl-4 text-center font-mono text-slate-400">{idx + 1}</td>
                           <td className="p-2.5 font-medium text-slate-800">{item.nama}</td>
-                          <td className="p-2.5 text-right font-mono">{(item.totalKg || 0).toFixed(3)} Kg</td>
+                          <td className="p-2.5 text-right font-mono">{item.totalKg.toFixed(3)} Kg</td>
                           <td className="p-2.5 text-right font-mono">{formatRupiah(item.hargaSatuan)}</td>
                           <td className="p-2.5 text-right font-mono font-bold text-slate-900">
                             {formatRupiah(item.totalKg * item.hargaSatuan)}
@@ -773,7 +766,7 @@ function DashboardOutputs({
                         <tr key={idx} className="hover:bg-slate-50/50">
                           <td className="p-2.5 pl-4 text-center font-mono text-slate-400">{idx + 1}</td>
                           <td className="p-2.5 font-medium text-slate-800">{item.nama}</td>
-                          <td className="p-2.5 text-right font-mono">{(item.totalKg || 0).toFixed(3)} Kg</td>
+                          <td className="p-2.5 text-right font-mono">{item.totalKg.toFixed(3)} Kg</td>
                           <td className="p-2.5 text-right font-mono">{formatRupiah(item.hargaSatuan)}</td>
                           <td className="p-2.5 text-right font-mono font-bold text-slate-900">
                             {formatRupiah(item.totalKg * item.hargaSatuan)}
@@ -1040,7 +1033,7 @@ function DashboardOutputs({
                           {currentNotaSekolah.map((item, idx) => (
                             <tr key={idx}>
                               <td className="border border-slate-300 p-1 truncate max-w-[80px]">{item.nama}</td>
-                              <td className="border border-slate-300 p-1 text-right font-mono">{(item.totalKg || 0).toFixed(3)} Kg</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono">{item.totalKg.toFixed(3)} Kg</td>
                               <td className="border border-slate-300 p-1 text-right font-mono">{formatRupiah(item.totalKg * item.hargaSatuan)}</td>
                             </tr>
                           ))}
@@ -1066,7 +1059,7 @@ function DashboardOutputs({
                           {currentNota3B.map((item, idx) => (
                             <tr key={idx}>
                               <td className="border border-slate-300 p-1 truncate max-w-[80px]">{item.nama}</td>
-                              <td className="border border-slate-300 p-1 text-right font-mono">{(item.totalKg || 0).toFixed(3)} Kg</td>
+                              <td className="border border-slate-300 p-1 text-right font-mono">{item.totalKg.toFixed(3)} Kg</td>
                               <td className="border border-slate-300 p-1 text-right font-mono">{formatRupiah(item.totalKg * item.hargaSatuan)}</td>
                             </tr>
                           ))}
@@ -1107,5 +1100,3 @@ function DashboardOutputs({
     </div>
   );
 }
-
-export default React.memo(DashboardOutputs);

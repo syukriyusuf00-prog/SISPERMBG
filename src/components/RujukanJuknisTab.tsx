@@ -613,7 +613,7 @@ const STANDAR_MAKANAN_DATA: StandarMakananGroup[] = [
   }
 ];
 
-function RujukanJuknisTab() {
+export default function RujukanJuknisTab() {
   const [subTab, setSubTab] = useState<"akg" | "standar">("akg");
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedStandarId, setSelectedStandarId] = useState<string>("balita");
@@ -932,5 +932,3 @@ function RujukanJuknisTab() {
     </div>
   );
 }
-
-export default React.memo(RujukanJuknisTab);

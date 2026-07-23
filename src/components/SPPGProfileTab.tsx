@@ -38,7 +38,7 @@ interface SPPGProfileTabProps {
   startNewPeriod?: () => void;
 }
 
-function SPPGProfileTab({ 
+export default function SPPGProfileTab({ 
   profile, 
   onChange,
   savedPeriods = [],
@@ -523,5 +523,3 @@ function SPPGProfileTab({
     </div>
   );
 }
-
-export default React.memo(SPPGProfileTab);

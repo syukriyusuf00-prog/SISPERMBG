@@ -300,11 +300,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (currentUser) {
           setUser(currentUser);
-          try {
-            await fetchUserProfile(currentUser);
-          } catch (e) {
-            console.warn("Error fetching profile on auth state change:", e);
-          }
+          await fetchUserProfile(currentUser);
         } else {
           if (!localStorage.getItem("custom_logged_in_uid")) {
             updateSession(null, null);
@@ -312,16 +308,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setLoading(false);
       });
-
-      // Safety timeout to guarantee loading becomes false even if network hangs
-      const timer = setTimeout(() => {
-        setLoading(false);
-      }, 2000);
-
-      return () => {
-        clearTimeout(timer);
-        if (typeof unsubscribe === "function") unsubscribe();
-      };
+      return unsubscribe;
     };
 
     let unsub: any;
@@ -439,6 +426,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sandi: string;
     roles: Array<{ namaLengkap: string; email: string; noHp: string; profesi: string }>;
   }) => {
+    setLoading(true);
     try {
       for (const r of data.roles) {
         const customUid = `custom_user_${r.email.toLowerCase().replace(/[@.]/g, "_")}`;
@@ -475,6 +463,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error("Gagal mendaftarkan multi peran:", error);
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -485,6 +475,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     namaSPPG: string;
     sandi: string;
   }) => {
+    setLoading(true);
     setAuthError(null);
     try {
       const lowerEmail = formData.email.toLowerCase().trim();
@@ -497,13 +488,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // For Admin registration, we can overwrite or update if requested, otherwise check existence
       if (!isAdminEmail) {
-        let userSnap;
-        try {
-          userSnap = await getDoc(userRef);
-        } catch (e) {
-          console.warn("Check user error, proceeding:", e);
-        }
-        if (userSnap && userSnap.exists()) {
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
           throw new Error("Email ini sudah terdaftar di sistem.");
         }
       }
@@ -537,10 +523,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Gagal melakukan registrasi:", error);
       setAuthError(error?.message || String(error));
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
   const loginWithEmailPassword = async (email: string, sandi?: string) => {
+    setLoading(true);
     setAuthError(null);
     try {
       const lowerEmail = email.toLowerCase().trim();
@@ -584,6 +573,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           emailVerified: true
         } as any, profileData);
         
+        setLoading(false);
         return;
       }
 
@@ -626,9 +616,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       // 2. Status validation
       if (data.statusPersetujuan !== "aktif") {
-        throw new Error(
-          `Akun Anda ("${data.email}") masih dalam status MENUNGGU KONFIRMASI AKSES ADMIN.\n\nSesuai prosedur, silakan hubungi Administrator agar akses akun Anda dapat segera dikonfirmasi dan diaktifkan:\n• Admin: Syukri_Odhe | Ahli Gizi\n• WhatsApp: 082271095251 / 0822271059251`
-        );
+        throw new Error("Akun Anda belum disetujui oleh admin atau dalam status pending. Silakan hubungi admin GiziSync.");
       }
 
       // 3. Expiration date validation
@@ -663,6 +651,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Gagal masuk:", error);
       setAuthError(error?.message || String(error));
       throw error;
+    } finally {
+      setLoading(false);
     }
   };
 
