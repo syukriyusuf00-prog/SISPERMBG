@@ -193,8 +193,8 @@ export const INITIAL_FOOD_COST_DAYS: FoodCostDay[] = [
   }
 ];
 
-// Let's populate empty arrays for days 3 to 12 as scaffolding so the user can easily select them
-for (let d = 3; d <= 12; d++) {
+// Let's populate empty arrays for days 3 to 10 as scaffolding so the user can easily select them
+for (let d = 3; d <= 10; d++) {
   INITIAL_FOOD_COST_DAYS.push({
     jenisMenu: "Basah",
     hariKe: d,
@@ -229,7 +229,7 @@ export const DEFAULT_SASARAN_LIST: KelompokSasaranPM[] = [
   { id: "ibu_menyusui", label: "Ibu Menyusui", porsiKecil: 0, porsiBesar: 38, alergiKecil: 0, alergiBesar: 1 }
 ];
 
-export const INITIAL_HARIAN_PM: HariPM[] = Array.from({ length: 12 }, (_, i) => ({
+export const INITIAL_HARIAN_PM: HariPM[] = Array.from({ length: 10 }, (_, i) => ({
   hariKe: i + 1,
   sasaran: DEFAULT_SASARAN_LIST.map(item => ({ ...item }))
 }));
@@ -243,7 +243,7 @@ export const EMPTY_SPPG_PROFILE: SPPGProfile = {
   ketuaYayasan: "",
   namaAkuntan: "",
   tahunAnggaran: "",
-  periodeDates: Array.from({ length: 12 }, () => ""),
+  periodeDates: Array.from({ length: 10 }, () => ""),
   awalPeriodeBerikutnya: ""
 };
 
@@ -258,21 +258,21 @@ export const EMPTY_SASARAN_LIST: KelompokSasaranPM[] = DEFAULT_SASARAN_LIST.map(
   alergiBesar: 0
 }));
 
-export const EMPTY_HARIAN_PM: HariPM[] = Array.from({ length: 12 }, (_, i) => ({
+export const EMPTY_HARIAN_PM: HariPM[] = Array.from({ length: 10 }, (_, i) => ({
   hariKe: i + 1,
   sasaran: EMPTY_SASARAN_LIST.map(item => ({ ...item }))
 }));
 
 export const EMPTY_MASTER_MENU: MasterMenu = {
-  usiaSekolah: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
-  tigaB: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
-  mpAsi: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
-  usiaSekolahAlergi: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
-  tigaBAlergi: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
-  mpAsiAlergi: Array.from({ length: 12 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" }))
+  usiaSekolah: Array.from({ length: 10 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  tigaB: Array.from({ length: 10 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  mpAsi: Array.from({ length: 10 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  usiaSekolahAlergi: Array.from({ length: 10 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  tigaBAlergi: Array.from({ length: 10 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" })),
+  mpAsiAlergi: Array.from({ length: 10 }, () => ({ namaMenu: "", karbohidrat: "", laukHewani: "", laukNabati: "", sayur: "", buahSusu: "" }))
 };
 
-export const EMPTY_FOOD_COST_DAYS: FoodCostDay[] = Array.from({ length: 12 }, (_, i) => ({
+export const EMPTY_FOOD_COST_DAYS: FoodCostDay[] = Array.from({ length: 10 }, (_, i) => ({
   jenisMenu: "Basah",
   hariKe: i + 1,
   porsiBesarBahan: [],

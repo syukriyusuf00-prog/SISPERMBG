@@ -80,8 +80,8 @@ export default function DashboardOutputs({
   const pmKecil3B = totalBalita;
   const pmBesar3B = totalBumil + totalBusui;
 
-  // 1. Precalculate all 12 days to render Rekap with day-specific recipient counts
-  const calculatedDays = Array.from({ length: 12 }).map((_, idx) => {
+  // 1. Precalculate all 10 days to render Rekap with day-specific recipient counts
+  const calculatedDays = Array.from({ length: 10 }).map((_, idx) => {
     const dayNum = idx + 1;
     const dayCounts = getCountsForDay(harianPM, dayNum);
     
@@ -243,17 +243,17 @@ export default function DashboardOutputs({
             </div>
             <div>
               <h3 className="text-lg font-extrabold text-slate-900 leading-tight">
-                Monitoring Penerima Manfaat (PM) Siklus 12 Hari
+                Monitoring Penerima Manfaat (PM) Siklus 10 Hari Kerja
               </h3>
               <p className="text-xs text-slate-500 mt-1">
-                Pilih hari siklus (Hari 1 s/d Hari 12) untuk melihat rincian alokasi porsi dan menu gizi sasaran harian.
+                Pilih hari siklus (Hari 1 s/d Hari 10) untuk melihat rincian alokasi porsi dan menu gizi sasaran harian.
               </p>
             </div>
           </div>
           
           {/* Day Cycle Navigation Bar */}
           <div className="flex items-center gap-1.5 overflow-x-auto pb-2 xl:pb-0 scrollbar-none max-w-full">
-            {Array.from({ length: 12 }).map((_, idx) => {
+            {Array.from({ length: 10 }).map((_, idx) => {
               const day = idx + 1;
               const isSelected = selectedDashboardDay === day;
               return (
@@ -454,12 +454,12 @@ export default function DashboardOutputs({
             </div>
           </div>
 
-          {/* Table of 12 days rekap */}
+          {/* Table of 10 days rekap */}
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-4 bg-slate-50/50 border-b border-slate-100">
               <h3 className="font-bold text-slate-800 flex items-center gap-2">
                 <CalendarRange className="w-5 h-5 text-indigo-600" />
-                Siklus 12 Hari — Analisis Kandungan Gizi vs Cost
+                Siklus 10 Hari Kerja — Analisis Kandungan Gizi vs Cost
               </h3>
               <p className="text-xs text-slate-500 mt-0.5">Ringkasan gizi harian (AKG Rujukan SD 4-6) dan realisasi harga porsi</p>
             </div>
@@ -599,7 +599,7 @@ export default function DashboardOutputs({
               </div>
               
               <div className="text-right">
-                <span className="text-xs text-slate-500 font-semibold block">Total Proyeksi Belanja 12 Hari:</span>
+                <span className="text-xs text-slate-500 font-semibold block">Total Proyeksi Belanja 10 Hari Kerja:</span>
                 <span className="text-xl font-black text-indigo-950 font-mono">{formatRupiah(grandTotalBelanja)}</span>
               </div>
             </div>
@@ -644,7 +644,7 @@ export default function DashboardOutputs({
                 onChange={(e) => setSelectedNotaDay(Number(e.target.value))}
                 className="bg-slate-100 border border-slate-200 rounded-lg text-sm px-4 py-2 font-mono font-bold text-indigo-600 focus:outline-none focus:ring-2 focus:ring-indigo-500/20"
               >
-                {Array.from({ length: 12 }).map((_, i) => (
+                {Array.from({ length: 10 }).map((_, i) => (
                   <option key={i} value={i + 1}>
                     Hari Ke-{i + 1}
                   </option>
@@ -834,7 +834,7 @@ export default function DashboardOutputs({
                     onChange={(e) => setPrintDocType(e.target.value as any)}
                     className="bg-slate-100 border border-slate-200 rounded px-2.5 py-1 text-xs font-bold text-indigo-600 focus:outline-none"
                   >
-                    <option value="rekap">RAB 12 Hari &amp; Rekap Gizi</option>
+                    <option value="rekap">RAB 10 Hari Kerja &amp; Rekap Gizi</option>
                     <option value="nota">Nota Rincian Bahan (Hari Ke-{selectedNotaDay})</option>
                   </select>
                 </div>
@@ -845,7 +845,7 @@ export default function DashboardOutputs({
                   id="btn-do-download-img"
                   type="button"
                   disabled={!!isDownloading}
-                  onClick={() => downloadElementAsImage("print-area-rab-harian", printDocType === "rekap" ? "RAB_12_Hari_Rekap_Gizi" : "Nota_Rincian_Bahan_Hari_" + selectedNotaDay, setIsDownloading)}
+                  onClick={() => downloadElementAsImage("print-area-rab-harian", printDocType === "rekap" ? "RAB_10_Hari_Rekap_Gizi" : "Nota_Rincian_Bahan_Hari_" + selectedNotaDay, setIsDownloading)}
                   className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
                 >
                   <ImageIcon className="w-4 h-4" />
@@ -956,11 +956,11 @@ export default function DashboardOutputs({
                       LAPORAN REKAPITULASI RAB &amp; ANALISIS KECUKUPAN GIZI
                     </h3>
                     <p className="text-xs font-bold text-slate-700 uppercase">
-                      MONITORING PROGRAM SPPG SIKLUS 12 HARI
+                      MONITORING PROGRAM SPPG SIKLUS 10 HARI KERJA
                     </p>
                   </div>
 
-                  {/* 12-day Table for print */}
+                  {/* 10-day Table for print */}
                   <table className="w-full text-left text-[9px] border-collapse border border-slate-300">
                     <thead>
                       <tr className="bg-slate-100 font-bold text-slate-700 uppercase border border-slate-300">
@@ -998,7 +998,7 @@ export default function DashboardOutputs({
 
                   {/* Summary row */}
                   <div className="flex justify-between items-center pt-3 border-t-2 border-slate-800">
-                    <span className="text-xs font-bold uppercase text-slate-700">Total Proyeksi Belanja Kumulatif 12 Hari:</span>
+                    <span className="text-xs font-bold uppercase text-slate-700">Total Proyeksi Belanja Kumulatif 10 Hari Kerja:</span>
                     <span className="text-sm font-black text-black font-mono">
                       {formatRupiah(calculatedDays.reduce((acc, d) => acc + (d.schoolResult.subtotalBesarCost + d.schoolResult.subtotalKecilCost) + (d.threeBResult.subtotalBesarCost + d.threeBResult.subtotalKecilCost), 0))}
                     </span>

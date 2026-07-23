@@ -144,16 +144,16 @@ export default function PenerimaManfaatTab({
     onChange(updatedHarian);
   };
 
-  // Copy current day data to all other 11 days
+  // Copy current day data to all other 9 days
   const handleCopyToAllDays = () => {
-    if (confirm(`Apakah Anda yakin ingin menyalin jumlah Penerima Manfaat Hari Ke-${selectedDay} ke semua hari kerja lainnya (Hari 1 sampai 12)?`)) {
+    if (confirm(`Apakah Anda yakin ingin menyalin jumlah Penerima Manfaat Hari Ke-${selectedDay} ke semua hari kerja lainnya (Hari 1 sampai 10)?`)) {
       const currentSasaranCopy = activeDayData.sasaran.map(s => ({ ...s }));
       const updatedHarian = harianPM.map(day => ({
         ...day,
         sasaran: currentSasaranCopy.map(s => ({ ...s }))
       }));
       onChange(updatedHarian);
-      triggerAlert("success", `Sukses menyalin format & jumlah PM Hari Ke-${selectedDay} ke seluruh 12 Hari Kerja!`);
+      triggerAlert("success", `Sukses menyalin format & jumlah PM Hari Ke-${selectedDay} ke seluruh 10 Hari Kerja!`);
     }
   };
 
@@ -280,7 +280,7 @@ export default function PenerimaManfaatTab({
         <div>
           <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             <Users className="w-5 h-5 text-indigo-600" />
-            Penerima Manfaat (Siklus 12 Hari)
+            Penerima Manfaat (Siklus 10 Hari Kerja)
           </h2>
           <p className="text-sm text-slate-500">
             Kelola jumlah sasaran penerima manfaat, klasifikasi porsi makanan, dan daftar alergi harian.
@@ -299,14 +299,14 @@ export default function PenerimaManfaatTab({
         </div>
       )}
 
-      {/* 12-Day Carousel/Tab Bar */}
+      {/* 10-Day Carousel/Tab Bar */}
       <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
           <Calendar className="w-4 h-4 text-slate-400" />
-          <span>Pilih Hari Kerja (Siklus 12 Hari)</span>
+          <span>Pilih Hari Kerja (Siklus 10 Hari Kerja)</span>
         </div>
         <div className="flex flex-wrap gap-2">
-          {Array.from({ length: 12 }).map((_, i) => {
+          {Array.from({ length: 10 }).map((_, i) => {
             const dayNum = i + 1;
             const isSelected = selectedDay === dayNum;
             return (
@@ -418,7 +418,7 @@ export default function PenerimaManfaatTab({
               title="Salin data hari ini ke 11 hari kerja lainnya"
             >
               <Copy className="w-3.5 h-3.5" />
-              Sama-kan 12 Hari
+              Sama-kan 10 Hari
             </button>
             <label className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition">
               <Upload className="w-3.5 h-3.5" />

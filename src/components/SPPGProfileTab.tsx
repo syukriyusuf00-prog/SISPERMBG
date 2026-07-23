@@ -61,15 +61,15 @@ export default function SPPGProfileTab({
     onChange({ ...profile, periodeDates: updatedDates });
   };
 
-  // Auto-generate 12 days starting from a specific date, skipping Sundays (Senin s/d Sabtu, 2 pekan)
-  const generate12Days = (startDateStr: string) => {
+  // Auto-generate 10 days starting from a specific date, skipping Saturdays & Sundays (Senin s/d Jumat, 2 pekan)
+  const generate10Days = (startDateStr: string) => {
     if (!startDateStr) return;
     const dates: string[] = [];
     let current = new Date(startDateStr);
     
-    while (dates.length < 12) {
+    while (dates.length < 10) {
       const day = current.getDay();
-      if (day !== 0) { // Skip Sunday (0)
+      if (day !== 0 && day !== 6) { // Skip Saturday (6) and Sunday (0)
         dates.push(current.toISOString().split("T")[0]);
       }
       current.setDate(current.getDate() + 1);
@@ -90,7 +90,7 @@ export default function SPPGProfileTab({
     // Auto fill a friendly default period label based on start and end date
     if (dates.length > 0) {
       const startFmt = formatDateFriendly(dates[0]);
-      const endFmt = formatDateFriendly(dates[11]);
+      const endFmt = formatDateFriendly(dates[9]);
       setPeriodNameInput(`Periode ${startFmt} s/d ${endFmt}`);
     }
   };
@@ -297,9 +297,9 @@ export default function SPPGProfileTab({
           <div>
             <h3 className="text-lg font-bold text-slate-800 flex items-center gap-2">
               <Calendar className="w-5 h-5 text-indigo-600" />
-              Periode Penjadwalan (12 Hari Kerja)
+              Periode Penjadwalan (10 Hari Kerja)
             </h3>
-            <p className="text-xs text-slate-500 mt-1">Siklus menu 12 hari (Senin s/d Sabtu, 2 pekan - Minggu libur)</p>
+            <p className="text-xs text-slate-500 mt-1">Siklus menu 10 hari kerja (Senin s/d Jumat, 2 pekan - Sabtu & Minggu libur)</p>
           </div>
           
           <div className="flex items-center gap-2">
@@ -307,7 +307,7 @@ export default function SPPGProfileTab({
               id="input-generate-start-date"
               type="date"
               defaultValue={profile.periodeDates[0] || ""}
-              onChange={(e) => generate12Days(e.target.value)}
+              onChange={(e) => generate10Days(e.target.value)}
               className="px-3 py-1.5 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 text-slate-800 font-medium"
             />
             <button
@@ -315,7 +315,7 @@ export default function SPPGProfileTab({
               type="button"
               onClick={() => {
                 const firstVal = (document.getElementById("input-generate-start-date") as HTMLInputElement)?.value;
-                if (firstVal) generate12Days(firstVal);
+                if (firstVal) generate10Days(firstVal);
               }}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg text-xs font-semibold transition cursor-pointer"
             >
@@ -325,8 +325,8 @@ export default function SPPGProfileTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-          {Array.from({ length: 12 }).map((_, idx) => (
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-5 gap-4">
+          {Array.from({ length: 10 }).map((_, idx) => (
             <div key={idx} className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
               <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider block">Hari {idx + 1}</span>
               <input
@@ -455,7 +455,7 @@ export default function SPPGProfileTab({
                 <div>
                   <p className="text-xs font-bold text-slate-600">Belum Ada Riwayat Tersimpan</p>
                   <p className="text-[10px] text-slate-400 max-w-xs mx-auto mt-0.5">
-                    Gunakan formulir di samping untuk menyimpan dan mengamankan rencana menu 12 hari aktif Anda saat ini.
+                    Gunakan formulir di samping untuk menyimpan dan mengamankan rencana menu 10 hari kerja aktif Anda saat ini.
                   </p>
                 </div>
               </div>
@@ -465,7 +465,7 @@ export default function SPPGProfileTab({
                 const totalVillages = period.tigaBPM?.length || 0;
                 const dateRange = period.profile?.periodeDates || [];
                 const firstDate = dateRange[0] ? formatDateFriendly(dateRange[0]) : "-";
-                const lastDate = dateRange[11] ? formatDateFriendly(dateRange[11]) : "-";
+                const lastDate = dateRange[9] ? formatDateFriendly(dateRange[9]) : dateRange[dateRange.length - 1] ? formatDateFriendly(dateRange[dateRange.length - 1]) : "-";
 
                 return (
                   <div

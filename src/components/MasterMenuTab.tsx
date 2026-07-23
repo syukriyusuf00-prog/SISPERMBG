@@ -217,8 +217,8 @@ export default function MasterMenuTab({
     value: string
   ) => {
     const list = menu[key] ? [...menu[key]] : [];
-    // Ensure array has 12 items
-    while (list.length < 12) {
+    // Ensure array has 10 items
+    while (list.length < 10) {
       list.push({
         namaMenu: "",
         karbohidrat: "",
@@ -243,7 +243,7 @@ export default function MasterMenuTab({
   const pasteMenu = (dayIdx: number) => {
     if (!copiedItem) return;
     const list = menu[menuKey] ? [...menu[menuKey]] : [];
-    while (list.length < 12) {
+    while (list.length < 10) {
       list.push({
         namaMenu: "",
         karbohidrat: "",
@@ -266,7 +266,7 @@ export default function MasterMenuTab({
 
   const handleConfirmResetDay = (dayIdx: number) => {
     const list = menu[menuKey] ? [...menu[menuKey]] : [];
-    while (list.length < 12) {
+    while (list.length < 10) {
       list.push({
         namaMenu: "",
         karbohidrat: "",
@@ -293,7 +293,7 @@ export default function MasterMenuTab({
   };
 
   const handleConfirmResetAllDays = () => {
-    const list = Array.from({ length: 12 }, () => ({
+    const list = Array.from({ length: 10 }, () => ({
       namaMenu: "",
       karbohidrat: "",
       laukHewani: "",
@@ -643,7 +643,7 @@ export default function MasterMenuTab({
                 {isAlergi ? "Diet Alergi" : "Siklus Standar"}
               </span>
               <h3 className="text-base font-bold text-slate-800 mt-2 flex items-center gap-2">
-                Perencanaan Menu 12 Hari — {getCategoryLabel(activeCategory, isAlergi)}
+                Perencanaan Menu 10 Hari — {getCategoryLabel(activeCategory, isAlergi)}
               </h3>
               <p className="text-xs text-slate-400 mt-0.5">
                 Tentukan nama menu dan komponen makanan. Gunakan tombol salin & tempel untuk mereplikasi item dengan cepat.
@@ -666,7 +666,7 @@ export default function MasterMenuTab({
                 id="btn-reset-all-menu"
                 onClick={resetAllDaysMenu}
                 className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0"
-                title="Reset perencanaan untuk semua 12 hari"
+                title="Reset perencanaan untuk semua 10 hari"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
                 Reset Semua Hari
@@ -674,9 +674,9 @@ export default function MasterMenuTab({
             </div>
           </div>
 
-          {/* 12-Day grid */}
+          {/* 10-Day grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {Array.from({ length: 12 }).map((_, idx) => {
+            {Array.from({ length: 10 }).map((_, idx) => {
               const currentList = menu[menuKey] || [];
               const item: MenuItem = currentList[idx] || {
                 namaMenu: "",
@@ -1076,20 +1076,20 @@ export default function MasterMenuTab({
 
               {/* Subtitle below Kop line to specify which Menu is printed */}
               <div className="text-center font-bold uppercase mt-3 mb-2" style={{ fontSize: '12pt' }}>
-                PERENCANAAN SIKLUS MENU 12 HARI
+                PERENCANAAN SIKLUS MENU 10 HARI
                 <div className="text-indigo-600 print:text-black font-extrabold" style={{ fontSize: '10.5pt', marginTop: '2px' }}>
                   {getCategoryLabel(activeCategory, isAlergi)}
                 </div>
               </div>
 
-              {/* TABLE 1: Hari 1 - 6 */}
+              {/* TABLE 1: Hari 1 - 5 */}
               <div className="space-y-6">
                 <table className="w-full border-collapse border border-black" style={{ fontSize: '12pt' }}>
                   <thead>
                     {/* Green Master Menu banner */}
                     <tr style={{ backgroundColor: '#92D050' }}>
                       <th 
-                        colSpan={6} 
+                        colSpan={5} 
                         className="border border-black text-center font-bold uppercase py-2.5 text-slate-900 print:text-black" 
                         style={{ backgroundColor: '#92D050', fontSize: '14pt' }}
                       >
@@ -1098,13 +1098,13 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Days and Dates Yellow row */}
                     <tr style={{ backgroundColor: '#FFFF00' }}>
-                      {Array.from({ length: 6 }).map((_, i) => {
+                      {Array.from({ length: 5 }).map((_, i) => {
                         const dayIdx = i;
                         const dateStr = profile?.periodeDates[dayIdx] || "";
                         return (
                           <th 
                             key={dayIdx} 
-                            className="border border-black text-center font-bold py-2 px-1 text-slate-900 print:text-black w-1/6" 
+                            className="border border-black text-center font-bold py-2 px-1 text-slate-900 print:text-black w-1/5" 
                             style={{ backgroundColor: '#FFFF00', fontSize: '11pt' }}
                           >
                             {dateStr ? formatIndonesianDate(dateStr) : `Hari ${dayIdx + 1}`}
@@ -1117,11 +1117,11 @@ export default function MasterMenuTab({
                     {/* 5 component rows: Karbohidrat, Lauk Hewani, Lauk Nabati, Sayur, BuahSusu */}
                     {/* Row 1: Karbohidrat */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
+                      {Array.from({ length: 5 }).map((_, i) => {
                         const dayIdx = i;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.karbohidrat}
@@ -1136,11 +1136,11 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Row 2: Lauk Hewani */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
+                      {Array.from({ length: 5 }).map((_, i) => {
                         const dayIdx = i;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.laukHewani}
@@ -1155,11 +1155,11 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Row 3: Lauk Nabati */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
+                      {Array.from({ length: 5 }).map((_, i) => {
                         const dayIdx = i;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.laukNabati}
@@ -1174,11 +1174,11 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Row 4: Sayur */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
+                      {Array.from({ length: 5 }).map((_, i) => {
                         const dayIdx = i;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.sayur}
@@ -1193,11 +1193,11 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Row 5: Buah/Susu */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
+                      {Array.from({ length: 5 }).map((_, i) => {
                         const dayIdx = i;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.buahSusu}
@@ -1210,14 +1210,14 @@ export default function MasterMenuTab({
                         );
                       })}
                     </tr>
-                    {/* Footer Row: MENU 1 - 6 */}
+                    {/* Footer Row: MENU 1 - 5 */}
                     <tr style={{ backgroundColor: '#D1D5DB' }} className="font-bold">
-                      {Array.from({ length: 6 }).map((_, i) => {
+                      {Array.from({ length: 5 }).map((_, i) => {
                         const dayIdx = i;
                         return (
                           <td 
                             key={dayIdx} 
-                            className="border border-black py-1.5 px-1 text-center text-slate-800 print:text-black w-1/6"
+                            className="border border-black py-1.5 px-1 text-center text-slate-800 print:text-black w-1/5"
                             style={{ backgroundColor: '#D1D5DB', fontSize: '10pt' }}
                           >
                             MENU {dayIdx + 1}
@@ -1231,18 +1231,18 @@ export default function MasterMenuTab({
                 {/* Divider space */}
                 <div className="h-4"></div>
 
-                {/* TABLE 2: Hari 7 - 12 */}
+                {/* TABLE 2: Hari 6 - 10 */}
                 <table className="w-full border-collapse border border-black" style={{ fontSize: '12pt' }}>
                   <thead>
                     {/* Days and Dates Yellow row */}
                     <tr style={{ backgroundColor: '#FFFF00' }}>
-                      {Array.from({ length: 6 }).map((_, i) => {
-                        const dayIdx = i + 6;
+                      {Array.from({ length: 5 }).map((_, i) => {
+                        const dayIdx = i + 5;
                         const dateStr = profile?.periodeDates[dayIdx] || "";
                         return (
                           <th 
                             key={dayIdx} 
-                            className="border border-black text-center font-bold py-2 px-1 text-slate-900 print:text-black w-1/6" 
+                            className="border border-black text-center font-bold py-2 px-1 text-slate-900 print:text-black w-1/5" 
                             style={{ backgroundColor: '#FFFF00', fontSize: '11pt' }}
                           >
                             {dateStr ? formatIndonesianDate(dateStr) : `Hari ${dayIdx + 1}`}
@@ -1255,11 +1255,11 @@ export default function MasterMenuTab({
                     {/* 5 component rows */}
                     {/* Row 1: Karbohidrat */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
-                        const dayIdx = i + 6;
+                      {Array.from({ length: 5 }).map((_, i) => {
+                        const dayIdx = i + 5;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.karbohidrat}
@@ -1274,11 +1274,11 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Row 2: Lauk Hewani */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
-                        const dayIdx = i + 6;
+                      {Array.from({ length: 5 }).map((_, i) => {
+                        const dayIdx = i + 5;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.laukHewani}
@@ -1293,11 +1293,11 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Row 3: Lauk Nabati */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
-                        const dayIdx = i + 6;
+                      {Array.from({ length: 5 }).map((_, i) => {
+                        const dayIdx = i + 5;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.laukNabati}
@@ -1312,11 +1312,11 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Row 4: Sayur */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
-                        const dayIdx = i + 6;
+                      {Array.from({ length: 5 }).map((_, i) => {
+                        const dayIdx = i + 5;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.sayur}
@@ -1331,11 +1331,11 @@ export default function MasterMenuTab({
                     </tr>
                     {/* Row 5: Buah/Susu */}
                     <tr className="hover:bg-slate-50">
-                      {Array.from({ length: 6 }).map((_, i) => {
-                        const dayIdx = i + 6;
+                      {Array.from({ length: 5 }).map((_, i) => {
+                        const dayIdx = i + 5;
                         const item = getMenuItem(dayIdx);
                         return (
-                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/6">
+                          <td key={dayIdx} className="border border-black p-1 text-center h-10 w-1/5">
                             <input
                               type="text"
                               value={item.buahSusu}
@@ -1348,14 +1348,14 @@ export default function MasterMenuTab({
                         );
                       })}
                     </tr>
-                    {/* Footer Row: MENU 7 - 12 */}
+                    {/* Footer Row: MENU 6 - 10 */}
                     <tr style={{ backgroundColor: '#D1D5DB' }} className="font-bold">
-                      {Array.from({ length: 6 }).map((_, i) => {
-                        const dayIdx = i + 6;
+                      {Array.from({ length: 5 }).map((_, i) => {
+                        const dayIdx = i + 5;
                         return (
                           <td 
                             key={dayIdx} 
-                            className="border border-black py-1.5 px-1 text-center text-slate-800 print:text-black w-1/6"
+                            className="border border-black py-1.5 px-1 text-center text-slate-800 print:text-black w-1/5"
                             style={{ backgroundColor: '#D1D5DB', fontSize: '10pt' }}
                           >
                             MENU {dayIdx + 1}
@@ -1386,7 +1386,7 @@ export default function MasterMenuTab({
             </div>
             
             <p className="text-xs text-slate-600 leading-relaxed">
-              Tindakan ini akan mengosongkan seluruh isi menu perencanaan untuk <strong>semua 12 hari</strong> pada kategori yang sedang aktif ini. Tindakan ini tidak dapat dibatalkan.
+              Tindakan ini akan mengosongkan seluruh isi menu perencanaan untuk <strong>semua 10 hari</strong> pada kategori yang sedang aktif ini. Tindakan ini tidak dapat dibatalkan.
             </p>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">

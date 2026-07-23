@@ -179,7 +179,7 @@ export default function HandbookTab() {
             <div className="relative pl-6 border-l-2 border-indigo-200 space-y-1">
               <div className="absolute -left-[9px] top-0.5 w-4 h-4 rounded-full bg-indigo-600 text-[10px] font-black text-white flex items-center justify-center">3</div>
               <h5 className="text-xs font-extrabold text-slate-800 flex items-center gap-1.5">
-                <Utensils className="w-4 h-4 text-emerald-500" /> Periksa Master Menu 12 Hari
+                <Utensils className="w-4 h-4 text-emerald-500" /> Periksa Master Menu 10 Hari Kerja
               </h5>
               <p className="text-[11px] text-slate-500 leading-relaxed">
                 Buka <strong>Master Menu</strong> untuk mengamati komponen karbohidrat, lauk hewani, lauk nabati, sayur, dan buah/susu untuk setiap hari. Anda bisa menyesuaikannya kapan saja.
@@ -203,7 +203,7 @@ export default function HandbookTab() {
                 <FileText className="w-4 h-4 text-orange-500" /> Cetak Nota Pesanan Logistik
               </h5>
               <p className="text-[11px] text-slate-500 leading-relaxed">
-                Laporan gabungan kebutuhan semua penerima manfaat harian atau akumulatif 12 hari dapat diakses lewat tab <strong>Gabungan Semua Food Cost</strong>. Format cetak telah dioptimalkan agar presisi 100% dan rapi saat diekspor ke Excel maupun PDF.
+                Laporan gabungan kebutuhan semua penerima manfaat harian atau akumulatif 10 hari kerja dapat diakses lewat tab <strong>Gabungan Semua Food Cost</strong>. Format cetak telah dioptimalkan agar presisi 100% dan rapi saat diekspor ke Excel maupun PDF.
               </p>
             </div>
           </div>

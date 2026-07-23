@@ -114,7 +114,7 @@ export default function NotaPesananLogistikTab({
 
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [mode, setMode] = useState<"harian" | "gabungan">("harian");
-  const [selectedDays, setSelectedDays] = useState<number[]>(Array.from({ length: 12 }, (_, i) => i + 1));
+  const [selectedDays, setSelectedDays] = useState<number[]>(Array.from({ length: 10 }, (_, i) => i + 1));
   const [items, setItems] = useState<NotaItem[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingVal, setEditingVal] = useState<string>("");
@@ -874,7 +874,7 @@ export default function NotaPesananLogistikTab({
               Nota Pesanan Logistik (Rekapitulasi Gabungan Terintegrasi)
             </h3>
             <p className="text-xs text-slate-500">
-              Kombinasi otomatis kebutuhan bahan kotor (Kg) harian atau rekap gabungan 12 hari yang fleksibel. Siap cetak / ekspor.
+              Kombinasi otomatis kebutuhan bahan kotor (Kg) harian atau rekap gabungan 10 hari kerja yang fleksibel. Siap cetak / ekspor.
             </p>
           </div>
 
@@ -896,7 +896,7 @@ export default function NotaPesananLogistikTab({
                 mode === "gabungan" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
               }`}
             >
-              Gabungan 12 Hari
+              Gabungan 10 Hari
             </button>
           </div>
         </div>
@@ -913,7 +913,7 @@ export default function NotaPesananLogistikTab({
                   onChange={(e) => setSelectedDay(Number(e.target.value))}
                   className="bg-white border border-slate-200 rounded-lg text-sm px-3 py-1 font-mono font-black text-indigo-600 focus:ring-1 focus:ring-indigo-500"
                 >
-                  {Array.from({ length: 12 }).map((_, i) => (
+                  {Array.from({ length: 10 }).map((_, i) => (
                     <option key={i} value={i + 1}>
                       Hari Ke-{i + 1}
                     </option>
@@ -928,7 +928,7 @@ export default function NotaPesananLogistikTab({
                   <div className="flex items-center gap-2 text-[10px] font-bold">
                     <button
                       type="button"
-                      onClick={() => setSelectedDays(Array.from({ length: 12 }, (_, i) => i + 1))}
+                      onClick={() => setSelectedDays(Array.from({ length: 10 }, (_, i) => i + 1))}
                       className="text-indigo-600 hover:underline"
                     >
                       Pilih Semua
@@ -944,7 +944,7 @@ export default function NotaPesananLogistikTab({
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-1.5">
-                  {Array.from({ length: 12 }).map((_, i) => {
+                  {Array.from({ length: 10 }).map((_, i) => {
                     const dNum = i + 1;
                     const isSelected = selectedDays.includes(dNum);
                     return (
@@ -1686,19 +1686,6 @@ export default function NotaPesananLogistikTab({
                       className="w-10 px-1 py-0.5 border border-slate-200 rounded text-center text-[10px] font-bold"
                     />
                   </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="font-semibold text-slate-500">Kepadatan Spasi Tabel:</label>
-                  <select
-                    value={tableDensity}
-                    onChange={(e) => setTableDensity(e.target.value as any)}
-                    className="w-full px-2 py-1 border border-slate-200 rounded-lg bg-white focus:ring-1 focus:ring-indigo-500 text-slate-800 font-medium text-xs cursor-pointer"
-                  >
-                    <option value="cramped">Sangat Padat (Cramped)</option>
-                    <option value="normal">Normal</option>
-                    <option value="spacious">Renggang (Spacious)</option>
-                  </select>
                 </div>
 
                 <div className="space-y-1">

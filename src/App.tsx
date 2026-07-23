@@ -70,6 +70,8 @@ import {
   Zap,
   Eye,
   EyeOff,
+  Tags,
+  RotateCcw,
   X
 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -1024,17 +1026,73 @@ export default function App() {
     reader.readAsBinaryString(file);
   };
 
+  const [selectedCategoryFilter, setSelectedCategoryFilter] = useState<string>("all");
+
   const deleteTkpiItem = (id: string) => {
-    if (INITIAL_TKPI_DATABASE.some((item) => item.id === id)) {
-      alert("Bahan makanan bawaan sistem tidak bisa dihapus.");
-      return;
-    }
-    if (confirm("Hapus bahan makanan kustom ini dari database lokal?")) {
-      setTkpiList(tkpiList.filter((t) => t.id !== id));
+    const item = tkpiList.find((t) => t.id === id);
+    const itemName = item ? item.nama : "bahan makanan ini";
+    if (confirm(`Apakah Anda yakin ingin menghapus "${itemName}" dari database TKPI?`)) {
+      setTkpiList((prev) => prev.filter((t) => t.id !== id));
     }
   };
 
+  const deleteCategory = (categoryName: string) => {
+    const itemsToDelete = tkpiList.filter(
+      (t) => (t.kategori || t.sumber || "Umum").trim() === categoryName
+    );
+
+    if (itemsToDelete.length === 0) return;
+
+    if (
+      confirm(
+        `Apakah Anda yakin ingin menghapus kategori "${categoryName}" beserta seluruh ${itemsToDelete.length} bahan makanan di dalamnya?`
+      )
+    ) {
+      setTkpiList((prev) =>
+        prev.filter((t) => (t.kategori || t.sumber || "Umum").trim() !== categoryName)
+      );
+      if (selectedCategoryFilter === categoryName) {
+        setSelectedCategoryFilter("all");
+      }
+    }
+  };
+
+  const clearAllTkpi = () => {
+    if (
+      confirm(
+        "PERINGATAN: Apakah Anda yakin ingin mengosongkan SELURUH database TKPI?\n\nSemua data bahan makanan bawaan maupun kustom akan dihapus dari database lokal agar Anda dapat mengunggah data bahan makanan baru melalui Excel."
+      )
+    ) {
+      setTkpiList([]);
+      setSelectedCategoryFilter("all");
+    }
+  };
+
+  const restoreDefaultTkpi = () => {
+    if (
+      confirm(
+        "Apakah Anda yakin ingin mengembalikan database TKPI ke data standar awal sistem (TKPI 2020)?"
+      )
+    ) {
+      setTkpiList(INITIAL_TKPI_DATABASE);
+      setSelectedCategoryFilter("all");
+    }
+  };
+
+  const availableCategories = React.useMemo(() => {
+    const set = new Set<string>();
+    tkpiList.forEach((item) => {
+      const cat = (item.kategori || item.sumber || "Umum").trim();
+      if (cat) set.add(cat);
+    });
+    return Array.from(set).sort();
+  }, [tkpiList]);
+
   const filteredTkpiList = tkpiList.filter((item) => {
+    const cat = (item.kategori || item.sumber || "Umum").trim();
+    if (selectedCategoryFilter !== "all" && cat !== selectedCategoryFilter) {
+      return false;
+    }
     if (!tkpiSearchQuery) return true;
     const q = tkpiSearchQuery.toLowerCase();
     const namaMatch = (item.nama || "").toLowerCase().includes(q);
@@ -1877,7 +1935,7 @@ export default function App() {
           <div className="hidden lg:flex items-center gap-4 text-xs font-medium text-slate-500">
             <div className="flex items-center gap-1.5">
               <Calendar className="w-4 h-4 text-slate-400" />
-              <span>Siklus 12 Tanggal Aktif</span>
+              <span>Siklus 10 Hari Kerja Aktif</span>
             </div>
             <span className="text-slate-300">|</span>
             <div className="flex items-center gap-1.5">
@@ -1965,7 +2023,7 @@ export default function App() {
               // Create clean blank state
               setProfile({
                 ...profile,
-                periodeDates: Array.from({ length: 12 }, () => ""),
+                periodeDates: Array.from({ length: 10 }, () => ""),
                 awalPeriodeBerikutnya: ""
               });
               setSekolahPM([]);
@@ -2067,24 +2125,103 @@ export default function App() {
                   Tabel Komposisi Pangan Indonesia (TKPI) 2020 — Lokal
                 </h3>
                 <p className="text-xs text-slate-500">
-                  Data nutrisi per 100 gram bahan makanan. Anda dapat menambahkan bahan secara manual atau mengunggah spreadsheet kustom.
+                  Data nutrisi per 100 gram bahan makanan. Anda dapat mengelola, menghapus data bawaan/kategori, atau mengunggah spreadsheet kustom.
                 </p>
               </div>
 
-              <div className="flex flex-wrap items-center gap-2.5">
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  onClick={restoreDefaultTkpi}
+                  type="button"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold cursor-pointer transition"
+                  title="Kembalikan ke data standar TKPI 2020"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  Pulihkan Default
+                </button>
+                <button
+                  onClick={clearAllTkpi}
+                  type="button"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-semibold cursor-pointer transition"
+                  title="Kosongkan seluruh data TKPI untuk unggah kustom"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Kosongkan TKPI
+                </button>
                 <button
                   onClick={handleDownloadTemplate}
                   type="button"
-                  className="flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-xs font-semibold cursor-pointer transition"
+                  className="flex items-center gap-1.5 px-3 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-xl text-xs font-semibold cursor-pointer transition"
                 >
-                  <Download className="w-4 h-4" />
-                  Unduh Template Excel
+                  <Download className="w-3.5 h-3.5" />
+                  Unduh Template
                 </button>
-                <label className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-xl text-xs font-semibold cursor-pointer transition">
-                  <Upload className="w-4 h-4" />
-                  Unggah TKPI Excel
+                <label className="flex items-center gap-1.5 px-3.5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold cursor-pointer transition shadow-xs">
+                  <Upload className="w-3.5 h-3.5" />
+                  Unggah Excel
                   <input type="file" accept=".xlsx, .xls, .csv" onChange={handleTkpiUpload} className="hidden" />
                 </label>
+              </div>
+            </div>
+
+            {/* Category Management Panel */}
+            <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-2 border-b border-slate-100">
+                <div className="flex items-center gap-2">
+                  <Tags className="w-4 h-4 text-indigo-600" />
+                  <h4 className="font-bold text-slate-800 text-sm">Kelola Kategori Bahan Pangan ({availableCategories.length} Kategori)</h4>
+                </div>
+                <span className="text-[11px] text-slate-400">Pilih kategori untuk memfilter, atau klik tombol hapus (<Trash2 className="w-3 h-3 inline text-rose-500" />) pada kategori untuk menghapus seluruh bahannya.</span>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1 max-h-36 overflow-y-auto pr-1">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategoryFilter("all")}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+                    selectedCategoryFilter === "all"
+                      ? "bg-slate-900 text-white shadow-xs"
+                      : "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                  }`}
+                >
+                  Semua Kategori ({tkpiList.length})
+                </button>
+                {availableCategories.map((cat) => {
+                  const count = tkpiList.filter((t) => (t.kategori || t.sumber || "Umum").trim() === cat).length;
+                  const isSelected = selectedCategoryFilter === cat;
+                  return (
+                    <div
+                      key={cat}
+                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold border transition ${
+                        isSelected
+                          ? "bg-indigo-50 border-indigo-200 text-indigo-700 shadow-2xs"
+                          : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50"
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() => setSelectedCategoryFilter(isSelected ? "all" : cat)}
+                        className="flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <span>{cat}</span>
+                        <span className={`px-1.5 py-0.2 rounded-full text-[10px] font-mono ${isSelected ? "bg-indigo-200 text-indigo-900" : "bg-slate-100 text-slate-600"}`}>
+                          {count}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          deleteCategory(cat);
+                        }}
+                        className="text-slate-400 hover:text-rose-600 p-0.5 rounded transition cursor-pointer ml-1"
+                        title={`Hapus kategori "${cat}" beserta ${count} bahannya`}
+                      >
+                        <Trash2 className="w-3 h-3" />
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
@@ -2510,19 +2647,15 @@ export default function App() {
                               {t.air !== undefined ? t.air.toFixed(1) : "0.0"}g
                             </td>
                             <td className="p-2.5 text-center">
-                              {!isSystemItem ? (
-                                <button
-                                  id={`btn-del-tkpi-${t.id}`}
-                                  type="button"
-                                  onClick={() => deleteTkpiItem(t.id)}
-                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition inline-flex items-center justify-center"
-                                  title="Hapus bahan kustom"
-                                >
-                                  <Trash2 className="w-3.5 h-3.5" />
-                                </button>
-                              ) : (
-                                <span className="text-[10px] text-slate-300 font-bold uppercase tracking-wider">System</span>
-                              )}
+                              <button
+                                id={`btn-del-tkpi-${t.id}`}
+                                type="button"
+                                onClick={() => deleteTkpiItem(t.id)}
+                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition inline-flex items-center justify-center cursor-pointer"
+                                title="Hapus bahan makanan ini"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </td>
                           </tr>
                         );

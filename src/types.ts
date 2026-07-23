@@ -12,7 +12,7 @@ export interface SPPGProfile {
   ketuaYayasan: string;
   namaAkuntan: string;
   tahunAnggaran: string;
-  periodeDates: string[]; // 12 dates
+  periodeDates: string[]; // 10 dates
   awalPeriodeBerikutnya: string;
 }
 
@@ -59,12 +59,12 @@ export interface MenuItem {
 }
 
 export interface MasterMenu {
-  usiaSekolah: MenuItem[]; // 12 days
-  tigaB: MenuItem[];      // 12 days
-  mpAsi: MenuItem[];      // 12 days
-  usiaSekolahAlergi: MenuItem[]; // 12 days
-  tigaBAlergi: MenuItem[];      // 12 days
-  mpAsiAlergi: MenuItem[];      // 12 days
+  usiaSekolah: MenuItem[]; // 10 days
+  tigaB: MenuItem[];      // 10 days
+  mpAsi: MenuItem[];      // 10 days
+  usiaSekolahAlergi: MenuItem[]; // 10 days
+  tigaBAlergi: MenuItem[];      // 10 days
+  mpAsiAlergi: MenuItem[];      // 10 days
 }
 
 export interface TKPIItem {

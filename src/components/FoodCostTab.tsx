@@ -450,18 +450,21 @@ export default function FoodCostTab({
   };
 
   const removeIngredientFromCustomTable = (tableId: string, rowId: string, index: number) => {
-    setCustomTables(prev => prev.map(t => {
-      if (t.id === tableId) {
-        const updatedList = t.bahanList.filter((b: any, idx: number) => {
-          if (rowId && b.id) {
-            return b.id !== rowId;
-          }
-          return idx !== index;
-        });
-        return { ...t, bahanList: updatedList };
-      }
-      return t;
-    }));
+    setCustomTables(prev => {
+      const updated = prev.map(t => {
+        if (t.id === tableId) {
+          const updatedList = t.bahanList.filter((b: any, idx: number) => {
+            if (rowId && b.id && b.id === rowId) return false;
+            if (idx === index) return false;
+            return true;
+          });
+          return { ...t, bahanList: updatedList };
+        }
+        return t;
+      });
+      localStorage.setItem("sppg_custom_fc_tables_v1", JSON.stringify(updated));
+      return updated;
+    });
   };
 
   const editIngredientInCustomTable = (tableId: string, rowIndex: number, field: keyof BahanMakananInput, value: any) => {
@@ -500,7 +503,11 @@ export default function FoodCostTab({
       title: "Hapus Tabel Komponen Kustom",
       message: "Apakah Anda yakin ingin menghapus tabel komponen kustom ini? Seluruh isi data bahan di dalamnya akan hilang secara permanen.",
       onConfirm: () => {
-        setCustomTables(prev => prev.filter(t => t.id !== tableId));
+        setCustomTables(prev => {
+          const updated = prev.filter(t => t.id !== tableId);
+          localStorage.setItem("sppg_custom_fc_tables_v1", JSON.stringify(updated));
+          return updated;
+        });
       }
     });
   };
@@ -510,15 +517,6 @@ export default function FoodCostTab({
   const [headerEkor, setHeaderEkor] = useState(() => localStorage.getItem("fc_header_ekor") || "Ekor");
   const [headerBuah, setHeaderBuah] = useState(() => localStorage.getItem("fc_header_buah") || "Buah");
   const [headerButir, setHeaderButir] = useState(() => localStorage.getItem("fc_header_butir") || "Butir");
-
-  // Table row density / spacing
-  const [tableDensity, setTableDensity] = useState<"cramped" | "normal" | "spacious">(() => (localStorage.getItem("fc_table_density") as any) || "normal");
-
-  const getCellPadding = () => {
-    if (tableDensity === "cramped") return "p-0.5";
-    if (tableDensity === "spacious") return "p-2";
-    return "p-1"; // normal
-  };
 
   // Selected AKG reference templates
   const [besarAkgType, setBesarAkgType] = useState<string>("sd_besar");
@@ -997,10 +995,9 @@ export default function FoodCostTab({
     const listKey = porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan";
     const currentList = currentDayData[listKey] || [];
     const updatedList = currentList.filter((b, idx) => {
-      if (id && b.id) {
-        return b.id !== id;
-      }
-      return idx !== index;
+      if (id && b.id && b.id === id) return false;
+      if (idx === index) return false;
+      return true;
     });
 
     updateDayData({
@@ -2716,7 +2713,7 @@ export default function FoodCostTab({
                   onChange={(e) => setSelectedDay(Number(e.target.value))}
                   className="bg-slate-50 border border-slate-200 rounded-xl text-xs px-3 py-2.5 text-slate-800 font-bold focus:outline-none focus:ring-2 focus:ring-indigo-500/20 w-full"
                 >
-                  {Array.from({ length: 12 }).map((_, i) => (
+                  {Array.from({ length: 10 }).map((_, i) => (
                     <option key={i} value={i + 1}>
                       Hari Ke-{i + 1}
                     </option>
