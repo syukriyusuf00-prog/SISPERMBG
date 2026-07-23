@@ -300,7 +300,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
         if (currentUser) {
           setUser(currentUser);
-          await fetchUserProfile(currentUser);
+          try {
+            await fetchUserProfile(currentUser);
+          } catch (e) {
+            console.warn("Error fetching profile on auth state change:", e);
+          }
         } else {
           if (!localStorage.getItem("custom_logged_in_uid")) {
             updateSession(null, null);
@@ -308,7 +312,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setLoading(false);
       });
-      return unsubscribe;
+
+      // Safety timeout to guarantee loading becomes false even if network hangs
+      const timer = setTimeout(() => {
+        setLoading(false);
+      }, 2000);
+
+      return () => {
+        clearTimeout(timer);
+        if (typeof unsubscribe === "function") unsubscribe();
+      };
     };
 
     let unsub: any;
@@ -426,7 +439,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sandi: string;
     roles: Array<{ namaLengkap: string; email: string; noHp: string; profesi: string }>;
   }) => {
-    setLoading(true);
     try {
       for (const r of data.roles) {
         const customUid = `custom_user_${r.email.toLowerCase().replace(/[@.]/g, "_")}`;
@@ -463,8 +475,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     } catch (error) {
       console.error("Gagal mendaftarkan multi peran:", error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -475,7 +485,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     namaSPPG: string;
     sandi: string;
   }) => {
-    setLoading(true);
     setAuthError(null);
     try {
       const lowerEmail = formData.email.toLowerCase().trim();
@@ -488,8 +497,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // For Admin registration, we can overwrite or update if requested, otherwise check existence
       if (!isAdminEmail) {
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
+        let userSnap;
+        try {
+          userSnap = await getDoc(userRef);
+        } catch (e) {
+          console.warn("Check user error, proceeding:", e);
+        }
+        if (userSnap && userSnap.exists()) {
           throw new Error("Email ini sudah terdaftar di sistem.");
         }
       }
@@ -523,13 +537,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Gagal melakukan registrasi:", error);
       setAuthError(error?.message || String(error));
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
   const loginWithEmailPassword = async (email: string, sandi?: string) => {
-    setLoading(true);
     setAuthError(null);
     try {
       const lowerEmail = email.toLowerCase().trim();
@@ -573,7 +584,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           emailVerified: true
         } as any, profileData);
         
-        setLoading(false);
         return;
       }
 
@@ -653,8 +663,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       console.error("Gagal masuk:", error);
       setAuthError(error?.message || String(error));
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 

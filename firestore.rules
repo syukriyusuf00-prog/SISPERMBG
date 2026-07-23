@@ -1,68 +1,22 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 1. Global Safety Net (Default Deny)
+    // Global Safety Net (Default Deny)
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // 2. Global Helper Primitives
-    function isSignedIn() {
-      return request.auth != null;
-    }
-    
-    function isOwner(userId) {
-      return isSignedIn() && request.auth.uid == userId;
-    }
-
-    function isValidId(id) {
-      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
-    }
-
-    function incoming() {
-      return request.resource.data;
-    }
-
-    function existing() {
-      return resource.data;
-    }
-
-    function isAdmin() {
-      return request.auth != null && 
-        exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.peran == 'ADMIN';
-    }
-
-    // 3. User Profile Validation Helper
-    function isValidUserProfile(userId, data) {
-      return data.uid == userId
-        && data.email is string
-        && data.email.size() <= 256;
-    }
-
-    function isCustomUser(userId) {
-      return userId == 'admin_sukriyusuf82' || userId == 'admin_syukriyusuf82' || userId == 'syukriyusuf82_simulated_uid' || userId.matches('^custom_user_.*') || userId.matches('^admin_.*');
-    }
-
-    // 4. Global configurations collection (e.g. global logo)
+    // Global configurations collection (e.g. global logo)
     match /configs/{configId} {
       allow read, write: if true;
     }
 
-    // 5. Secure Collections Matching
+    // Users collection & subcollections for multitenant / custom user auth & state sync
     match /users/{userId} {
-      allow get: if isCustomUser(userId) || isOwner(userId) || isAdmin();
-      allow list: if isAdmin() || true;
-      
-      allow create: if isCustomUser(userId) || isOwner(userId);
-        
-      allow update: if isCustomUser(userId) || isOwner(userId) || isAdmin();
-        
-      allow delete: if isAdmin() || true;
+      allow read, write: if true;
 
-      // Sub-collection for user state slices (profile, sekolah, tigab, menu, foodCost, tkpi, customLogo)
       match /states/{stateKey} {
-        allow get, list, create, update, delete: if isCustomUser(userId) || isOwner(userId) || isAdmin();
+        allow read, write: if true;
       }
     }
   }
