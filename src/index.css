@@ -1,1 +1,80 @@
 @import "tailwindcss";
+
+@layer utilities {
+  @media print {
+    /* Set page margins and colors */
+    @page {
+      size: auto;
+      margin: 5mm;
+    }
+
+    /* Force background colors to print */
+    html, body {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+      height: auto !important;
+      overflow: visible !important;
+    }
+
+    /* Hide non-printable interface controls */
+    .no-print,
+    header,
+    footer,
+    nav,
+    button:not(.print-keep),
+    .sidebar,
+    input[type="file"],
+    select {
+      display: none !important;
+    }
+
+    /* Make printable area crisp and clean */
+    .printable-area {
+      position: absolute !important;
+      left: 0 !important;
+      top: 0 !important;
+      width: 100% !important;
+      margin: 0 auto !important;
+      padding: 0 !important;
+      border: none !important;
+      box-shadow: none !important;
+      background: white !important;
+    }
+
+    table {
+      width: 100% !important;
+      border-collapse: collapse !important;
+      page-break-inside: auto;
+    }
+
+    tr {
+      page-break-inside: avoid;
+      page-break-after: auto;
+    }
+
+    thead {
+      display: table-header-group;
+    }
+
+    tfoot {
+      display: table-footer-group;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1 !important;
+      word-wrap: break-word !important;
+    }
+
+    input {
+      border: none !important;
+      background: transparent !important;
+      box-shadow: none !important;
+      outline: none !important;
+    }
+  }
+}

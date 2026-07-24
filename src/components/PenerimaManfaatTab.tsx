@@ -19,9 +19,11 @@ import {
   Settings, 
   Check, 
   ChevronDown, 
-  ChevronUp 
+  ChevronUp,
+  Printer
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
 
 interface PenerimaManfaatTabProps {
   harianPM: HariPM[];
@@ -33,13 +35,49 @@ interface PenerimaManfaatTabProps {
     porsiBesarSasaranIds: string[];
   };
   setPmSettings?: (updated: any) => void;
+  kopLine1?: string;
+  setKopLine1?: (val: string) => void;
+  kopLine2?: string;
+  setKopLine2?: (val: string) => void;
+  kopLine3?: string;
+  setKopLine3?: (val: string) => void;
+  kopLine4?: string;
+  setKopLine4?: (val: string) => void;
+  leftLogo?: string;
+  setLeftLogo?: (val: string) => void;
+  rightLogo?: string;
+  setRightLogo?: (val: string) => void;
+  leftLogoCrop?: LogoCrop;
+  setLeftLogoCrop?: (val: LogoCrop) => void;
+  rightLogoCrop?: LogoCrop;
+  setRightLogoCrop?: (val: LogoCrop) => void;
+  paperSize?: "A4" | "F4";
+  setPaperSize?: (val: "A4" | "F4") => void;
 }
 
 export default function PenerimaManfaatTab({
   harianPM,
   onChange,
   pmSettings,
-  setPmSettings
+  setPmSettings,
+  kopLine1 = "BADAN GIZI NASIONAL",
+  setKopLine1 = () => {},
+  kopLine2 = "SATUAN PELAYANAN PEMENUHAN GIZI",
+  setKopLine2 = () => {},
+  kopLine3 = "SPPG MUNA BARAT SAWERIGADI ONDOKE",
+  setKopLine3 = () => {},
+  kopLine4 = "Alamat : Jln. Poros Lagadi-Tondasi, Desa Ondoke, Kec. Sawerigadi, Kab. Muna Barat",
+  setKopLine4 = () => {},
+  leftLogo = "/src/assets/images/logo_sppg_1782256222616.jpg",
+  setLeftLogo = () => {},
+  rightLogo = "",
+  setRightLogo = () => {},
+  leftLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setLeftLogoCrop = () => {},
+  rightLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setRightLogoCrop = () => {},
+  paperSize = "A4",
+  setPaperSize = () => {}
 }: PenerimaManfaatTabProps) {
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [alertMsg, setAlertMsg] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
@@ -275,6 +313,32 @@ export default function PenerimaManfaatTab({
   return (
     <div id="penerima-manfaat-container" className="space-y-6 font-sans">
       
+      {/* KOP SURAT EDITOR PANEL */}
+      <KopSuratConfigSection
+        kopLine1={kopLine1}
+        setKopLine1={setKopLine1}
+        kopLine2={kopLine2}
+        setKopLine2={setKopLine2}
+        kopLine3={kopLine3}
+        setKopLine3={setKopLine3}
+        kopLine4={kopLine4}
+        setKopLine4={setKopLine4}
+        leftLogo={leftLogo}
+        setLeftLogo={setLeftLogo}
+        rightLogo={rightLogo}
+        setRightLogo={setRightLogo}
+        leftLogoCrop={leftLogoCrop}
+        setLeftLogoCrop={setLeftLogoCrop}
+        rightLogoCrop={rightLogoCrop}
+        setRightLogoCrop={setRightLogoCrop}
+        paperSize={paperSize}
+        setPaperSize={setPaperSize}
+        printTargetId="print-area-penerima-manfaat"
+        filename={`Data_Penerima_Manfaat_Hari_${selectedDay}`}
+        title="Konfigurasi Kop Surat & Cetak Penerima Manfaat"
+        subtitle="Sesuaikan Kop Surat 4 baris, logo, dan pemotongan logo untuk mencetak Laporan Penerima Manfaat."
+      />
+
       {/* Header and Banner */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
@@ -396,11 +460,32 @@ export default function PenerimaManfaatTab({
 
       </div>
 
-      {/* Main Table Card */}
-      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+      {/* Main Table Card & Printable Area */}
+      <div id="print-area-penerima-manfaat" className="printable-area bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden p-6">
         
-        {/* Table Header Controls */}
-        <div className="p-5 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/50">
+        {/* Printable Kop Surat Header (Visible on print/captured image) */}
+        <KopSuratRenderHeader
+          kopLine1={kopLine1}
+          kopLine2={kopLine2}
+          kopLine3={kopLine3}
+          kopLine4={kopLine4}
+          leftLogo={leftLogo}
+          rightLogo={rightLogo}
+          leftLogoCrop={leftLogoCrop}
+          rightLogoCrop={rightLogoCrop}
+        />
+
+        <div className="text-center mb-4 border-b border-slate-200 pb-2">
+          <h3 className="text-base font-black text-slate-900 uppercase">
+            REKAPITULASI DATA PENERIMA MANFAAT (HARI KE-{selectedDay})
+          </h3>
+          <p className="text-xs text-slate-600 font-medium">
+            SPPG: {kopLine3} | Kertas: {paperSize}
+          </p>
+        </div>
+
+        {/* Table Header Controls (No print) */}
+        <div className="p-4 border-b border-slate-100 flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-slate-50/50 no-print rounded-xl mb-4">
           <div>
             <h3 className="text-base font-bold text-slate-800 flex items-center gap-2">
               <HeartHandshake className="w-5 h-5 text-indigo-600" />

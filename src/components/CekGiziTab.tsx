@@ -10,6 +10,8 @@ import { Sparkles, Plus, Trash2, ArrowUpRight, Scale, Activity, Settings, Slider
 import SearchableTkpiDropdown from "./SearchableTkpiDropdown";
 import { downloadElementAsImage } from "../lib/printUtils";
 
+import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+
 interface CekGiziTabProps {
   tkpiList: TKPIItem[];
   items: CekGiziInput[];
@@ -26,6 +28,12 @@ interface CekGiziTabProps {
   setLeftLogo: (val: string) => void;
   rightLogo: string;
   setRightLogo: (val: string) => void;
+  leftLogoCrop?: LogoCrop;
+  setLeftLogoCrop?: (val: LogoCrop) => void;
+  rightLogoCrop?: LogoCrop;
+  setRightLogoCrop?: (val: LogoCrop) => void;
+  paperSize?: "A4" | "F4";
+  setPaperSize?: (val: "A4" | "F4") => void;
 }
 
 export default function CekGiziTab({ 
@@ -43,7 +51,13 @@ export default function CekGiziTab({
   leftLogo,
   setLeftLogo,
   rightLogo,
-  setRightLogo
+  setRightLogo,
+  leftLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setLeftLogoCrop = () => {},
+  rightLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setRightLogoCrop = () => {},
+  paperSize = "A4",
+  setPaperSize = () => {}
 }: CekGiziTabProps) {
   const [rujukanAkgType, setRujukanAkgType] = useState<string>("sd_besar");
   const [customRujukanAkg, setCustomRujukanAkg] = useState<number>(700); // kkal
@@ -216,6 +230,32 @@ export default function CekGiziTab({
 
   return (
     <div id="cek-gizi-container" className="space-y-6">
+      {/* KOP SURAT EDITOR PANEL */}
+      <KopSuratConfigSection
+        kopLine1={kopLine1}
+        setKopLine1={setKopLine1}
+        kopLine2={kopLine2}
+        setKopLine2={setKopLine2}
+        kopLine3={kopLine3}
+        setKopLine3={setKopLine3}
+        kopLine4={kopLine4}
+        setKopLine4={setKopLine4}
+        leftLogo={leftLogo}
+        setLeftLogo={setLeftLogo}
+        rightLogo={rightLogo}
+        setRightLogo={setRightLogo}
+        leftLogoCrop={leftLogoCrop}
+        setLeftLogoCrop={setLeftLogoCrop}
+        rightLogoCrop={rightLogoCrop}
+        setRightLogoCrop={setRightLogoCrop}
+        paperSize={paperSize}
+        setPaperSize={setPaperSize}
+        printTargetId="print-area-cek-gizi"
+        filename="Laporan_Analisis_Cek_Gizi"
+        title="Konfigurasi Kop Surat & Cetak Sandbox Cek Gizi"
+        subtitle="Atur Kop Surat 4 baris, logo, pemotongan margin, dan ukuran kertas A4/F4 untuk Laporan Cek Gizi."
+      />
+
       {/* Tab Switcher: Edit vs Cetak */}
       <div className="flex border-b border-slate-200 no-print">
         <button
@@ -490,8 +530,7 @@ export default function CekGiziTab({
       )}
 
       {/* --- PRATINJAU CETAK KOP & EKSPOR --- */}
-      {viewMode === "print" && (
-        <div className="space-y-6">
+      <div className={viewMode === "print" ? "space-y-6" : "hidden print:block space-y-6"}>
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 no-print">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-2 border-b border-slate-100 gap-3">
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat & Cetak / Ekspor</h4>
@@ -690,7 +729,6 @@ export default function CekGiziTab({
             </div>
           </div>
         </div>
-      )}
-    </div>
+      </div>
   );
 }

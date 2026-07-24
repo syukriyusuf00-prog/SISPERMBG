@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from "react";
 import { MasterMenu, MenuItem, SPPGProfile } from "../types";
 import { downloadElementAsImage } from "../lib/printUtils";
+import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
 import { 
   BookOpen, 
   Copy, 
@@ -39,6 +40,12 @@ interface MasterMenuTabProps {
   setLeftLogo: (val: string) => void;
   rightLogo: string;
   setRightLogo: (val: string) => void;
+  leftLogoCrop?: LogoCrop;
+  setLeftLogoCrop?: (val: LogoCrop) => void;
+  rightLogoCrop?: LogoCrop;
+  setRightLogoCrop?: (val: LogoCrop) => void;
+  paperSize?: "A4" | "F4";
+  setPaperSize?: (val: "A4" | "F4") => void;
 }
 
 // Convert YYYY-MM-DD into "Senin, 08 Juni 2026"
@@ -74,7 +81,13 @@ export default function MasterMenuTab({
   leftLogo,
   setLeftLogo,
   rightLogo,
-  setRightLogo
+  setRightLogo,
+  leftLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setLeftLogoCrop = () => {},
+  rightLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setRightLogoCrop = () => {},
+  paperSize = "A4",
+  setPaperSize = () => {}
 }: MasterMenuTabProps) {
   const [activeCategory, setActiveCategory] = useState<"usiaSekolah" | "tigaB" | "mpAsi">("usiaSekolah");
   const [isAlergi, setIsAlergi] = useState<boolean>(false);
@@ -341,79 +354,32 @@ export default function MasterMenuTab({
 
   return (
     <div id="master-menu-tab-container" className="space-y-6">
-      {/* Print Page Styles */}
-      <style>{`
-        @media print {
-          @page {
-            size: A4 landscape;
-            margin: 6mm;
-          }
-          /* Hide absolutely everything by default to prevent blank pages or stray elements */
-          body * {
-            visibility: hidden !important;
-          }
-          /* Ensure ONLY our print container and its contents are visible and styled */
-          #print-area-master-menu, #print-area-master-menu * {
-            visibility: visible !important;
-          }
-          #print-area-master-menu {
-            position: absolute !important;
-            left: 0 !important;
-            top: 0 !important;
-            width: 285mm !important;
-            height: 198mm !important;
-            box-sizing: border-box !important;
-            padding: 2mm 0 !important;
-            margin: 0 !important;
-            border: none !important;
-            box-shadow: none !important;
-            background-color: white !important;
-          }
-          body {
-            background-color: white !important;
-            color: black !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-          }
-          /* Keep tables compact so everything fits on a single A4 page */
-          table {
-            page-break-inside: avoid !important;
-            width: 100% !important;
-            margin-bottom: 4px !important;
-            border-collapse: collapse !important;
-          }
-          th {
-            padding: 3px 2px !important;
-            font-size: 9.5pt !important;
-            font-weight: bold !important;
-          }
-          td {
-            padding: 2px !important;
-            height: 25px !important;
-            font-size: 9pt !important;
-          }
-          /* Hide inputs borders/outlines on print */
-          input {
-            border: none !important;
-            background: transparent !important;
-            box-shadow: none !important;
-            outline: none !important;
-            text-align: center !important;
-            padding: 0 !important;
-            width: 100% !important;
-            font-size: 9pt !important;
-            font-weight: 500 !important;
-            color: black !important;
-          }
-          input::placeholder {
-            color: transparent !important;
-          }
-          /* Hide non-printable elements */
-          .no-print, button {
-            display: none !important;
-          }
-        }
-      `}</style>
+      
+      {/* KOP SURAT EDITOR PANEL */}
+      <KopSuratConfigSection
+        kopLine1={kopLine1}
+        setKopLine1={setKopLine1}
+        kopLine2={kopLine2}
+        setKopLine2={setKopLine2}
+        kopLine3={kopLine3}
+        setKopLine3={setKopLine3}
+        kopLine4={kopLine4}
+        setKopLine4={setKopLine4}
+        leftLogo={leftLogo}
+        setLeftLogo={setLeftLogo}
+        rightLogo={rightLogo}
+        setRightLogo={setRightLogo}
+        leftLogoCrop={leftLogoCrop}
+        setLeftLogoCrop={setLeftLogoCrop}
+        rightLogoCrop={rightLogoCrop}
+        setRightLogoCrop={setRightLogoCrop}
+        paperSize={paperSize}
+        setPaperSize={setPaperSize}
+        printTargetId="print-area-master-menu"
+        filename="Laporan_Master_Menu_Siklus_10_Hari"
+        title="Konfigurasi Kop Surat & Cetak Master Menu"
+        subtitle="Atur Kop Surat 4 baris, logo, pemotongan margin logo, dan ukuran kertas A4/F4 landscape."
+      />
 
       {/* Mode Switcher Banner (no-print) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm gap-4 no-print">
@@ -850,8 +816,7 @@ export default function MasterMenuTab({
       )}
 
       {/* --- VIEW MODE: PRATINJAU CETAK A4 --- */}
-      {viewMode === "print" && (
-        <div className="space-y-6">
+      <div className={viewMode === "print" ? "space-y-6" : "hidden print:block space-y-6"}>
           {/* Custom Kop Editor panel (no-print) */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm space-y-4 no-print">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
@@ -1369,7 +1334,6 @@ export default function MasterMenuTab({
             </div>
           </div>
         </div>
-      )}
 
       {/* Reset All Days Modal Confirmation */}
       {showResetAllConfirm && (

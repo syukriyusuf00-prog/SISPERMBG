@@ -139,13 +139,39 @@ export default function App() {
   const [cropDragging, setCropDragging] = useState(false);
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
 
-  // Synchronized KOP Surat & Logos
+  // Synchronized KOP Surat, Logos, Logo Crop & Paper Size
   const [kopLine1, setKopLine1] = useState(() => localStorage.getItem("kop_line1") || "BADAN GIZI NASIONAL");
   const [kopLine2, setKopLine2] = useState(() => localStorage.getItem("kop_line2") || "SATUAN PELAYANAN PEMENUHAN GIZI");
   const [kopLine3, setKopLine3] = useState(() => localStorage.getItem("kop_line3") || "SPPG MUNA BARAT SAWERIGADI ONDOKE");
   const [kopLine4, setKopLine4] = useState(() => localStorage.getItem("kop_line4") || "Alamat : Jln. Poros Lagadi-Tondasi, Desa Ondoke, Kec. Sawerigadi, Kab. Muna Barat");
   const [kopLeftLogo, setKopLeftLogo] = useState(() => localStorage.getItem("kop_left_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg");
   const [kopRightLogo, setKopRightLogo] = useState(() => localStorage.getItem("kop_right_logo") || "");
+  
+  const [leftLogoCrop, setLeftLogoCrop] = useState(() => {
+    const saved = localStorage.getItem("kop_left_logo_crop");
+    return saved ? JSON.parse(saved) : { top: 0, bottom: 0, left: 0, right: 0 };
+  });
+
+  const [rightLogoCrop, setRightLogoCrop] = useState(() => {
+    const saved = localStorage.getItem("kop_right_logo_crop");
+    return saved ? JSON.parse(saved) : { top: 0, bottom: 0, left: 0, right: 0 };
+  });
+
+  const [paperSize, setPaperSize] = useState<"A4" | "F4">(() => {
+    return (localStorage.getItem("kop_paper_size") as "A4" | "F4") || "A4";
+  });
+
+  useEffect(() => {
+    localStorage.setItem("kop_line1", kopLine1);
+    localStorage.setItem("kop_line2", kopLine2);
+    localStorage.setItem("kop_line3", kopLine3);
+    localStorage.setItem("kop_line4", kopLine4);
+    localStorage.setItem("kop_left_logo", kopLeftLogo);
+    localStorage.setItem("kop_right_logo", kopRightLogo);
+    localStorage.setItem("kop_left_logo_crop", JSON.stringify(leftLogoCrop));
+    localStorage.setItem("kop_right_logo_crop", JSON.stringify(rightLogoCrop));
+    localStorage.setItem("kop_paper_size", paperSize);
+  }, [kopLine1, kopLine2, kopLine3, kopLine4, kopLeftLogo, kopRightLogo, leftLogoCrop, rightLogoCrop, paperSize]);
 
   // Synchronized Sandbox Gizi (Cek Gizi) items
   const [cekGiziItems, setCekGiziItems] = useState<any[]>(() => {
@@ -1972,6 +1998,12 @@ export default function App() {
                   setLeftLogo={setKopLeftLogo}
                   rightLogo={kopRightLogo}
                   setRightLogo={setKopRightLogo}
+                  leftLogoCrop={leftLogoCrop}
+                  setLeftLogoCrop={setLeftLogoCrop}
+                  rightLogoCrop={rightLogoCrop}
+                  setRightLogoCrop={setRightLogoCrop}
+                  paperSize={paperSize}
+                  setPaperSize={setPaperSize}
                 />
               </div>
             )}
@@ -1995,6 +2027,12 @@ export default function App() {
             setLeftLogo={setKopLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
+            leftLogoCrop={leftLogoCrop}
+            setLeftLogoCrop={setLeftLogoCrop}
+            rightLogoCrop={rightLogoCrop}
+            setRightLogoCrop={setRightLogoCrop}
+            paperSize={paperSize}
+            setPaperSize={setPaperSize}
           />
         )}
 
@@ -2041,6 +2079,24 @@ export default function App() {
             onChange={setHarianPM}
             pmSettings={pmSettings}
             setPmSettings={setPmSettings}
+            kopLine1={kopLine1}
+            setKopLine1={setKopLine1}
+            kopLine2={kopLine2}
+            setKopLine2={setKopLine2}
+            kopLine3={kopLine3}
+            setKopLine3={setKopLine3}
+            kopLine4={kopLine4}
+            setKopLine4={setKopLine4}
+            leftLogo={kopLeftLogo}
+            setLeftLogo={setKopLeftLogo}
+            rightLogo={kopRightLogo}
+            setRightLogo={setKopRightLogo}
+            leftLogoCrop={leftLogoCrop}
+            setLeftLogoCrop={setLeftLogoCrop}
+            rightLogoCrop={rightLogoCrop}
+            setRightLogoCrop={setRightLogoCrop}
+            paperSize={paperSize}
+            setPaperSize={setPaperSize}
           />
         )}
 
@@ -2062,6 +2118,12 @@ export default function App() {
             setLeftLogo={setKopLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
+            leftLogoCrop={leftLogoCrop}
+            setLeftLogoCrop={setLeftLogoCrop}
+            rightLogoCrop={rightLogoCrop}
+            setRightLogoCrop={setRightLogoCrop}
+            paperSize={paperSize}
+            setPaperSize={setPaperSize}
           />
         )}
 
@@ -2086,6 +2148,12 @@ export default function App() {
             setLeftLogo={setKopLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
+            leftLogoCrop={leftLogoCrop}
+            setLeftLogoCrop={setLeftLogoCrop}
+            rightLogoCrop={rightLogoCrop}
+            setRightLogoCrop={setRightLogoCrop}
+            paperSize={paperSize}
+            setPaperSize={setPaperSize}
             pmSettings={pmSettings}
             setPmSettings={setPmSettings}
           />
@@ -2108,6 +2176,12 @@ export default function App() {
             setLeftLogo={setKopLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
+            leftLogoCrop={leftLogoCrop}
+            setLeftLogoCrop={setLeftLogoCrop}
+            rightLogoCrop={rightLogoCrop}
+            setRightLogoCrop={setRightLogoCrop}
+            paperSize={paperSize}
+            setPaperSize={setPaperSize}
           />
         )}
 

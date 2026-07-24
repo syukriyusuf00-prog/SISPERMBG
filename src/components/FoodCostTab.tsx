@@ -14,6 +14,8 @@ import { TARGET_AKG_LIMITS } from "../tkpiData";
 import * as XLSX from "xlsx";
 import { DEFAULT_SASARAN_LIST } from "../initialData";
 
+import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+
 interface FoodCostTabProps {
   foodCostDays: FoodCostDay[];
   tkpiList: TKPIItem[];
@@ -34,6 +36,12 @@ interface FoodCostTabProps {
   setLeftLogo: (val: string) => void;
   rightLogo: string;
   setRightLogo: (val: string) => void;
+  leftLogoCrop?: LogoCrop;
+  setLeftLogoCrop?: (val: LogoCrop) => void;
+  rightLogoCrop?: LogoCrop;
+  setRightLogoCrop?: (val: LogoCrop) => void;
+  paperSize?: "A4" | "F4";
+  setPaperSize?: (val: "A4" | "F4") => void;
   pmSettings?: any;
   setPmSettings?: (val: any) => void;
 }
@@ -124,6 +132,12 @@ export default function FoodCostTab({
   setLeftLogo,
   rightLogo,
   setRightLogo,
+  leftLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setLeftLogoCrop = () => {},
+  rightLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setRightLogoCrop = () => {},
+  paperSize = "A4",
+  setPaperSize = () => {},
   pmSettings,
   setPmSettings
 }: FoodCostTabProps) {
@@ -2581,6 +2595,31 @@ export default function FoodCostTab({
 
   return (
     <div id="food-cost-container" className="space-y-6">
+      {/* KOP SURAT EDITOR PANEL */}
+      <KopSuratConfigSection
+        kopLine1={kopLine1}
+        setKopLine1={setKopLine1}
+        kopLine2={kopLine2}
+        setKopLine2={setKopLine2}
+        kopLine3={kopLine3}
+        setKopLine3={setKopLine3}
+        kopLine4={kopLine4}
+        setKopLine4={setKopLine4}
+        leftLogo={leftLogo}
+        setLeftLogo={setLeftLogo}
+        rightLogo={rightLogo}
+        setRightLogo={setRightLogo}
+        leftLogoCrop={leftLogoCrop}
+        setLeftLogoCrop={setLeftLogoCrop}
+        rightLogoCrop={rightLogoCrop}
+        setRightLogoCrop={setRightLogoCrop}
+        paperSize={paperSize}
+        setPaperSize={setPaperSize}
+        printTargetId="print-area-food-cost"
+        filename={`Analisis_FoodCost_Hari_${selectedDay}`}
+        title="Konfigurasi Kop Surat & Cetak Food Cost"
+        subtitle="Sesuaikan Kop Surat 4 baris, logo, pemotongan margin, dan ukuran kertas A4/F4 untuk Laporan Food Cost."
+      />
       {/* 1. Injected Print Styles */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
@@ -3619,8 +3658,7 @@ export default function FoodCostTab({
       )}
 
       {/* --- VIEW MODE: PRATINJAU CETAK A4 & EXPORT --- */}
-      {viewMode === "print" && (
-        <div className="space-y-6">
+      <div className={viewMode === "print" ? "space-y-6" : "hidden print:block space-y-6"}>
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 no-print">
             <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-2 border-b border-slate-100 gap-3">
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat & Cetak / Ekspor</h4>
@@ -3869,7 +3907,6 @@ export default function FoodCostTab({
             </div>
           </div>
         </div>
-      )}
 
       {/* CALCULATOR POPUP MODAL */}
       {activeCalcField && (

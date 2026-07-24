@@ -9,6 +9,7 @@ import { calculateDay, formatRupiah, getCountsForDay } from "../utils/calc";
 import { TARGET_AKG_LIMITS } from "../tkpiData";
 import { PieChart, ListOrdered, PiggyBank, CalendarRange, TrendingDown, TrendingUp, AlertTriangle, Printer, Download, Image as ImageIcon } from "lucide-react";
 import { downloadElementAsImage } from "../lib/printUtils";
+import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
 
 interface DashboardOutputsProps {
   foodCostDays: FoodCostDay[];
@@ -27,6 +28,12 @@ interface DashboardOutputsProps {
   setLeftLogo: (val: string) => void;
   rightLogo: string;
   setRightLogo: (val: string) => void;
+  leftLogoCrop?: LogoCrop;
+  setLeftLogoCrop?: (val: LogoCrop) => void;
+  rightLogoCrop?: LogoCrop;
+  setRightLogoCrop?: (val: LogoCrop) => void;
+  paperSize?: "A4" | "F4";
+  setPaperSize?: (val: "A4" | "F4") => void;
 }
 
 export default function DashboardOutputs({
@@ -45,7 +52,13 @@ export default function DashboardOutputs({
   leftLogo,
   setLeftLogo,
   rightLogo,
-  setRightLogo
+  setRightLogo,
+  leftLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setLeftLogoCrop = () => {},
+  rightLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setRightLogoCrop = () => {},
+  paperSize = "A4",
+  setPaperSize = () => {}
 }: DashboardOutputsProps) {
   const [activeOutputTab, setActiveOutputTab] = useState<"rekap" | "nota">("rekap");
   const [targetBudgetPorsiBesar, setTargetBudgetPorsiBesar] = useState<number>(10000); // Default IDR 10,000 for Porsi Besar
@@ -214,6 +227,32 @@ export default function DashboardOutputs({
 
   return (
     <div id="outputs-view-container" className="space-y-6">
+      {/* KOP SURAT EDITOR PANEL */}
+      <KopSuratConfigSection
+        kopLine1={kopLine1}
+        setKopLine1={setKopLine1}
+        kopLine2={kopLine2}
+        setKopLine2={setKopLine2}
+        kopLine3={kopLine3}
+        setKopLine3={setKopLine3}
+        kopLine4={kopLine4}
+        setKopLine4={setKopLine4}
+        leftLogo={leftLogo}
+        setLeftLogo={setLeftLogo}
+        rightLogo={rightLogo}
+        setRightLogo={setRightLogo}
+        leftLogoCrop={leftLogoCrop}
+        setLeftLogoCrop={setLeftLogoCrop}
+        rightLogoCrop={rightLogoCrop}
+        setRightLogoCrop={setRightLogoCrop}
+        paperSize={paperSize}
+        setPaperSize={setPaperSize}
+        printTargetId="print-area-dashboard-rekap"
+        filename="Laporan_Rekapitulasi_Dashboard"
+        title="Konfigurasi Kop Surat & Cetak Dashboard"
+        subtitle="Kelola Kop Surat 4 baris, upload logo, pemotongan logo, dan ukuran kertas untuk cetakan Dashboard."
+      />
+
       {/* Tab Switcher: Edit vs Cetak */}
       <div className="flex border-b border-slate-200 no-print">
         <button
@@ -821,93 +860,92 @@ export default function DashboardOutputs({
   )}
 
       {/* --- PRATINJAU CETAK KOP & EKSPOR --- */}
-      {viewMode === "print" && (
-        <div className="space-y-6">
-          <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 no-print">
-            <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-2 border-b border-slate-100 gap-3">
-              <div className="space-y-1">
-                <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat &amp; Cetak / Ekspor</h4>
-                <div className="flex items-center gap-2 mt-1">
-                  <span className="text-xs font-bold text-slate-500">Pilih Dokumen:</span>
-                  <select
-                    value={printDocType}
-                    onChange={(e) => setPrintDocType(e.target.value as any)}
-                    className="bg-slate-100 border border-slate-200 rounded px-2.5 py-1 text-xs font-bold text-indigo-600 focus:outline-none"
-                  >
-                    <option value="rekap">RAB 10 Hari Kerja &amp; Rekap Gizi</option>
-                    <option value="nota">Nota Rincian Bahan (Hari Ke-{selectedNotaDay})</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2 self-start sm:self-auto">
-                <button
-                  id="btn-do-download-img"
-                  type="button"
-                  disabled={!!isDownloading}
-                  onClick={() => downloadElementAsImage("print-area-rab-harian", printDocType === "rekap" ? "RAB_10_Hari_Rekap_Gizi" : "Nota_Rincian_Bahan_Hari_" + selectedNotaDay, setIsDownloading)}
-                  className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+      <div className={viewMode === "print" ? "space-y-6" : "hidden print:block space-y-6"}>
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs space-y-4 no-print">
+          <div className="flex flex-col sm:flex-row justify-between sm:items-center pb-2 border-b border-slate-100 gap-3">
+            <div className="space-y-1">
+              <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat &amp; Cetak / Ekspor</h4>
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-xs font-bold text-slate-500">Pilih Dokumen:</span>
+                <select
+                  value={printDocType}
+                  onChange={(e) => setPrintDocType(e.target.value as any)}
+                  className="bg-slate-100 border border-slate-200 rounded px-2.5 py-1 text-xs font-bold text-indigo-600 focus:outline-none"
                 >
-                  <ImageIcon className="w-4 h-4" />
-                  {isDownloading === "Memproses gambar..." || isDownloading === "Mengunduh gambar..." ? isDownloading : "Unduh Gambar (PNG)"}
-                </button>
-                <button
-                  id="btn-do-print"
-                  type="button"
-                  onClick={() => window.print()}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
-                >
-                  <Printer className="w-4 h-4" />
-                  Cetak / Simpan PDF (A4 Portrait)
-                </button>
+                  <option value="rekap">RAB 10 Hari Kerja &amp; Rekap Gizi</option>
+                  <option value="nota">Nota Rincian Bahan (Hari Ke-{selectedNotaDay})</option>
+                </select>
               </div>
             </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 1</label>
-                <input
-                  type="text"
-                  value={kopLine1}
-                  onChange={(e) => setKopLine1(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 2</label>
-                <input
-                  type="text"
-                  value={kopLine2}
-                  onChange={(e) => setKopLine2(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 3</label>
-                <input
-                  type="text"
-                  value={kopLine3}
-                  onChange={(e) => setKopLine3(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 4</label>
-                <input
-                  type="text"
-                  value={kopLine4}
-                  onChange={(e) => setKopLine4(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800"
-                />
-              </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto">
+              <button
+                id="btn-do-download-img"
+                type="button"
+                disabled={!!isDownloading}
+                onClick={() => downloadElementAsImage("print-area-dashboard-rekap", printDocType === "rekap" ? "RAB_10_Hari_Rekap_Gizi" : "Nota_Rincian_Bahan_Hari_" + selectedNotaDay, setIsDownloading)}
+                className="bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+              >
+                <ImageIcon className="w-4 h-4" />
+                {isDownloading === "Memproses gambar..." || isDownloading === "Mengunduh gambar..." ? isDownloading : "Unduh Gambar (PNG)"}
+              </button>
+              <button
+                id="btn-do-print"
+                type="button"
+                onClick={() => window.print()}
+                className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+              >
+                <Printer className="w-4 h-4" />
+                Cetak / Simpan PDF (A4 Portrait)
+              </button>
             </div>
           </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 1</label>
+              <input
+                type="text"
+                value={kopLine1}
+                onChange={(e) => setKopLine1(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 2</label>
+              <input
+                type="text"
+                value={kopLine2}
+                onChange={(e) => setKopLine2(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 3</label>
+              <input
+                type="text"
+                value={kopLine3}
+                onChange={(e) => setKopLine3(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800 font-bold"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-bold text-slate-400 uppercase">KOP Baris 4</label>
+              <input
+                type="text"
+                value={kopLine4}
+                onChange={(e) => setKopLine4(e.target.value)}
+                className="w-full bg-slate-50 border border-slate-200 rounded-lg text-xs p-2 text-slate-800"
+              />
+            </div>
+          </div>
+        </div>
 
-          <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center no-print overflow-x-auto">
-            <div 
-              id="print-area-rab-harian" 
-              className="bg-white p-8 border border-slate-400 shadow-md w-full max-w-[210mm] min-w-[210mm] font-sans text-slate-950 print:text-black print:border-none print:shadow-none print:p-0 print:m-0 space-y-8"
-            >
+        <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center no-print overflow-x-auto">
+          <div 
+            id="print-area-dashboard-rekap" 
+            className="bg-white p-8 border border-slate-400 shadow-md w-full max-w-[210mm] min-w-[210mm] font-sans text-slate-950 print:text-black print:border-none print:shadow-none print:p-0 print:m-0 space-y-8"
+          >
               {/* Kop Surat Header */}
               <div className="relative flex items-center justify-between pb-3 border-b-2 border-black w-full" style={{ minHeight: '90px' }}>
                 {/* Left Logo */}
@@ -1096,7 +1134,6 @@ export default function DashboardOutputs({
             </div>
           </div>
         </div>
-      )}
-    </div>
+      </div>
   );
 }

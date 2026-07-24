@@ -844,12 +844,12 @@ export default function RujukanJuknisTab() {
               <table className="w-full text-left border-collapse min-w-[700px]">
                 <thead>
                   <tr className="bg-[#38b249] text-white text-[11px] font-bold tracking-wider uppercase border-b border-[#2d8d3a]">
-                    <th className="p-3 border-r border-[#2d8d3a] text-center w-[160px]">Kelompok Pangan</th>
-                    <th className="p-3 border-r border-[#2d8d3a] text-center w-[110px]">Satuan Penukar (SP)</th>
-                    <th className="p-3 border-r border-[#2d8d3a] pl-5">Contoh Bahan Pangan</th>
-                    <th className="p-3 border-r border-[#2d8d3a] text-center w-[160px]">URT (Ukuran Rumah Tangga)</th>
-                    <th className="p-3 border-r border-[#2d8d3a] text-right pr-6 w-[130px]">Berat Kotor (g)</th>
-                    <th className="p-3 text-right pr-6 w-[130px]">Berat Bersih (g)</th>
+                    <th className="py-2 px-3 border-r border-[#2d8d3a] text-center w-[160px]">Kelompok Pangan</th>
+                    <th className="py-2 px-2 border-r border-[#2d8d3a] text-center w-[110px]">Satuan Penukar (SP)</th>
+                    <th className="py-2 px-3 border-r border-[#2d8d3a]">Contoh Bahan Pangan</th>
+                    <th className="py-2 px-2 border-r border-[#2d8d3a] text-center w-[150px]">URT (Ukuran Rumah Tangga)</th>
+                    <th className="py-2 px-3 border-r border-[#2d8d3a] text-right w-[120px]">Berat Kotor (g)</th>
+                    <th className="py-2 px-3 text-right w-[120px]">Berat Bersih (g)</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 text-xs font-medium text-slate-700">
@@ -860,7 +860,7 @@ export default function RujukanJuknisTab() {
                           {iIdx === 0 && (
                             <td
                               rowSpan={section.items.length}
-                              className="p-3.5 bg-emerald-50/60 text-slate-800 font-extrabold text-[11px] text-center border-r border-slate-200 uppercase tracking-wide"
+                              className="py-1.5 px-2 bg-emerald-50/60 text-slate-800 font-extrabold text-[11px] text-center border-r border-slate-200 uppercase tracking-wide align-middle"
                             >
                               {section.kelompokPangan}
                             </td>
@@ -868,21 +868,21 @@ export default function RujukanJuknisTab() {
                           {iIdx === 0 && (
                             <td
                               rowSpan={section.items.length}
-                              className="p-3.5 bg-white text-slate-800 font-bold text-xs text-center border-r border-slate-200"
+                              className="py-1.5 px-2 bg-white text-slate-800 font-bold text-xs text-center border-r border-slate-200 align-middle"
                             >
                               {section.sp}
                             </td>
                           )}
-                          <td className="p-2.5 pl-5 font-semibold text-slate-800 border-r border-slate-200">
+                          <td className="py-1.5 px-3 font-semibold text-slate-800 border-r border-slate-200">
                             {item.bahan}
                           </td>
-                          <td className="p-2.5 font-medium text-slate-600 border-r border-slate-200 text-center">
+                          <td className="py-1.5 px-2 font-medium text-slate-600 border-r border-slate-200 text-center">
                             {item.urt}
                           </td>
-                          <td className="p-2.5 font-mono font-bold text-slate-500 border-r border-slate-200 text-right pr-6 bg-slate-50/10">
+                          <td className="py-1.5 px-3 font-mono font-bold text-slate-500 border-r border-slate-200 text-right bg-slate-50/10">
                             {item.kotor}g
                           </td>
-                          <td className="p-2.5 font-mono font-extrabold text-emerald-700 text-right pr-6 bg-emerald-50/10">
+                          <td className="py-1.5 px-3 font-mono font-extrabold text-emerald-700 text-right bg-emerald-50/10">
                             {item.bersih}g
                           </td>
                         </tr>

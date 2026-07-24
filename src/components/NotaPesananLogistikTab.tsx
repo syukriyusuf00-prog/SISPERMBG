@@ -10,6 +10,8 @@ import { Printer, Download, RefreshCw, Plus, Trash2, Calendar, FileText, Check, 
 import { PriceCalculatorPopover } from "./PriceCalculatorPopover";
 import * as XLSX from "xlsx";
 
+import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+
 interface NotaPesananLogistikTabProps {
   profile: SPPGProfile;
   foodCostDays: FoodCostDay[];
@@ -28,6 +30,12 @@ interface NotaPesananLogistikTabProps {
   setLeftLogo: (val: string) => void;
   rightLogo: string;
   setRightLogo: (val: string) => void;
+  leftLogoCrop?: LogoCrop;
+  setLeftLogoCrop?: (val: LogoCrop) => void;
+  rightLogoCrop?: LogoCrop;
+  setRightLogoCrop?: (val: LogoCrop) => void;
+  paperSize?: "A4" | "F4";
+  setPaperSize?: (val: "A4" | "F4") => void;
 }
 
 interface NotaItem {
@@ -109,6 +117,12 @@ export default function NotaPesananLogistikTab({
   setLeftLogo,
   rightLogo,
   setRightLogo,
+  leftLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setLeftLogoCrop = () => {},
+  rightLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
+  setRightLogoCrop = () => {},
+  paperSize = "A4",
+  setPaperSize = () => {},
 }: NotaPesananLogistikTabProps) {
   const logoSrc = localStorage.getItem("sisper_custom_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg";
 
@@ -1795,7 +1809,7 @@ export default function NotaPesananLogistikTab({
 
         {/* Paper Preview Block */}
         <div className={`${isSidebarCollapsed ? "xl:col-span-4" : "xl:col-span-3"} flex justify-center w-full`} id="print-area-wrapper">
-          <div className={`print-container w-full ${previewWidth === "full" ? "max-w-full" : "max-w-[210mm]"} min-h-[297mm] bg-white text-black p-[15mm] border border-slate-200 rounded-3xl shadow-lg relative flex flex-col gap-5 overflow-x-auto`}>
+          <div id="print-area-nota-logistik" className={`print-container w-full ${previewWidth === "full" ? "max-w-full" : "max-w-[210mm]"} min-h-[297mm] bg-white text-black p-[15mm] border border-slate-200 rounded-3xl shadow-lg relative flex flex-col gap-5 overflow-x-auto`}>
             
             {/* Header Surat */}
             <div className="relative flex items-center justify-between pb-3 border-b-[3px] border-double border-black w-full mb-4 gap-4" style={{ minHeight: '100px' }}>
