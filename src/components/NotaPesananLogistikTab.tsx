@@ -11,6 +11,7 @@ import { PriceCalculatorPopover } from "./PriceCalculatorPopover";
 import * as XLSX from "xlsx";
 
 import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+import PrintPreviewModal from "./PrintPreviewModal";
 
 interface NotaPesananLogistikTabProps {
   profile: SPPGProfile;
@@ -133,6 +134,7 @@ export default function NotaPesananLogistikTab({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingVal, setEditingVal] = useState<string>("");
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
   // Customizable Logos states (Left & Right) synchronized via props
   const logoLeft = leftLogo;
@@ -1072,6 +1074,16 @@ export default function NotaPesananLogistikTab({
             >
               <Combine className="w-4 h-4" />
               Gabungkan Duplikat
+            </button>
+
+            <button
+              id="btn-preview-nota-logistik-modal"
+              type="button"
+              onClick={() => setShowPrintModal(true)}
+              className="p-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl transition text-xs font-bold flex items-center gap-1.5 shadow-sm shadow-indigo-500/10 cursor-pointer"
+            >
+              <Eye className="w-4 h-4" />
+              Pratinjau Cetak
             </button>
 
             <button
@@ -2137,6 +2149,17 @@ export default function NotaPesananLogistikTab({
           </div>
         </div>
       </div>
+
+      <PrintPreviewModal
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        title={`Pratinjau Cetak: Nota Pesanan Logistik (${mode === "harian" ? `Hari Ke-${selectedDay}` : `Gabungan Hari ${selectedDays.join(", ")}`})`}
+        elementId="print-area-nota-logistik"
+        filename={`Nota_Pesanan_Logistik_${mode === "harian" ? `Hari_${selectedDay}` : "Gabungan"}`}
+        defaultScale={100}
+        defaultPaperSize={paperSize as "A4" | "F4"}
+        defaultOrientation="portrait"
+      />
     </div>
   );
 }

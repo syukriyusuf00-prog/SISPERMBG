@@ -3,13 +3,14 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { FoodCostDay, TKPIItem, MasterMenu, HariPM } from "../types";
 import { calculateDay, formatRupiah, getCountsForDay } from "../utils/calc";
 import { TARGET_AKG_LIMITS } from "../tkpiData";
-import { PieChart, ListOrdered, PiggyBank, CalendarRange, TrendingDown, TrendingUp, AlertTriangle, Printer, Download, Image as ImageIcon } from "lucide-react";
-import { downloadElementAsImage } from "../lib/printUtils";
+import { PieChart, ListOrdered, PiggyBank, CalendarRange, TrendingDown, TrendingUp, AlertTriangle, Printer, Download, Image as ImageIcon, Eye, X, ZoomIn } from "lucide-react";
+import { downloadElementAsImage, exportToPDF } from "../lib/printUtils";
 import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+import PrintPreviewModal from "./PrintPreviewModal";
 
 interface DashboardOutputsProps {
   foodCostDays: FoodCostDay[];
@@ -70,6 +71,76 @@ export default function DashboardOutputs({
   const [viewMode, setViewMode] = useState<"edit" | "print">("edit");
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
   const [printDocType, setPrintDocType] = useState<"rekap" | "nota">("rekap");
+  const [printScale, setPrintScale] = useState<number>(100);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+  const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  useEffect(() => {
+    if (!showPrintModal) return;
+    const timer = setTimeout(() => {
+      if (!iframeRef.current) return;
+      const iframe = iframeRef.current;
+      const doc = iframe.contentDocument || iframe.contentWindow?.document;
+      if (!doc) return;
+
+      const targetEl = document.getElementById("print-area-dashboard-rekap");
+      if (!targetEl) return;
+
+      const styles = Array.from(document.querySelectorAll("style, link[rel='stylesheet']"))
+        .map((el) => el.outerHTML)
+        .join("\n");
+
+      const clonedContent = targetEl.cloneNode(true) as HTMLElement;
+      clonedContent.style.zoom = `${printScale}%`;
+      clonedContent.style.margin = "0 auto";
+      clonedContent.style.boxShadow = "none";
+      clonedContent.style.border = "none";
+
+      doc.open();
+      doc.write(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <meta charset="utf-8">
+            <title>Pratinjau Cetak Modal</title>
+            ${styles}
+            <style>
+              body {
+                background-color: #f8fafc;
+                margin: 0;
+                padding: 24px;
+                display: flex;
+                justify-content: center;
+                font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+              }
+              @page {
+                size: A4 portrait;
+                margin: 10mm;
+              }
+              @media print {
+                body {
+                  background-color: #ffffff !important;
+                  padding: 0 !important;
+                }
+                #preview-wrapper {
+                  max-width: 100% !important;
+                  width: 100% !important;
+                }
+              }
+            </style>
+          </head>
+          <body>
+            <div id="preview-wrapper" style="width: 100%; max-width: 210mm;">
+              ${clonedContent.outerHTML}
+            </div>
+          </body>
+        </html>
+      `);
+      doc.close();
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [showPrintModal, printScale, printDocType, kopLine1, kopLine2, kopLine3, kopLine4, leftLogo, rightLogo, leftLogoCrop, rightLogoCrop, selectedNotaDay, selectedDashboardDay]);
 
   // Selected dashboard day counts
   const currentDayCounts = getCountsForDay(harianPM, selectedDashboardDay);
@@ -227,32 +298,6 @@ export default function DashboardOutputs({
 
   return (
     <div id="outputs-view-container" className="space-y-6">
-      {/* KOP SURAT EDITOR PANEL */}
-      <KopSuratConfigSection
-        kopLine1={kopLine1}
-        setKopLine1={setKopLine1}
-        kopLine2={kopLine2}
-        setKopLine2={setKopLine2}
-        kopLine3={kopLine3}
-        setKopLine3={setKopLine3}
-        kopLine4={kopLine4}
-        setKopLine4={setKopLine4}
-        leftLogo={leftLogo}
-        setLeftLogo={setLeftLogo}
-        rightLogo={rightLogo}
-        setRightLogo={setRightLogo}
-        leftLogoCrop={leftLogoCrop}
-        setLeftLogoCrop={setLeftLogoCrop}
-        rightLogoCrop={rightLogoCrop}
-        setRightLogoCrop={setRightLogoCrop}
-        paperSize={paperSize}
-        setPaperSize={setPaperSize}
-        printTargetId="print-area-dashboard-rekap"
-        filename="Laporan_Rekapitulasi_Dashboard"
-        title="Konfigurasi Kop Surat & Cetak Dashboard"
-        subtitle="Kelola Kop Surat 4 baris, upload logo, pemotongan logo, dan ukuran kertas untuk cetakan Dashboard."
-      />
-
       {/* Tab Switcher: Edit vs Cetak */}
       <div className="flex border-b border-slate-200 no-print">
         <button
@@ -878,7 +923,43 @@ export default function DashboardOutputs({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 self-start sm:self-auto">
+            <div className="flex items-center gap-2 self-start sm:self-auto flex-wrap">
+              {/* Slider Scale Control */}
+              <div className="flex items-center gap-2 bg-slate-100 border border-slate-200 rounded-xl px-3 py-1.5">
+                <span className="text-xs font-bold text-slate-600">Skala Cetak:</span>
+                <input
+                  type="range"
+                  min={50}
+                  max={100}
+                  step={5}
+                  value={printScale}
+                  onChange={(e) => setPrintScale(Number(e.target.value))}
+                  className="w-24 accent-indigo-600 cursor-pointer"
+                />
+                <span className="text-xs font-black text-indigo-700 min-w-[36px]">{printScale}%</span>
+              </div>
+
+              <button
+                id="btn-do-print-preview-modal"
+                type="button"
+                onClick={() => setShowPrintModal(true)}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+              >
+                <Eye className="w-4 h-4" />
+                Print Preview Modal
+              </button>
+
+              <button
+                id="btn-do-download-pdf"
+                type="button"
+                disabled={!!isDownloading}
+                onClick={() => exportToPDF("print-area-dashboard-rekap", printDocType === "rekap" ? "RAB_10_Hari_Rekap_Gizi" : "Nota_Rincian_Bahan_Hari_" + selectedNotaDay, printScale, setIsDownloading)}
+                className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+              >
+                <Download className="w-4 h-4" />
+                {isDownloading === "Memproses dokumen PDF..." || isDownloading === "Membuat file PDF..." ? isDownloading : "Ekspor PDF"}
+              </button>
+
               <button
                 id="btn-do-download-img"
                 type="button"
@@ -889,6 +970,7 @@ export default function DashboardOutputs({
                 <ImageIcon className="w-4 h-4" />
                 {isDownloading === "Memproses gambar..." || isDownloading === "Mengunduh gambar..." ? isDownloading : "Unduh Gambar (PNG)"}
               </button>
+
               <button
                 id="btn-do-print"
                 type="button"
@@ -896,7 +978,7 @@ export default function DashboardOutputs({
                 className="bg-indigo-600 hover:bg-indigo-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
               >
                 <Printer className="w-4 h-4" />
-                Cetak / Simpan PDF (A4 Portrait)
+                Cetak / Simpan PDF
               </button>
             </div>
           </div>
@@ -941,9 +1023,10 @@ export default function DashboardOutputs({
           </div>
         </div>
 
-        <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center no-print overflow-x-auto">
+        <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center overflow-x-auto print:bg-transparent print:p-0 print:border-none print:shadow-none">
           <div 
             id="print-area-dashboard-rekap" 
+            style={{ zoom: `${printScale}%` }}
             className="bg-white p-8 border border-slate-400 shadow-md w-full max-w-[210mm] min-w-[210mm] font-sans text-slate-950 print:text-black print:border-none print:shadow-none print:p-0 print:m-0 space-y-8"
           >
               {/* Kop Surat Header */}
@@ -1134,6 +1217,17 @@ export default function DashboardOutputs({
             </div>
           </div>
         </div>
+
+        {/* --- PRINT PREVIEW MODAL --- */}
+        <PrintPreviewModal
+          isOpen={showPrintModal}
+          onClose={() => setShowPrintModal(false)}
+          title={printDocType === "rekap" ? "Pratinjau Cetak: RAB 10 Hari & Rekap Gizi" : `Pratinjau Cetak: Nota Rincian Bahan Hari ${selectedNotaDay}`}
+          elementId="print-area-dashboard-rekap"
+          filename={printDocType === "rekap" ? "RAB_10_Hari_Rekap_Gizi" : `Nota_Rincian_Bahan_Hari_${selectedNotaDay}`}
+          defaultScale={printScale}
+          defaultPaperSize={paperSize}
+        />
       </div>
   );
 }

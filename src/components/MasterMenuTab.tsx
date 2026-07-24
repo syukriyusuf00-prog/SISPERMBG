@@ -5,8 +5,9 @@
 
 import React, { useState, useEffect } from "react";
 import { MasterMenu, MenuItem, SPPGProfile } from "../types";
-import { downloadElementAsImage } from "../lib/printUtils";
+import { downloadElementAsImage, exportToPDF } from "../lib/printUtils";
 import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+import PrintPreviewModal from "./PrintPreviewModal";
 import { 
   BookOpen, 
   Copy, 
@@ -20,7 +21,8 @@ import {
   RefreshCw,
   Trash2,
   RotateCcw,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Download
 } from "lucide-react";
 
 interface MasterMenuTabProps {
@@ -95,6 +97,7 @@ export default function MasterMenuTab({
   const [justPastedDay, setJustPastedDay] = useState<number | null>(null);
   const [viewMode, setViewMode] = useState<"edit" | "print">("edit");
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
   // Customizable category labels
   const [labelUsiaSekolah, setLabelUsiaSekolah] = useState(() => 
@@ -355,32 +358,6 @@ export default function MasterMenuTab({
   return (
     <div id="master-menu-tab-container" className="space-y-6">
       
-      {/* KOP SURAT EDITOR PANEL */}
-      <KopSuratConfigSection
-        kopLine1={kopLine1}
-        setKopLine1={setKopLine1}
-        kopLine2={kopLine2}
-        setKopLine2={setKopLine2}
-        kopLine3={kopLine3}
-        setKopLine3={setKopLine3}
-        kopLine4={kopLine4}
-        setKopLine4={setKopLine4}
-        leftLogo={leftLogo}
-        setLeftLogo={setLeftLogo}
-        rightLogo={rightLogo}
-        setRightLogo={setRightLogo}
-        leftLogoCrop={leftLogoCrop}
-        setLeftLogoCrop={setLeftLogoCrop}
-        rightLogoCrop={rightLogoCrop}
-        setRightLogoCrop={setRightLogoCrop}
-        paperSize={paperSize}
-        setPaperSize={setPaperSize}
-        printTargetId="print-area-master-menu"
-        filename="Laporan_Master_Menu_Siklus_10_Hari"
-        title="Konfigurasi Kop Surat & Cetak Master Menu"
-        subtitle="Atur Kop Surat 4 baris, logo, pemotongan margin logo, dan ukuran kertas A4/F4 landscape."
-      />
-
       {/* Mode Switcher Banner (no-print) */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-4 rounded-2xl border border-slate-200/60 shadow-sm gap-4 no-print">
         <div className="space-y-1">
@@ -821,7 +798,26 @@ export default function MasterMenuTab({
           <div className="bg-white p-5 rounded-2xl border border-slate-200/60 shadow-sm space-y-4 no-print">
             <div className="flex justify-between items-center pb-2 border-b border-slate-100">
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat & Cetak</h4>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
+                <button
+                  id="btn-preview-menu-modal"
+                  type="button"
+                  onClick={() => setShowPrintModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                  Pratinjau Cetak
+                </button>
+                <button
+                  id="btn-print-export-pdf"
+                  type="button"
+                  disabled={!!isDownloading}
+                  onClick={() => exportToPDF("print-area-master-menu", `Master_Menu_${activeCategory}_Siklus_${isAlergi ? "Alergi" : "Standar"}`, 100, setIsDownloading)}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-md flex items-center gap-2 transition"
+                >
+                  <Download className="w-4 h-4" />
+                  {isDownloading === "Memproses dokumen PDF..." || isDownloading === "Membuat file PDF..." ? isDownloading : "Ekspor PDF"}
+                </button>
                 <button
                   id="btn-print-action-img"
                   type="button"
@@ -938,7 +934,7 @@ export default function MasterMenuTab({
           </div>
 
           {/* Printable Layout Sheet */}
-          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-inner flex justify-center no-print overflow-x-auto">
+          <div className="bg-slate-50 p-6 rounded-2xl border border-slate-200 shadow-inner flex justify-center overflow-x-auto print:bg-transparent print:p-0 print:border-none print:shadow-none">
             <div 
               id="print-area-master-menu" 
               className="bg-white p-8 border border-slate-300 shadow-md w-full max-w-[297mm] min-w-[210mm] font-sans text-slate-900 print:text-black print:border-none print:shadow-none print:p-0 print:m-0"
@@ -1372,6 +1368,17 @@ export default function MasterMenuTab({
           </div>
         </div>
       )}
+
+      <PrintPreviewModal
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        title={`Pratinjau Cetak: Master Menu 10 Hari (${getCategoryLabel(activeCategory, isAlergi)})`}
+        elementId="print-area-master-menu"
+        filename={`Master_Menu_${activeCategory}_Siklus_${isAlergi ? "Alergi" : "Standar"}`}
+        defaultScale={100}
+        defaultPaperSize={paperSize as "A4" | "F4"}
+        defaultOrientation="landscape"
+      />
     </div>
   );
 }

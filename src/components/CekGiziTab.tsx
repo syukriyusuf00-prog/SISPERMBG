@@ -6,11 +6,12 @@
 import React, { useState } from "react";
 import { TKPIItem, CekGiziInput } from "../types";
 import { TARGET_AKG_LIMITS } from "../tkpiData";
-import { Sparkles, Plus, Trash2, ArrowUpRight, Scale, Activity, Settings, Sliders, ChevronDown, ChevronUp, Printer, Download, Image as ImageIcon } from "lucide-react";
+import { Sparkles, Plus, Trash2, ArrowUpRight, Scale, Activity, Settings, Sliders, ChevronDown, ChevronUp, Printer, Download, Image as ImageIcon, Eye } from "lucide-react";
 import SearchableTkpiDropdown from "./SearchableTkpiDropdown";
-import { downloadElementAsImage } from "../lib/printUtils";
+import { downloadElementAsImage, exportToPDF } from "../lib/printUtils";
 
 import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+import PrintPreviewModal from "./PrintPreviewModal";
 
 interface CekGiziTabProps {
   tkpiList: TKPIItem[];
@@ -64,6 +65,7 @@ export default function CekGiziTab({
   const [showTargetsEditor, setShowTargetsEditor] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<"edit" | "print">("edit");
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
   // Initialize detailed targets for all 19 nutrients
   const [akgTargets, setAkgTargets] = useState<Record<string, number>>(() => {
@@ -230,32 +232,6 @@ export default function CekGiziTab({
 
   return (
     <div id="cek-gizi-container" className="space-y-6">
-      {/* KOP SURAT EDITOR PANEL */}
-      <KopSuratConfigSection
-        kopLine1={kopLine1}
-        setKopLine1={setKopLine1}
-        kopLine2={kopLine2}
-        setKopLine2={setKopLine2}
-        kopLine3={kopLine3}
-        setKopLine3={setKopLine3}
-        kopLine4={kopLine4}
-        setKopLine4={setKopLine4}
-        leftLogo={leftLogo}
-        setLeftLogo={setLeftLogo}
-        rightLogo={rightLogo}
-        setRightLogo={setRightLogo}
-        leftLogoCrop={leftLogoCrop}
-        setLeftLogoCrop={setLeftLogoCrop}
-        rightLogoCrop={rightLogoCrop}
-        setRightLogoCrop={setRightLogoCrop}
-        paperSize={paperSize}
-        setPaperSize={setPaperSize}
-        printTargetId="print-area-cek-gizi"
-        filename="Laporan_Analisis_Cek_Gizi"
-        title="Konfigurasi Kop Surat & Cetak Sandbox Cek Gizi"
-        subtitle="Atur Kop Surat 4 baris, logo, pemotongan margin, dan ukuran kertas A4/F4 untuk Laporan Cek Gizi."
-      />
-
       {/* Tab Switcher: Edit vs Cetak */}
       <div className="flex border-b border-slate-200 no-print">
         <button
@@ -536,6 +512,25 @@ export default function CekGiziTab({
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat & Cetak / Ekspor</h4>
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 <button
+                  id="btn-preview-cg-modal"
+                  type="button"
+                  onClick={() => setShowPrintModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                  Pratinjau Cetak
+                </button>
+                <button
+                  id="btn-cg-export-pdf"
+                  type="button"
+                  disabled={!!isDownloading}
+                  onClick={() => exportToPDF("print-area-cek-gizi", "Laporan_Kandungan_Gizi_Sandbox", 100, setIsDownloading)}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+                >
+                  <Download className="w-4 h-4" />
+                  {isDownloading === "Memproses dokumen PDF..." || isDownloading === "Membuat file PDF..." ? isDownloading : "Ekspor PDF"}
+                </button>
+                <button
                   id="btn-cg-download-img"
                   type="button"
                   disabled={!!isDownloading}
@@ -597,7 +592,7 @@ export default function CekGiziTab({
             </div>
           </div>
 
-          <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center no-print overflow-x-auto">
+          <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center overflow-x-auto print:bg-transparent print:p-0 print:border-none print:shadow-none">
             <div 
               id="print-area-cek-gizi" 
               className="bg-white p-8 border border-slate-400 shadow-md w-full max-w-[210mm] min-w-[210mm] font-sans text-slate-950 print:text-black print:border-none print:shadow-none print:p-0 print:m-0 space-y-8"
@@ -729,6 +724,17 @@ export default function CekGiziTab({
             </div>
           </div>
         </div>
-      </div>
+
+      <PrintPreviewModal
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        title="Pratinjau Cetak: Laporan Kandungan Gizi (Sandbox Gizi)"
+        elementId="print-area-cek-gizi"
+        filename="Laporan_Kandungan_Gizi_Sandbox"
+        defaultScale={100}
+        defaultPaperSize={paperSize as "A4" | "F4"}
+        defaultOrientation="portrait"
+      />
+    </div>
   );
 }

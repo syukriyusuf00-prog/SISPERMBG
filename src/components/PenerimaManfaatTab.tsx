@@ -20,10 +20,14 @@ import {
   Check, 
   ChevronDown, 
   ChevronUp,
-  Printer
+  Printer,
+  Image as ImageIcon,
+  Eye
 } from "lucide-react";
 import * as XLSX from "xlsx";
+import { downloadElementAsImage, exportToPDF } from "../lib/printUtils";
 import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+import PrintPreviewModal from "./PrintPreviewModal";
 
 interface PenerimaManfaatTabProps {
   harianPM: HariPM[];
@@ -81,6 +85,8 @@ export default function PenerimaManfaatTab({
 }: PenerimaManfaatTabProps) {
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [alertMsg, setAlertMsg] = useState<{ type: "success" | "info" | "error"; text: string } | null>(null);
+  const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
   // Accordion state for classification editing
   const [showKecilSasaranEditor, setShowKecilSasaranEditor] = useState(false);
@@ -313,34 +319,8 @@ export default function PenerimaManfaatTab({
   return (
     <div id="penerima-manfaat-container" className="space-y-6 font-sans">
       
-      {/* KOP SURAT EDITOR PANEL */}
-      <KopSuratConfigSection
-        kopLine1={kopLine1}
-        setKopLine1={setKopLine1}
-        kopLine2={kopLine2}
-        setKopLine2={setKopLine2}
-        kopLine3={kopLine3}
-        setKopLine3={setKopLine3}
-        kopLine4={kopLine4}
-        setKopLine4={setKopLine4}
-        leftLogo={leftLogo}
-        setLeftLogo={setLeftLogo}
-        rightLogo={rightLogo}
-        setRightLogo={setRightLogo}
-        leftLogoCrop={leftLogoCrop}
-        setLeftLogoCrop={setLeftLogoCrop}
-        rightLogoCrop={rightLogoCrop}
-        setRightLogoCrop={setRightLogoCrop}
-        paperSize={paperSize}
-        setPaperSize={setPaperSize}
-        printTargetId="print-area-penerima-manfaat"
-        filename={`Data_Penerima_Manfaat_Hari_${selectedDay}`}
-        title="Konfigurasi Kop Surat & Cetak Penerima Manfaat"
-        subtitle="Sesuaikan Kop Surat 4 baris, logo, dan pemotongan logo untuk mencetak Laporan Penerima Manfaat."
-      />
-
       {/* Header and Banner */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 no-print">
         <div>
           <h2 className="text-xl font-bold text-slate-800 tracking-tight flex items-center gap-2">
             <Users className="w-5 h-5 text-indigo-600" />
@@ -353,7 +333,7 @@ export default function PenerimaManfaatTab({
       </div>
 
       {alertMsg && (
-        <div className={`p-4 rounded-xl flex items-center gap-2 text-sm transition-all duration-300 shadow-sm border ${
+        <div className={`p-4 rounded-xl flex items-center gap-2 text-sm transition-all duration-300 shadow-sm border no-print ${
           alertMsg.type === "success" ? "bg-emerald-50 border-emerald-100 text-emerald-800" :
           alertMsg.type === "info" ? "bg-blue-50 border-blue-100 text-blue-800" :
           "bg-rose-50 border-rose-100 text-rose-800"
@@ -364,7 +344,7 @@ export default function PenerimaManfaatTab({
       )}
 
       {/* 10-Day Carousel/Tab Bar */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3">
+      <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm space-y-3 no-print">
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">
           <Calendar className="w-4 h-4 text-slate-400" />
           <span>Pilih Hari Kerja (Siklus 10 Hari Kerja)</span>
@@ -393,7 +373,7 @@ export default function PenerimaManfaatTab({
       </div>
 
       {/* Summary Metrics Cards for Selected Day */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 no-print">
         
         <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 p-4 rounded-2xl border border-indigo-100 shadow-sm flex flex-col justify-between">
           <div>
@@ -495,6 +475,48 @@ export default function PenerimaManfaatTab({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              id="btn-preview-pm-modal"
+              type="button"
+              onClick={() => setShowPrintModal(true)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+            >
+              <Eye className="w-3.5 h-3.5" />
+              Pratinjau Cetak
+            </button>
+
+            <button
+              id="btn-export-pm-pdf"
+              type="button"
+              disabled={!!isDownloading}
+              onClick={() => exportToPDF("print-area-penerima-manfaat", `Rekap_Penerima_Manfaat_Hari_${selectedDay}`, 100, setIsDownloading)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+            >
+              <Download className="w-3.5 h-3.5" />
+              {isDownloading === "Memproses dokumen PDF..." || isDownloading === "Membuat file PDF..." ? isDownloading : "Ekspor PDF"}
+            </button>
+
+            <button
+              id="btn-export-pm-img"
+              type="button"
+              disabled={!!isDownloading}
+              onClick={() => downloadElementAsImage("print-area-penerima-manfaat", `Rekap_Penerima_Manfaat_Hari_${selectedDay}`, setIsDownloading)}
+              className="flex items-center gap-1.5 px-3 py-2 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+            >
+              <ImageIcon className="w-3.5 h-3.5" />
+              {isDownloading === "Memproses gambar..." || isDownloading === "Mengunduh gambar..." ? isDownloading : "Unduh Gambar (PNG)"}
+            </button>
+
+            <button
+              id="btn-print-pm-direct"
+              type="button"
+              onClick={() => window.print()}
+              className="flex items-center gap-1.5 px-3 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-xs"
+            >
+              <Printer className="w-3.5 h-3.5" />
+              Cetak / Simpan PDF
+            </button>
+
             <button
               id="btn-copy-all-days"
               type="button"
@@ -661,7 +683,7 @@ export default function PenerimaManfaatTab({
         </div>
 
         {/* Informational Footer note with customizable targets and target selector */}
-        <div className="p-5 bg-slate-50 border-t border-slate-100 space-y-4">
+        <div className="p-5 bg-slate-50 border-t border-slate-100 space-y-4 no-print">
           <div className="flex items-start gap-2.5 text-xs text-indigo-800">
             <AlertTriangle className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div className="space-y-1">
@@ -819,6 +841,16 @@ export default function PenerimaManfaatTab({
           </div>
         </div>
       </div>
+
+      <PrintPreviewModal
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        title={`Pratinjau Cetak: Rekap Penerima Manfaat — Hari Kerja ${selectedDay}`}
+        elementId="print-area-penerima-manfaat"
+        filename={`Rekap_Penerima_Manfaat_Hari_${selectedDay}`}
+        defaultScale={100}
+        defaultPaperSize={paperSize as "A4" | "F4"}
+      />
 
     </div>
   );

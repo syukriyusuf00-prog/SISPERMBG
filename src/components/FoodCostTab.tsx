@@ -8,13 +8,14 @@ import { TKPIItem, BahanMakananInput, FoodCostDay, MasterMenu, HariPM } from "..
 import { calculateDay, formatRupiah, getCountsForDay } from "../utils/calc";
 import SearchableTkpiDropdown from "./SearchableTkpiDropdown";
 import { PriceCalculatorPopover } from "./PriceCalculatorPopover";
-import { Plus, Trash2, HelpCircle, Sparkles, AlertTriangle, CheckCircle2, ChevronRight, Calculator, Info, Sliders, Printer, Download, FileSpreadsheet, Edit3, RefreshCw, Image as ImageIcon, Settings, ChevronDown, ChevronUp } from "lucide-react";
-import { downloadElementAsImage } from "../lib/printUtils";
+import { Plus, Trash2, HelpCircle, Sparkles, AlertTriangle, CheckCircle2, ChevronRight, Calculator, Info, Sliders, Printer, Download, FileSpreadsheet, Edit3, RefreshCw, Image as ImageIcon, Settings, ChevronDown, ChevronUp, Eye } from "lucide-react";
+import { downloadElementAsImage, exportToPDF } from "../lib/printUtils";
 import { TARGET_AKG_LIMITS } from "../tkpiData";
 import * as XLSX from "xlsx";
 import { DEFAULT_SASARAN_LIST } from "../initialData";
 
 import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
+import PrintPreviewModal from "./PrintPreviewModal";
 
 interface FoodCostTabProps {
   foodCostDays: FoodCostDay[];
@@ -146,6 +147,7 @@ export default function FoodCostTab({
   const [selectedType, setSelectedType] = useState<"Basah" | "Alergi" | "Kering" | "MP-ASI">("Basah");
   const [viewMode, setViewMode] = useState<"edit" | "print">("edit");
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
   const [planningMode, setPlanningMode] = useState<"with_bumbu_10" | "all_ingredients">(() => {
     return (localStorage.getItem("sisper_planning_mode") as any) || "with_bumbu_10";
@@ -2595,31 +2597,6 @@ export default function FoodCostTab({
 
   return (
     <div id="food-cost-container" className="space-y-6">
-      {/* KOP SURAT EDITOR PANEL */}
-      <KopSuratConfigSection
-        kopLine1={kopLine1}
-        setKopLine1={setKopLine1}
-        kopLine2={kopLine2}
-        setKopLine2={setKopLine2}
-        kopLine3={kopLine3}
-        setKopLine3={setKopLine3}
-        kopLine4={kopLine4}
-        setKopLine4={setKopLine4}
-        leftLogo={leftLogo}
-        setLeftLogo={setLeftLogo}
-        rightLogo={rightLogo}
-        setRightLogo={setRightLogo}
-        leftLogoCrop={leftLogoCrop}
-        setLeftLogoCrop={setLeftLogoCrop}
-        rightLogoCrop={rightLogoCrop}
-        setRightLogoCrop={setRightLogoCrop}
-        paperSize={paperSize}
-        setPaperSize={setPaperSize}
-        printTargetId="print-area-food-cost"
-        filename={`Analisis_FoodCost_Hari_${selectedDay}`}
-        title="Konfigurasi Kop Surat & Cetak Food Cost"
-        subtitle="Sesuaikan Kop Surat 4 baris, logo, pemotongan margin, dan ukuran kertas A4/F4 untuk Laporan Food Cost."
-      />
       {/* 1. Injected Print Styles */}
       <style dangerouslySetInnerHTML={{ __html: `
         @media print {
@@ -3664,6 +3641,25 @@ export default function FoodCostTab({
               <h4 className="text-xs font-black text-slate-900 uppercase tracking-wider">Sesuaikan KOP Surat & Cetak / Ekspor</h4>
               <div className="flex items-center gap-2 self-start sm:self-auto">
                 <button
+                  id="btn-preview-fc-modal"
+                  type="button"
+                  onClick={() => setShowPrintModal(true)}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <Eye className="w-4 h-4" />
+                  Pratinjau Cetak
+                </button>
+                <button
+                  id="btn-fc-export-pdf"
+                  type="button"
+                  disabled={!!isDownloading}
+                  onClick={() => exportToPDF("print-area-food-cost", `Food_Cost_Hari_${selectedDay}_${selectedType}`, 100, setIsDownloading)}
+                  className="bg-red-600 hover:bg-red-700 disabled:opacity-50 text-white px-3.5 py-2 rounded-xl text-xs font-bold shadow-xs flex items-center gap-1.5 transition"
+                >
+                  <Download className="w-4 h-4" />
+                  {isDownloading === "Memproses dokumen PDF..." || isDownloading === "Membuat file PDF..." ? isDownloading : "Ekspor PDF"}
+                </button>
+                <button
                   id="btn-fc-export-excel"
                   type="button"
                   onClick={handleExportExcel}
@@ -3737,7 +3733,7 @@ export default function FoodCostTab({
             </p>
           </div>
 
-          <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center no-print overflow-x-auto">
+          <div className="bg-slate-100 p-6 rounded-2xl border border-slate-300 shadow-inner flex justify-center overflow-x-auto print:bg-transparent print:p-0 print:border-none print:shadow-none">
             <div 
               id="print-area-food-cost" 
               className="bg-white p-8 border border-slate-400 shadow-md w-full max-w-[297mm] min-w-[210mm] font-sans text-slate-950 print:text-black print:border-none print:shadow-none print:p-0 print:m-0 space-y-10"
@@ -4645,6 +4641,17 @@ export default function FoodCostTab({
           </div>
         </div>
       )}
+
+      <PrintPreviewModal
+        isOpen={showPrintModal}
+        onClose={() => setShowPrintModal(false)}
+        title={`Pratinjau Cetak: Food Cost ${selectedType} — Hari Kerja ${selectedDay}`}
+        elementId="print-area-food-cost"
+        filename={`Food_Cost_Hari_${selectedDay}_${selectedType}`}
+        defaultScale={100}
+        defaultPaperSize={paperSize as "A4" | "F4"}
+        defaultOrientation="landscape"
+      />
     </div>
   );
 }
