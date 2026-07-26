@@ -1357,7 +1357,7 @@ export default function FoodCostTab({
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[160px] min-w-[160px]"}`} style={isPrint ? { width: '10%' } : undefined}>BAHAN MAKANAN</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BERAT (BB)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>URT</th>
-              <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-extrabold bg-[#76933C] text-white">KOMPOSISI ZAT GIZI MAKANAN</th>
+              <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-extrabold bg-[#76933C] print:text-black">KOMPOSISI ZAT GIZI MAKANAN</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BDD (%)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>BK (g)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>Jumlah Manfaat</th>
@@ -1825,9 +1825,9 @@ export default function FoodCostTab({
                     HARGA PER PORSI
                   </td>
                   <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
-                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
-                      <span className="text-white/90 font-black">Rp</span>
-                      <span className="font-black text-white">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
+                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950 print:text-black">
+                      <span className="text-slate-950 print:text-black font-black">Rp</span>
+                      <span className="font-black text-slate-950 print:text-black">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
                     </div>
                   </td>
                   {!isPrint && (
@@ -1919,9 +1919,9 @@ export default function FoodCostTab({
                   HARGA PER PORSI
                 </td>
                 <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
-                  <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
-                    <span className="text-white/90 font-black">Rp</span>
-                    <span className="font-black text-white">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
+                  <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950 print:text-black">
+                    <span className="text-slate-950 print:text-black font-black">Rp</span>
+                    <span className="font-black text-slate-950 print:text-black">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
                   </div>
                 </td>
                 {!isPrint && (
@@ -2039,7 +2039,7 @@ export default function FoodCostTab({
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[160px] min-w-[160px]"}`} style={isPrint ? { width: '10%' } : undefined}>BAHAN MAKANAN</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BERAT (BB)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>URT</th>
-              <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-extrabold bg-[#76933C] text-white">KOMPOSISI ZAT GIZI MAKANAN</th>
+              <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-extrabold bg-[#76933C] print:text-black">KOMPOSISI ZAT GIZI MAKANAN</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BDD (%)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>BK (g)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>Jumlah Manfaat</th>
@@ -2485,9 +2485,9 @@ export default function FoodCostTab({
                     HARGA PER PORSI
                   </td>
                   <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
-                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
-                      <span className="text-white/90 font-black">Rp</span>
-                      <span className="font-black text-white">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
+                    <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950 print:text-black">
+                      <span className="text-slate-950 print:text-black font-black">Rp</span>
+                      <span className="font-black text-slate-950 print:text-black">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
                     </div>
                   </td>
                   {!isPrint && (
@@ -2579,9 +2579,9 @@ export default function FoodCostTab({
                   HARGA PER PORSI
                 </td>
                 <td className={`p-1 border border-black border-l-2 border-l-slate-950 border-r-2 border-r-slate-950 ${calculatedCostPerPorsi > targetPrice ? "bg-[#FF0000]" : "bg-[#00B050]"}`}>
-                  <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-white">
-                    <span className="text-white/90 font-black">Rp</span>
-                    <span className="font-black text-white">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
+                  <div className="flex items-center justify-between px-1 w-full font-mono text-xs font-black text-slate-950 print:text-black">
+                    <span className="text-slate-950 print:text-black font-black">Rp</span>
+                    <span className="font-black text-slate-950 print:text-black">{formatRupiah(calculatedCostPerPorsi).replace("Rp", "").trim()}</span>
                   </div>
                 </td>
                 {!isPrint && (

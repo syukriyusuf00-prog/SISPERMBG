@@ -287,12 +287,64 @@ function prepareClonedDoc(clonedDoc: Document, elementTarget: string | HTMLEleme
     clonedWin.getComputedStyle = createSanitizedComputedStyle(clonedWin.getComputedStyle.bind(clonedWin));
   }
 
-  // 1. Sanitize all <style> tags
+  // 1. Unwrap all @media print { ... } CSS rules into regular top-level CSS so html2canvas applies print styles
+  let printCssContent = "";
   clonedDoc.querySelectorAll("style").forEach((styleEl) => {
-    if (styleEl.textContent && HAS_UNSUPPORTED_COLOR(styleEl.textContent)) {
-      styleEl.textContent = sanitizeOklchString(styleEl.textContent);
+    const text = styleEl.textContent || "";
+    if (text.includes("@media")) {
+      const mediaPrintMatches = text.match(/@media\s+print\s*\{([\s\S]*?)\}/gi);
+      if (mediaPrintMatches) {
+        mediaPrintMatches.forEach((m) => {
+          const innerCss = m.replace(/^@media\s+print\s*\{/i, "").replace(/\}\s*$/, "");
+          printCssContent += "\n" + innerCss;
+        });
+      }
+    }
+    if (HAS_UNSUPPORTED_COLOR(text)) {
+      styleEl.textContent = sanitizeOklchString(text);
     }
   });
+
+  if (printCssContent.trim()) {
+    const newStyle = clonedDoc.createElement("style");
+    newStyle.setAttribute("type", "text/css");
+    newStyle.textContent = sanitizeOklchString(printCssContent);
+    clonedDoc.head.appendChild(newStyle);
+  }
+
+  // Inject global print overrides to enforce clean, crisp paper rendering
+  const overrideStyle = clonedDoc.createElement("style");
+  overrideStyle.setAttribute("type", "text/css");
+  overrideStyle.textContent = `
+    * {
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      box-sizing: border-box !important;
+    }
+    body, html {
+      background-color: #ffffff !important;
+      color: #000000 !important;
+      margin: 0 !important;
+      padding: 0 !important;
+      width: 100% !important;
+    }
+    .no-print, header, nav, footer, button, .tab-bar {
+      display: none !important;
+    }
+    .paper-sheet {
+      box-shadow: none !important;
+      border: none !important;
+      border-radius: 0 !important;
+      zoom: 1 !important;
+      padding: 0 !important;
+      margin: 0 auto !important;
+      width: 100% !important;
+    }
+    table {
+      border-collapse: collapse !important;
+    }
+  `;
+  clonedDoc.head.appendChild(overrideStyle);
 
   // 2. Sanitize rules in document.styleSheets
   try {
@@ -322,17 +374,20 @@ function prepareClonedDoc(clonedDoc: Document, elementTarget: string | HTMLEleme
     // Ignore stylesheet access errors
   }
 
-  // 3. Sanitize inline styles on all elements
+  // 3. Sanitize inline styles on all elements and remove zoom
   clonedDoc.querySelectorAll("*").forEach((el) => {
     if (el instanceof HTMLElement || el instanceof SVGElement) {
       const styleAttr = el.getAttribute("style");
       if (styleAttr && HAS_UNSUPPORTED_COLOR(styleAttr)) {
         el.setAttribute("style", sanitizeOklchString(styleAttr));
       }
+      if (el instanceof HTMLElement && el.style.zoom) {
+        el.style.zoom = "1";
+      }
     }
   });
 
-  // 4. Adjust target element layout if present
+  // 4. Adjust target element layout
   let clonedEl: HTMLElement | null = null;
   if (typeof elementTarget === "string") {
     clonedEl = clonedDoc.getElementById(elementTarget);
@@ -351,6 +406,7 @@ function prepareClonedDoc(clonedDoc: Document, elementTarget: string | HTMLEleme
     clonedEl.style.boxShadow = "none";
     clonedEl.style.border = "none";
     clonedEl.style.width = "100%";
+    clonedEl.style.zoom = "1";
   }
 }
 
@@ -373,6 +429,9 @@ export const downloadElementAsImage = async (
   if (onProgress) onProgress("Memproses gambar...");
 
   const origWindowGetComputedStyle = window.getComputedStyle;
+  const targetDoc = element.ownerDocument || document;
+  const targetWin = targetDoc.defaultView || window;
+
   try {
     window.getComputedStyle = createSanitizedComputedStyle(origWindowGetComputedStyle);
 
@@ -383,9 +442,9 @@ export const downloadElementAsImage = async (
       backgroundColor: "#ffffff",
       logging: false,
       scrollX: 0,
-      scrollY: -window.scrollY,
-      windowWidth: document.documentElement.offsetWidth,
-      windowHeight: document.documentElement.offsetHeight,
+      scrollY: 0,
+      windowWidth: targetDoc.documentElement ? targetDoc.documentElement.scrollWidth : targetWin.innerWidth,
+      windowHeight: targetDoc.documentElement ? targetDoc.documentElement.scrollHeight : targetWin.innerHeight,
       onclone: (clonedDoc) => {
         prepareClonedDoc(clonedDoc, elementTarget);
       }
@@ -426,7 +485,7 @@ export const triggerPrint = () => {
 export const exportToPDF = async (
   elementTarget: string | HTMLElement,
   filename: string,
-  scalePercent: number = 100,
+  _scalePercent: number = 100,
   onProgress?: (msg: string | null) => void
 ) => {
   const element = typeof elementTarget === "string" ? document.getElementById(elementTarget) : elementTarget;
@@ -439,11 +498,13 @@ export const exportToPDF = async (
   if (onProgress) onProgress("Memproses dokumen PDF...");
 
   const origWindowGetComputedStyle = window.getComputedStyle;
+  const targetDoc = element.ownerDocument || document;
+  const targetWin = targetDoc.defaultView || window;
 
   try {
     window.getComputedStyle = createSanitizedComputedStyle(origWindowGetComputedStyle);
 
-    const renderScale = (scalePercent / 100) * 2; // 2x baseline resolution
+    const renderScale = 2; // Always 2x scale for sharp crisp rendering
     const canvas = await html2canvas(element, {
       scale: renderScale,
       useCORS: true,
@@ -451,9 +512,9 @@ export const exportToPDF = async (
       backgroundColor: "#ffffff",
       logging: false,
       scrollX: 0,
-      scrollY: -window.scrollY,
-      windowWidth: document.documentElement.offsetWidth,
-      windowHeight: document.documentElement.offsetHeight,
+      scrollY: 0,
+      windowWidth: targetDoc.documentElement ? targetDoc.documentElement.scrollWidth : targetWin.innerWidth,
+      windowHeight: targetDoc.documentElement ? targetDoc.documentElement.scrollHeight : targetWin.innerHeight,
       onclone: (clonedDoc) => {
         prepareClonedDoc(clonedDoc, elementTarget);
       }
@@ -478,32 +539,37 @@ export const exportToPDF = async (
     const pdfWidth = pdf.internal.pageSize.getWidth();
     const pdfHeight = pdf.internal.pageSize.getHeight();
 
-    // Effective width/height in mm
-    const factor = renderScale / 2;
-    const effectiveWidth = imgWidth / (3.78 * factor); // px to mm approx
-    const effectiveHeight = imgHeight / (3.78 * factor);
+    const margin = 5; // 5mm margin
+    const availWidth = pdfWidth - (margin * 2);
+    const availHeight = pdfHeight - (margin * 2);
 
-    const widthRatio = pdfWidth / effectiveWidth;
-    const printRatio = Math.min(widthRatio, 1);
-    
-    const finalWidth = effectiveWidth * printRatio;
-    const finalHeight = effectiveHeight * printRatio;
-    const xPos = Math.max(0, (pdfWidth - finalWidth) / 2);
+    const imgAspect = imgHeight / imgWidth;
+    let printWidth = availWidth;
+    let printHeight = printWidth * imgAspect;
 
-    if (finalHeight <= pdfHeight) {
-      pdf.addImage(imgData, "PNG", xPos, 2, finalWidth, finalHeight);
+    // If page content slightly exceeds page height, fit height so it doesn't spill onto an extra empty page
+    if (printHeight > availHeight && printHeight <= availHeight * 1.15) {
+      printHeight = availHeight;
+      printWidth = printHeight / imgAspect;
+    }
+
+    const xPos = margin + Math.max(0, (availWidth - printWidth) / 2);
+    const yPos = margin + Math.max(0, (availHeight - printHeight) / 2);
+
+    if (printHeight <= availHeight) {
+      pdf.addImage(imgData, "PNG", xPos, yPos, printWidth, printHeight);
     } else {
-      let position = 0;
-      let heightLeft = finalHeight;
+      let heightLeft = printHeight;
+      let position = margin;
 
-      pdf.addImage(imgData, "PNG", xPos, position, finalWidth, finalHeight);
-      heightLeft -= pdfHeight;
+      pdf.addImage(imgData, "PNG", xPos, position, printWidth, printHeight);
+      heightLeft -= availHeight;
 
       while (heightLeft > 0) {
-        position = heightLeft - finalHeight;
         pdf.addPage();
-        pdf.addImage(imgData, "PNG", xPos, position, finalWidth, finalHeight);
-        heightLeft -= pdfHeight;
+        position = margin - (printHeight - heightLeft);
+        pdf.addImage(imgData, "PNG", xPos, position, printWidth, printHeight);
+        heightLeft -= availHeight;
       }
     }
 
