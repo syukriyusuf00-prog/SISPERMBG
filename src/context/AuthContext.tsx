@@ -55,6 +55,13 @@ export const isMainAdminEmail = (email?: string | null) => {
   return lower === "syukriyusuf82@gmail.com" || lower === "sukriyusuf82@gmail.com" || lower === "syukriyusuf00@gmail.com";
 };
 
+const fetchWithTimeout = <T,>(promise: Promise<T>, timeoutMs: number, defaultValue: T): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(defaultValue), timeoutMs))
+  ]);
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(() => {
     const customUid = localStorage.getItem("custom_logged_in_uid");
@@ -474,9 +481,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sandi: string;
     roles: Array<{ namaLengkap: string; email: string; noHp: string; profesi: string }>;
   }) => {
-    setLoading(true);
     try {
-      for (const r of data.roles) {
+      const promises = data.roles.map(async (r) => {
         const customUid = `custom_user_${r.email.toLowerCase().replace(/[@.]/g, "_")}`;
         const userRef = doc(db, "users", customUid);
         
@@ -496,23 +502,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           loginTerakhir: serverTimestamp()
         };
 
+        // Always save locally immediately for instant responsiveness
+        localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
+          ...profileData,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          loginTerakhir: new Date().toISOString()
+        }));
+
         try {
-          await setDoc(userRef, profileData);
+          await fetchWithTimeout(setDoc(userRef, profileData), 1500, null);
         } catch (dbErr: any) {
-          console.warn(`Gagal mendaftarkan peran ${r.profesi} di Firestore, menyimpan di localStorage:`, dbErr);
-          localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
-            ...profileData,
-            createdAt: new Date().toISOString(),
-            updatedAt: new Date().toISOString(),
-            loginTerakhir: new Date().toISOString()
-          }));
+          console.warn(`Latar belakang setDoc untuk ${r.profesi} tertunda/gagal:`, dbErr);
         }
-      }
+      });
+
+      await Promise.all(promises);
     } catch (error) {
       console.error("Gagal mendaftarkan multi peran:", error);
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -523,7 +531,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     namaSPPG: string;
     sandi: string;
   }) => {
-    setLoading(true);
     setAuthError(null);
     try {
       const lowerEmail = formData.email.toLowerCase().trim();
@@ -534,10 +541,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       const userRef = doc(db, "users", customUid);
       
+      // Fast check in offline cache first
+      const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
+      if (offlineSavedUser) {
+        throw new Error("Email ini sudah terdaftar di sistem.");
+      }
+
       if (!isAdminEmail) {
-        const userSnap = await getDoc(userRef);
-        if (userSnap.exists()) {
-          throw new Error("Email ini sudah terdaftar di sistem.");
+        try {
+          const userSnap: any = await fetchWithTimeout(getDoc(userRef), 1200, null);
+          if (userSnap && userSnap.exists()) {
+            throw new Error("Email ini sudah terdaftar di sistem.");
+          }
+        } catch (checkErr: any) {
+          if (checkErr?.message?.includes("sudah terdaftar")) {
+            throw checkErr;
+          }
+          console.warn("Pemeriksaan Firestore pengguna ganda melebihi batas waktu, melanjutkan registrasi:", checkErr);
         }
       }
 
@@ -556,22 +576,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginTerakhir: null
       };
 
-      try {
-        await setDoc(userRef, profileData);
-      } catch (dbErr) {
-        console.warn("Gagal menyimpan pendaftaran di Firestore, menggunakan penyimpanan lokal:", dbErr);
-        localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
-          ...profileData,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString()
-        }));
-      }
+      // 1. Immediately store in local storage so registration is 100% instant and durable
+      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
+        ...profileData,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      }));
+
+      // 2. Fire Firestore write with fast timeout (non-blocking if cloud connection is slow)
+      fetchWithTimeout(setDoc(userRef, profileData), 1500, null).catch((dbErr) => {
+        console.warn("Operasi setDoc Firestore di latar belakang tertunda:", dbErr);
+      });
     } catch (error: any) {
       console.error("Gagal melakukan registrasi:", error);
       setAuthError(error?.message || String(error));
       throw error;
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -608,7 +627,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Create or update this admin profile in Firestore
         try {
-          await setDoc(userRef, profileData, { merge: true });
+          await fetchWithTimeout(setDoc(userRef, profileData, { merge: true }), 1500, null);
         } catch (dbErr) {
           console.warn("Gagal setDoc admin di database, menggunakan fallback lokal:", dbErr);
         }
@@ -639,9 +658,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       if (!data) {
-        let userSnap;
+        let userSnap: any;
         try {
-          userSnap = await getDoc(userRef);
+          userSnap = await fetchWithTimeout(getDoc(userRef), 1800, null);
           if (userSnap && userSnap.exists()) {
             data = userSnap.data();
           }
