@@ -138,14 +138,22 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
             ${sanitizedCss}
 
             /* Custom Iframe Base & Reset */
+            *, *::before, *::after {
+              box-sizing: border-box;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
+            }
+
             html, body {
               margin: 0;
               padding: 0;
               background-color: #f1f5f9;
               font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
               color: #0f172a;
-              -webkit-print-color-adjust: exact;
-              print-color-adjust: exact;
+              -webkit-print-color-adjust: exact !important;
+              print-color-adjust: exact !important;
+              color-adjust: exact !important;
             }
 
             .no-print, header, nav, footer, button {
@@ -172,6 +180,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               zoom: ${scale}%;
               transition: zoom 0.15s ease-in-out;
               outline: none;
+              margin: 0 auto;
             }
 
             /* Live Editable Focus & Hover styles */
@@ -192,29 +201,41 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 background: #ffffff !important;
                 padding: 0 !important;
                 margin: 0 !important;
+                width: 100% !important;
               }
               .preview-wrapper {
                 padding: 0 !important;
-                display: block !important;
+                margin: 0 auto !important;
+                display: flex !important;
+                justify-content: center !important;
+                width: 100% !important;
               }
               .paper-sheet {
                 box-shadow: none !important;
                 border: none !important;
                 border-radius: 0 !important;
                 width: 100% !important;
+                max-width: 100% !important;
                 min-height: auto !important;
                 padding: 0 !important;
-                margin: 0 !important;
+                margin: 0 auto !important;
                 zoom: ${scale}% !important;
                 outline: none !important;
               }
               .paper-sheet * {
                 outline: none !important;
-                background-color: transparent !important;
+              }
+              table {
+                border-collapse: collapse !important;
+                width: 100% !important;
+              }
+              img {
+                max-width: 100% !important;
+                height: auto !important;
               }
               @page {
                 size: ${paperSize} ${orientation};
-                margin: 10mm;
+                margin: 8mm;
               }
             }
           </style>
