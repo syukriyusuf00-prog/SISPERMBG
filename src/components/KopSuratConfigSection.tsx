@@ -4,7 +4,7 @@
  */
 
 import React, { useState } from "react";
-import { Sliders, Edit3, Image as ImageIcon, Printer, Download, RotateCcw, ChevronDown, ChevronUp, Check, Settings2, Trash2 } from "lucide-react";
+import { Sliders, Edit3, Image as ImageIcon, Printer, Download, RotateCcw, ChevronDown, ChevronUp, Check, Settings2, Trash2, Lock } from "lucide-react";
 import { downloadElementAsImage } from "../lib/printUtils";
 
 export interface LogoCrop {
@@ -37,6 +37,7 @@ export interface KopSuratProps {
   filename?: string;
   title?: string;
   subtitle?: string;
+  isAdmin?: boolean;
 }
 
 export const defaultLogoCrop: LogoCrop = { top: 0, bottom: 0, left: 0, right: 0 };
@@ -144,7 +145,8 @@ export default function KopSuratConfigSection({
   printTargetId,
   filename = "Laporan_Cetak",
   title = "Pengaturan Kop Surat & Cetak Presisi",
-  subtitle = "Atur 4 baris Kop, logo kiri & kanan dengan pemotongan (crop) presisi, serta ukuran kertas A4 atau F4."
+  subtitle = "Atur 4 baris Kop, logo kiri & kanan dengan pemotongan (crop) presisi, serta ukuran kertas A4 atau F4.",
+  isAdmin = true
 }: KopSuratProps) {
   const [isOpen, setIsOpen] = useState<boolean>(false);
   const [activeTab, setActiveTab] = useState<"text" | "logo" | "crop" | "paper">("text");
@@ -378,13 +380,19 @@ export default function KopSuratConfigSection({
                     <ImageIcon className="w-4 h-4 text-indigo-600" />
                     Logo Pojok Kiri (SPPG / BGN)
                   </span>
-                  <button
-                    type="button"
-                    onClick={() => setLeftLogo("/src/assets/images/logo_sppg_1782256222616.jpg")}
-                    className="text-[10px] text-indigo-600 hover:underline font-bold flex items-center gap-1"
-                  >
-                    <RotateCcw className="w-3 h-3" /> Reset Standar
-                  </button>
+                  {isAdmin ? (
+                    <button
+                      type="button"
+                      onClick={() => setLeftLogo("/src/assets/images/logo_sppg_1782256222616.jpg")}
+                      className="text-[10px] text-indigo-600 hover:underline font-bold flex items-center gap-1 cursor-pointer"
+                    >
+                      <RotateCcw className="w-3 h-3" /> Reset Standar
+                    </button>
+                  ) : (
+                    <span className="text-[10px] text-amber-800 bg-amber-100 font-bold px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <Lock className="w-3 h-3" /> Logo dari Admin
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex items-center gap-4">
@@ -396,12 +404,21 @@ export default function KopSuratConfigSection({
                     )}
                   </div>
                   <div className="space-y-2 flex-1">
-                    <label className="px-3 py-1.5 bg-white border border-slate-300 hover:border-indigo-400 rounded-xl text-xs font-bold text-slate-700 cursor-pointer inline-flex items-center gap-1.5 shadow-xs">
-                      <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
-                      Pilih Logo Kiri
-                      <input type="file" accept="image/*" onChange={handleLeftLogoUpload} className="hidden" />
-                    </label>
-                    <p className="text-[10px] text-slate-400">Format PNG, JPG atau SVG dengan latar putih/transparan.</p>
+                    {isAdmin ? (
+                      <>
+                        <label className="px-3 py-1.5 bg-white border border-slate-300 hover:border-indigo-400 rounded-xl text-xs font-bold text-slate-700 cursor-pointer inline-flex items-center gap-1.5 shadow-xs">
+                          <ImageIcon className="w-3.5 h-3.5 text-indigo-600" />
+                          Pilih Logo Kiri
+                          <input type="file" accept="image/*" onChange={handleLeftLogoUpload} className="hidden" />
+                        </label>
+                        <p className="text-[10px] text-slate-400">Format PNG, JPG atau SVG. Logo ini terhubung otomatis ke halaman login dan seluruh sistem.</p>
+                      </>
+                    ) : (
+                      <div className="p-2.5 bg-amber-50/80 border border-amber-200 rounded-xl text-[11px] text-amber-900 font-semibold flex items-center gap-2">
+                        <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+                        <span>Logo aplikasi ditentukan & dikelola terpusat oleh Admin SISPERMBG.</span>
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>

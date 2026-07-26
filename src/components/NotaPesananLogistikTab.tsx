@@ -37,6 +37,7 @@ interface NotaPesananLogistikTabProps {
   setRightLogoCrop?: (val: LogoCrop) => void;
   paperSize?: "A4" | "F4";
   setPaperSize?: (val: "A4" | "F4") => void;
+  isAdmin?: boolean;
 }
 
 interface NotaItem {

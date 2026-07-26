@@ -72,6 +72,7 @@ import {
   EyeOff,
   Tags,
   RotateCcw,
+  MessageCircle,
   X
 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -279,7 +280,9 @@ export default function App() {
         const data = snap.data();
         if (data && data.url) {
           setCustomLogo(data.url);
+          setKopLeftLogo(data.url);
           localStorage.setItem("sisper_custom_logo", data.url);
+          localStorage.setItem("kop_left_logo", data.url);
         }
       }
     }, (error) => {
@@ -990,6 +993,44 @@ export default function App() {
     img.src = cropImageSrc;
   };
 
+  const handleUpdateLeftLogo = async (newLogo: string) => {
+    setKopLeftLogo(newLogo);
+    setCustomLogo(newLogo);
+    localStorage.setItem("kop_left_logo", newLogo);
+    localStorage.setItem("sisper_custom_logo", newLogo);
+
+    try {
+      if (user) {
+        await saveStateToCloud("kopLeftLogo", newLogo);
+        await saveStateToCloud("customLogo", newLogo);
+      }
+      await setDoc(doc(db, "configs", "app_logo"), {
+        url: newLogo,
+        updatedBy: user?.email || "Admin SISPERMBG",
+        updatedAt: new Date().toISOString()
+      });
+    } catch (err) {
+      console.warn("Gagal menyinkronkan logo global ke cloud:", err);
+    }
+  };
+
+  const handleWhatsAppContact = () => {
+    let currentName = regNama || regGiziNama || regAkuntanNama || regChefNama;
+    if (!currentName && loginEmail) {
+      currentName = loginEmail.split("@")[0];
+    }
+    if (!currentName) {
+      const inputName = window.prompt("Masukkan Nama Pengguna Anda untuk izin akses via WhatsApp:", "");
+      if (inputName && inputName.trim()) {
+        currentName = inputName.trim();
+      }
+    }
+    const displayName = currentName ? currentName.trim() : "Nama Pengguna";
+    const message = `Halo min, aku ( ${displayName} ) Izin Minta Akses Yah\nTerimakasih..`;
+    const waUrl = `https://wa.me/6282271095251?text=${encodeURIComponent(message)}`;
+    window.open(waUrl, "_blank", "noopener,noreferrer");
+  };
+
   const handleTkpiUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1241,6 +1282,8 @@ export default function App() {
     }
   };
 
+  const isAdminUser = user ? (isMainAdminEmail(user.email) || userProfile?.peran === "ADMIN") : false;
+
   // If user is not logged in, show beautiful GiziSync / SISPERMBG Login screen
   if (!user) {
     return (
@@ -1316,17 +1359,30 @@ export default function App() {
                 Silakan login menggunakan email aktif Anda untuk masuk ke sistem perencanaan menu gizi.
               </p>
 
-              {/* Alert Box matching screenshot info banner */}
-              <div className="bg-[#FFF8E1] border border-amber-200 rounded-2xl p-4 my-5 text-left">
-                <h4 className="text-xs font-black text-amber-900 mb-1 flex items-center gap-1.5 uppercase tracking-wide">
-                  <Info className="w-4 h-4 text-amber-600 shrink-0" />
-                  Informasi :
-                </h4>
+              {/* Alert Box matching screenshot info banner - Clickable WhatsApp integration */}
+              <div 
+                onClick={handleWhatsAppContact}
+                className="bg-[#FFF8E1] border border-amber-300 hover:border-emerald-500 rounded-2xl p-4 my-5 text-left cursor-pointer transition-all hover:shadow-md group relative overflow-hidden"
+                title="Klik untuk mengirim pesan WhatsApp otomatis ke Admin"
+              >
+                <div className="flex items-center justify-between mb-1">
+                  <h4 className="text-xs font-black text-amber-900 flex items-center gap-1.5 uppercase tracking-wide">
+                    <Info className="w-4 h-4 text-amber-600 shrink-0" />
+                    Informasi :
+                  </h4>
+                  <span className="text-[10px] font-extrabold text-emerald-800 bg-emerald-100 border border-emerald-300 px-2.5 py-0.5 rounded-full flex items-center gap-1 group-hover:bg-emerald-600 group-hover:text-white transition-all shadow-2xs">
+                    <MessageCircle className="w-3.5 h-3.5 text-emerald-600 group-hover:text-white shrink-0" />
+                    Minta Akses WA
+                  </span>
+                </div>
                 <div className="text-[11px] text-amber-900 leading-relaxed font-bold space-y-0.5">
                   <p>Kendala Login SISPERMBG</p>
                   <p>Hubungi Admin GiziSync SISPERMBG</p>
                   <p className="text-indigo-900 font-extrabold mt-1">Syukri_Odhe | Ahli Gizi</p>
-                  <p className="text-emerald-700 font-extrabold">WA : 082271095251</p>
+                  <p className="text-emerald-700 font-black flex items-center gap-1.5 mt-0.5">
+                    WA : 082271095251
+                    <span className="text-[10px] font-bold underline text-emerald-800 group-hover:text-emerald-950 transition-colors">(Klik untuk Kirim Pesan)</span>
+                  </p>
                 </div>
               </div>
 
@@ -1995,7 +2051,7 @@ export default function App() {
                   kopLine4={kopLine4}
                   setKopLine4={setKopLine4}
                   leftLogo={kopLeftLogo}
-                  setLeftLogo={setKopLeftLogo}
+                  setLeftLogo={handleUpdateLeftLogo}
                   rightLogo={kopRightLogo}
                   setRightLogo={setKopRightLogo}
                   leftLogoCrop={leftLogoCrop}
@@ -2004,6 +2060,7 @@ export default function App() {
                   setRightLogoCrop={setRightLogoCrop}
                   paperSize={paperSize}
                   setPaperSize={setPaperSize}
+                  isAdmin={isAdminUser}
                 />
               </div>
             )}
@@ -2024,7 +2081,7 @@ export default function App() {
             kopLine4={kopLine4}
             setKopLine4={setKopLine4}
             leftLogo={kopLeftLogo}
-            setLeftLogo={setKopLeftLogo}
+            setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
             leftLogoCrop={leftLogoCrop}
@@ -2033,6 +2090,7 @@ export default function App() {
             setRightLogoCrop={setRightLogoCrop}
             paperSize={paperSize}
             setPaperSize={setPaperSize}
+            isAdmin={isAdminUser}
           />
         )}
 
@@ -2088,7 +2146,7 @@ export default function App() {
             kopLine4={kopLine4}
             setKopLine4={setKopLine4}
             leftLogo={kopLeftLogo}
-            setLeftLogo={setKopLeftLogo}
+            setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
             leftLogoCrop={leftLogoCrop}
@@ -2097,6 +2155,7 @@ export default function App() {
             setRightLogoCrop={setRightLogoCrop}
             paperSize={paperSize}
             setPaperSize={setPaperSize}
+            isAdmin={isAdminUser}
           />
         )}
 
@@ -2115,7 +2174,7 @@ export default function App() {
             kopLine4={kopLine4}
             setKopLine4={setKopLine4}
             leftLogo={kopLeftLogo}
-            setLeftLogo={setKopLeftLogo}
+            setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
             leftLogoCrop={leftLogoCrop}
@@ -2124,6 +2183,7 @@ export default function App() {
             setRightLogoCrop={setRightLogoCrop}
             paperSize={paperSize}
             setPaperSize={setPaperSize}
+            isAdmin={isAdminUser}
           />
         )}
 
@@ -2145,7 +2205,7 @@ export default function App() {
             kopLine4={kopLine4}
             setKopLine4={setKopLine4}
             leftLogo={kopLeftLogo}
-            setLeftLogo={setKopLeftLogo}
+            setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
             leftLogoCrop={leftLogoCrop}
@@ -2156,6 +2216,7 @@ export default function App() {
             setPaperSize={setPaperSize}
             pmSettings={pmSettings}
             setPmSettings={setPmSettings}
+            isAdmin={isAdminUser}
           />
         )}
 
@@ -2173,7 +2234,7 @@ export default function App() {
             kopLine4={kopLine4}
             setKopLine4={setKopLine4}
             leftLogo={kopLeftLogo}
-            setLeftLogo={setKopLeftLogo}
+            setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
             setRightLogo={setKopRightLogo}
             leftLogoCrop={leftLogoCrop}
@@ -2182,6 +2243,7 @@ export default function App() {
             setRightLogoCrop={setRightLogoCrop}
             paperSize={paperSize}
             setPaperSize={setPaperSize}
+            isAdmin={isAdminUser}
           />
         )}
 

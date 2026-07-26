@@ -57,6 +57,7 @@ interface PenerimaManfaatTabProps {
   setRightLogoCrop?: (val: LogoCrop) => void;
   paperSize?: "A4" | "F4";
   setPaperSize?: (val: "A4" | "F4") => void;
+  isAdmin?: boolean;
 }
 
 export default function PenerimaManfaatTab({

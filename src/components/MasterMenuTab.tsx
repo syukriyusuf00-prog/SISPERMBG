@@ -48,6 +48,7 @@ interface MasterMenuTabProps {
   setRightLogoCrop?: (val: LogoCrop) => void;
   paperSize?: "A4" | "F4";
   setPaperSize?: (val: "A4" | "F4") => void;
+  isAdmin?: boolean;
 }
 
 // Convert YYYY-MM-DD into "Senin, 08 Juni 2026"
@@ -89,7 +90,8 @@ export default function MasterMenuTab({
   rightLogoCrop = { top: 0, bottom: 0, left: 0, right: 0 },
   setRightLogoCrop = () => {},
   paperSize = "A4",
-  setPaperSize = () => {}
+  setPaperSize = () => {},
+  isAdmin = true
 }: MasterMenuTabProps) {
   const [activeCategory, setActiveCategory] = useState<"usiaSekolah" | "tigaB" | "mpAsi">("usiaSekolah");
   const [isAlergi, setIsAlergi] = useState<boolean>(false);
@@ -882,26 +884,32 @@ export default function MasterMenuTab({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-100 pt-3">
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase block">Logo Kiri (Badan Gizi Nasional)</span>
-                <div className="flex items-center gap-2">
-                  <label className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer shadow-xs inline-flex items-center gap-1.5">
-                    <span>Pilih Gambar...</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleLeftLogoUpload} 
-                      className="hidden" 
-                    />
-                  </label>
-                  {leftLogo !== "/src/assets/images/logo_sppg_1782256222616.jpg" && (
-                    <button
-                      type="button"
-                      onClick={resetLeftLogo}
-                      className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline"
-                    >
-                      Reset Default
-                    </button>
-                  )}
-                </div>
+                {isAdmin ? (
+                  <div className="flex items-center gap-2">
+                    <label className="bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 px-3 py-1.5 rounded-lg text-xs font-semibold cursor-pointer shadow-xs inline-flex items-center gap-1.5">
+                      <span>Pilih Gambar...</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleLeftLogoUpload} 
+                        className="hidden" 
+                      />
+                    </label>
+                    {leftLogo !== "/src/assets/images/logo_sppg_1782256222616.jpg" && (
+                      <button
+                        type="button"
+                        onClick={resetLeftLogo}
+                        className="text-xs font-bold text-rose-600 hover:text-rose-700 hover:underline"
+                      >
+                        Reset Default
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <span className="inline-block text-[11px] font-semibold text-amber-800 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-lg">
+                    🔒 Logo dikelola terpusat oleh Admin
+                  </span>
+                )}
               </div>
               <div className="space-y-1">
                 <span className="text-[10px] font-bold text-slate-400 uppercase block">Logo Kanan (Lembaga / Profil)</span>
@@ -954,15 +962,17 @@ export default function MasterMenuTab({
                     }}
                   />
                   {/* Hover Edit Overlay (no-print) */}
-                  <label className="absolute inset-0 bg-black/50 text-white text-[9px] font-bold flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer rounded transition-opacity duration-150 no-print">
-                    <span>Ganti Logo Kiri</span>
-                    <input 
-                      type="file" 
-                      accept="image/*" 
-                      onChange={handleLeftLogoUpload} 
-                      className="hidden" 
-                    />
-                  </label>
+                  {isAdmin && (
+                    <label className="absolute inset-0 bg-black/50 text-white text-[9px] font-bold flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 cursor-pointer rounded transition-opacity duration-150 no-print">
+                      <span>Ganti Logo Kiri</span>
+                      <input 
+                        type="file" 
+                        accept="image/*" 
+                        onChange={handleLeftLogoUpload} 
+                        className="hidden" 
+                      />
+                    </label>
+                  )}
                 </div>
 
                 {/* Centered Kop Text - 100% Bold and Centered according to Image 2 */}

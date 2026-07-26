@@ -45,6 +45,7 @@ interface FoodCostTabProps {
   setPaperSize?: (val: "A4" | "F4") => void;
   pmSettings?: any;
   setPmSettings?: (val: any) => void;
+  isAdmin?: boolean;
 }
 
 const formatThousandSeparator = (value: number | string | undefined | null): string => {
