@@ -50,9 +50,17 @@ interface FoodCostTabProps {
 
 const formatThousandSeparator = (value: number | string | undefined | null): string => {
   if (value === undefined || value === null || value === "") return "";
-  const clean = String(value).replace(/[^0-9]/g, "");
-  if (!clean) return "";
-  return new Intl.NumberFormat("id-ID").format(parseInt(clean, 10));
+  let num: number;
+  if (typeof value === "number") {
+    num = value;
+  } else {
+    const str = String(value).trim();
+    if (!str) return "";
+    const cleanStr = str.replace(/\./g, "").replace(/,/g, ".");
+    num = parseFloat(cleanStr);
+  }
+  if (isNaN(num) || !isFinite(num)) return "";
+  return new Intl.NumberFormat("id-ID").format(Math.round(num));
 };
 
 const parseThousandSeparator = (value: string): number => {
@@ -712,7 +720,7 @@ export default function FoodCostTab({
     targetIds.forEach((sId: string) => {
       const sasItem = dayPM.sasaran.find(item => item.id === sId);
       if (sasItem) {
-        count += porsi === "besar" ? (Number(sasItem.porsiBesar) || 0) : (Number(sasItem.porsiKecil) || 0);
+        count += (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
       }
     });
     
@@ -812,6 +820,43 @@ export default function FoodCostTab({
     currentDayData.bufferPct,
     tkpiList
   );
+
+  // Custom tables RAB calculation
+  const customTablesRABTotal = (customTables || []).reduce((acc, t) => {
+    const pCount = Number(t.pmCount) || 0;
+    const pPrice = Number(t.plafon) || (t.porsi === "besar" ? activeTargetPriceBesar : activeTargetPriceKecil);
+    return acc + (pCount * pPrice);
+  }, 0);
+
+  const totalRAB = rabPorsiKecil + rabPorsiBesar + customTablesRABTotal;
+
+  // Realisasi Belanja (Actual) calculation
+  const porsiKecilActualCost = planningMode === "with_bumbu_10" 
+    ? results.subtotalKecilCost 
+    : results.totalKecilBahanCost;
+
+  const porsiBesarActualCost = planningMode === "with_bumbu_10" 
+    ? results.subtotalBesarCost 
+    : results.totalBesarBahanCost;
+
+  const porsiKecilPerPorsi = pmKecil > 0 ? Math.round(porsiKecilActualCost / pmKecil) : 0;
+  const porsiBesarPerPorsi = pmBesar > 0 ? Math.round(porsiBesarActualCost / pmBesar) : 0;
+
+  // Custom tables actual cost
+  const customTablesActualTotal = (customTables || []).reduce((acc, t) => {
+    const calcCustom = t.porsi === "besar"
+      ? calculateDay(t.bahanList || [], [], Number(t.pmCount) || 0, 0, t.bufferPct || 5, tkpiList)
+      : calculateDay([], t.bahanList || [], 0, Number(t.pmCount) || 0, t.bufferPct || 5, tkpiList);
+    
+    if (t.porsi === "besar") {
+      return acc + (planningMode === "with_bumbu_10" ? calcCustom.subtotalBesarCost : calcCustom.totalBesarBahanCost);
+    } else {
+      return acc + (planningMode === "with_bumbu_10" ? calcCustom.subtotalKecilCost : calcCustom.totalKecilBahanCost);
+    }
+  }, 0);
+
+  const totalActualCost = porsiKecilActualCost + porsiBesarActualCost + customTablesActualTotal;
+  const sisaEfisiensiAnggaran = totalRAB - totalActualCost;
 
   const updateDayData = (updatedDay: FoodCostDay) => {
     const updatedDays = foodCostDays.map((d) => {
@@ -2849,60 +2894,87 @@ export default function FoodCostTab({
                 </span>
                 <div className="mt-2 flex items-baseline gap-1">
                   <span className="text-xl font-black text-emerald-900 font-mono">
-                    Rp {formatThousandSeparator(rabPorsiKecil + rabPorsiBesar)}
+                    Rp {formatThousandSeparator(totalRAB)}
                   </span>
                 </div>
               </div>
               <div className="text-[10px] text-emerald-700 font-semibold mt-3 space-y-0.5 border-t border-emerald-200/50 pt-2 font-mono">
-                <div>Kecil: {pmKecil} PM x Rp {formatThousandSeparator(activeTargetPriceKecil)} = Rp {formatThousandSeparator(pmKecil * activeTargetPriceKecil)}</div>
-                <div>Besar: {pmBesar} PM x Rp {formatThousandSeparator(activeTargetPriceBesar)} = Rp {formatThousandSeparator(pmBesar * activeTargetPriceBesar)}</div>
+                <div>Kecil: {pmKecil} PM x Rp {formatThousandSeparator(activeTargetPriceKecil)} = Rp {formatThousandSeparator(rabPorsiKecil)}</div>
+                <div>Besar: {pmBesar} PM x Rp {formatThousandSeparator(activeTargetPriceBesar)} = Rp {formatThousandSeparator(rabPorsiBesar)}</div>
+                {customTables && customTables.map((t) => {
+                  const tRAB = (Number(t.pmCount) || 0) * (Number(t.plafon) || (t.porsi === "besar" ? activeTargetPriceBesar : activeTargetPriceKecil));
+                  return (
+                    <div key={t.id} className="text-purple-800 font-bold">
+                      {t.namaTabel}: {t.pmCount || 0} PM x Rp {formatThousandSeparator(t.plafon || 0)} = Rp {formatThousandSeparator(tRAB)}
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             {/* 2. Realisasi Belanja Harian */}
             <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/40 p-4 rounded-2xl border border-indigo-100 shadow-xs flex flex-col justify-between">
               <div>
-                <span className="text-[10px] font-black text-indigo-800 uppercase tracking-wider block">
-                  Realisasi Belanja Harian (Actual)
-                </span>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-indigo-800 uppercase tracking-wider block">
+                    Realisasi Belanja Harian (Actual)
+                  </span>
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                    {planningMode === "with_bumbu_10" ? "+10% Bumbu" : "Uraian Bumbu"}
+                  </span>
+                </div>
                 <div className="mt-2 flex items-baseline gap-1">
                   <span className="text-xl font-black text-indigo-900 font-mono">
-                    Rp {formatThousandSeparator(results.subtotalKecilCost + results.subtotalBesarCost)}
+                    Rp {formatThousandSeparator(totalActualCost)}
                   </span>
                 </div>
               </div>
               <div className="text-[10px] text-indigo-700 font-semibold mt-3 space-y-0.5 border-t border-indigo-200/50 pt-2 font-mono">
-                <div>Kecil: Rp {formatThousandSeparator(results.subtotalKecilCost)} (Rp {formatThousandSeparator(Math.round(results.costPerPorsiKecil))}/porsi)</div>
-                <div>Besar: Rp {formatThousandSeparator(results.subtotalBesarCost)} (Rp {formatThousandSeparator(Math.round(results.costPerPorsiBesar))}/porsi)</div>
+                <div>Kecil: Rp {formatThousandSeparator(porsiKecilActualCost)} (Rp {formatThousandSeparator(porsiKecilPerPorsi)}/porsi)</div>
+                <div>Besar: Rp {formatThousandSeparator(porsiBesarActualCost)} (Rp {formatThousandSeparator(porsiBesarPerPorsi)}/porsi)</div>
+                {customTables && customTables.map((t) => {
+                  const calcCustom = t.porsi === "besar"
+                    ? calculateDay(t.bahanList || [], [], Number(t.pmCount) || 0, 0, t.bufferPct || 5, tkpiList)
+                    : calculateDay([], t.bahanList || [], 0, Number(t.pmCount) || 0, t.bufferPct || 5, tkpiList);
+                  const tActual = t.porsi === "besar"
+                    ? (planningMode === "with_bumbu_10" ? calcCustom.subtotalBesarCost : calcCustom.totalBesarBahanCost)
+                    : (planningMode === "with_bumbu_10" ? calcCustom.subtotalKecilCost : calcCustom.totalKecilBahanCost);
+                  const tPerPorsi = t.pmCount > 0 ? Math.round(tActual / t.pmCount) : 0;
+                  return (
+                    <div key={t.id} className="text-purple-800 font-bold">
+                      {t.namaTabel}: Rp {formatThousandSeparator(tActual)} (Rp {formatThousandSeparator(tPerPorsi)}/porsi)
+                    </div>
+                  );
+                })}
               </div>
             </div>
 
             {/* 3. Sisa / Efisiensi Saldo */}
             <div className={`p-4 rounded-2xl border shadow-xs flex flex-col justify-between ${
-              (pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost) >= 0 
+              sisaEfisiensiAnggaran >= 0 
                 ? "bg-gradient-to-br from-teal-50 to-teal-100/40 border-teal-100" 
                 : "bg-gradient-to-br from-rose-50 to-rose-100/40 border-rose-100"
             }`}>
               <div>
                 <span className={`text-[10px] font-black uppercase tracking-wider block ${
-                  (pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost) >= 0 ? "text-teal-800" : "text-rose-800"
+                  sisaEfisiensiAnggaran >= 0 ? "text-teal-800" : "text-rose-800"
                 }`}>
-                  {((pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost)) >= 0 ? "Sisa / Efisiensi Anggaran (Surplus)" : "Defisit / Melebihi Anggaran"}
+                  {sisaEfisiensiAnggaran >= 0 ? "Sisa / Efisiensi Anggaran (Surplus)" : "Defisit / Melebihi Anggaran"}
                 </span>
                 <div className="mt-2 flex items-baseline gap-1">
                   <span className={`text-xl font-black font-mono ${
-                    (pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost) >= 0 ? "text-teal-900" : "text-rose-900"
+                    sisaEfisiensiAnggaran >= 0 ? "text-teal-900" : "text-rose-900"
                   }`}>
-                    {((pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost)) >= 0 ? "+" : ""}{formatRupiah((pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost))}
+                    {sisaEfisiensiAnggaran >= 0 ? "+" : ""}{formatRupiah(sisaEfisiensiAnggaran)}
                   </span>
                 </div>
               </div>
               <div className={`text-[10px] font-semibold mt-3 border-t pt-2 ${
-                (pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost) >= 0 
+                sisaEfisiensiAnggaran >= 0 
                   ? "text-teal-700 border-teal-200/50" 
                   : "text-rose-700 border-rose-200/50"
               }`}>
-                {((pmKecil * activeTargetPriceKecil + pmBesar * activeTargetPriceBesar) - (results.subtotalKecilCost + results.subtotalBesarCost)) >= 0 
+                {sisaEfisiensiAnggaran >= 0 
                   ? "✓ Komponen belanja aman di bawah plafon harian." 
                   : "⚠️ Perhatian: Anggaran belanja melebihi pagu dana yang diatur!"}
               </div>

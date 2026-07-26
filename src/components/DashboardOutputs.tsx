@@ -580,7 +580,7 @@ export default function DashboardOutputs({
 
                     const costKecil = d.schoolResult.costPerPorsiKecil;
                     const costBesar = d.schoolResult.costPerPorsiBesar;
-                    const rabHarian = d.schoolResult.subtotalBesarCost + d.schoolResult.subtotalKecilCost;
+                    const rabHarian = d.schoolResult.subtotalBesarCost + d.schoolResult.subtotalKecilCost + d.threeBResult.subtotalBesarCost + d.threeBResult.subtotalKecilCost;
 
                     const isBesarOver = costBesar > 0 && costBesar > targetBudgetPorsiBesar;
                     const isKecilOver = costKecil > 0 && costKecil > targetBudgetPorsiKecil;

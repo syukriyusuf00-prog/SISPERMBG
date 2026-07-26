@@ -354,52 +354,95 @@ export function calculateDay(
 export function getCountsForDay(harianPM: HariPM[], dayNum: number) {
   const dayPM = harianPM.find(h => h.hariKe === dayNum) || harianPM[0] || { sasaran: [] };
   
-  // Usia Sekolah groups (indices 0 to 6)
-  const sekolahSasaran = dayPM.sasaran.filter(s => 
-    ["tk_paud_lb", "sd_kelas_1_3", "sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan"].includes(s.id)
-  );
-  const pmKecilSekolah = sekolahSasaran.reduce((acc, curr) => acc + (Number(curr.porsiKecil) || 0), 0);
-  const pmBesarSekolah = sekolahSasaran.reduce((acc, curr) => acc + (Number(curr.porsiBesar) || 0), 0);
-  const totalSekolahAlergiKecil = sekolahSasaran.reduce((acc, curr) => acc + (Number(curr.alergiKecil) || 0), 0);
-  const totalSekolahAlergiBesar = sekolahSasaran.reduce((acc, curr) => acc + (Number(curr.alergiBesar) || 0), 0);
-  const totalSekolahAlergi = totalSekolahAlergiKecil + totalSekolahAlergiBesar;
+  let totalPorsiKecilAll = 0;
+  let totalPorsiBesarAll = 0;
+  let totalAlergiKecilAll = 0;
+  let totalAlergiBesarAll = 0;
 
-  // 3B groups (indices 7 to 11)
-  const tigaBSasaran = dayPM.sasaran.filter(s => 
-    ["anak_balita", "anak_balita_13_59", "balita_6_11", "ibu_hamil", "ibu_menyusui"].includes(s.id)
-  );
-  
-  const totalBalita = tigaBSasaran.filter(s => ["anak_balita", "anak_balita_13_59", "balita_6_11"].includes(s.id))
-    .reduce((acc, curr) => acc + (Number(curr.porsiKecil) || 0), 0);
-  
-  const totalBumil = tigaBSasaran.filter(s => s.id === "ibu_hamil")
-    .reduce((acc, curr) => acc + (Number(curr.porsiBesar) || 0), 0);
-    
-  const totalBusui = tigaBSasaran.filter(s => s.id === "ibu_menyusui")
-    .reduce((acc, curr) => acc + (Number(curr.porsiBesar) || 0), 0);
-    
-  const total3BAlergiKecil = tigaBSasaran.reduce((acc, curr) => acc + (Number(curr.alergiKecil) || 0), 0);
-  const total3BAlergiBesar = tigaBSasaran.reduce((acc, curr) => acc + (Number(curr.alergiBesar) || 0), 0);
+  let pmKecilSekolah = 0;
+  let pmBesarSekolah = 0;
+  let totalSekolahAlergiKecil = 0;
+  let totalSekolahAlergiBesar = 0;
+
+  let totalBalita = 0;
+  let totalBumil = 0;
+  let totalBusui = 0;
+  let total3BAlergiKecil = 0;
+  let total3BAlergiBesar = 0;
+  let totalMPAsi = 0;
+  let pmKecil3B = 0;
+  let pmBesar3B = 0;
+
+  const sekolahIds = ["tk_paud_lb", "sd_kelas_1_3", "sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan"];
+  const tigaBIds = ["anak_balita", "anak_balita_13_59", "balita_6_11", "ibu_hamil", "ibu_menyusui"];
+  const balitaIds = ["anak_balita", "anak_balita_13_59", "balita_6_11"];
+
+  (dayPM.sasaran || []).forEach((s) => {
+    const pk = Number(s.porsiKecil) || 0;
+    const pb = Number(s.porsiBesar) || 0;
+    const ak = Number(s.alergiKecil) || 0;
+    const ab = Number(s.alergiBesar) || 0;
+
+    totalPorsiKecilAll += pk;
+    totalPorsiBesarAll += pb;
+    totalAlergiKecilAll += ak;
+    totalAlergiBesarAll += ab;
+
+    if (sekolahIds.includes(s.id)) {
+      pmKecilSekolah += pk;
+      pmBesarSekolah += pb;
+      totalSekolahAlergiKecil += ak;
+      totalSekolahAlergiBesar += ab;
+    }
+
+    if (tigaBIds.includes(s.id)) {
+      pmKecil3B += pk;
+      pmBesar3B += pb;
+      total3BAlergiKecil += ak;
+      total3BAlergiBesar += ab;
+
+      if (balitaIds.includes(s.id)) {
+        totalBalita += pk + pb;
+      }
+      if (s.id === "ibu_hamil") {
+        totalBumil += pk + pb;
+      }
+      if (s.id === "ibu_menyusui") {
+        totalBusui += pk + pb;
+      }
+      if (s.id === "balita_6_11") {
+        totalMPAsi += pk + pb;
+      }
+    }
+  });
+
+  const totalAlergiCombined = totalAlergiKecilAll + totalAlergiBesarAll;
+  const totalSekolahSiswa = pmKecilSekolah + pmBesarSekolah;
+  const totalSekolahAlergi = totalSekolahAlergiKecil + totalSekolahAlergiBesar;
   const total3BAlergi = total3BAlergiKecil + total3BAlergiBesar;
-  
-  const totalMPAsi = tigaBSasaran.filter(s => s.id === "balita_6_11")
-    .reduce((acc, curr) => acc + (Number(curr.porsiKecil) || 0), 0);
+  const total3BPM = pmKecil3B + pmBesar3B;
+  const grandTotalPMAll = totalPorsiKecilAll + totalPorsiBesarAll;
 
   return {
     pmKecilSekolah,
     pmBesarSekolah,
+    totalSekolahSiswa,
     totalSekolahAlergiKecil,
     totalSekolahAlergiBesar,
     totalSekolahAlergi,
     totalBalita,
     totalBumil,
     totalBusui,
+    total3BPM,
     total3BAlergiKecil,
     total3BAlergiBesar,
     total3BAlergi,
     totalMPAsi,
-    pmKecil3B: totalBalita,
-    pmBesar3B: totalBumil + totalBusui,
-    grandTotalPMAll: pmKecilSekolah + pmBesarSekolah + totalBalita + totalBumil + totalBusui
+    pmKecil3B,
+    pmBesar3B,
+    totalPorsiKecilAll,
+    totalPorsiBesarAll,
+    totalAlergiCombined,
+    grandTotalPMAll
   };
 }
