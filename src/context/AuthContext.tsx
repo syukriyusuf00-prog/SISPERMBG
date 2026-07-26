@@ -577,14 +577,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       // 1. Immediately store in local storage so registration is 100% instant and durable
-      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
+      const localProfile = {
         ...profileData,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      }));
+      };
+      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(localProfile));
 
-      // 2. Fire Firestore write with fast timeout (non-blocking if cloud connection is slow)
-      fetchWithTimeout(setDoc(userRef, profileData), 1500, null).catch((dbErr) => {
+      // 2. Dispatch window event for instant synchronization across components
+      window.dispatchEvent(new CustomEvent("sisper_user_registered", { detail: localProfile }));
+
+      // 3. Fire Firestore write with fast timeout (non-blocking if cloud connection is slow)
+      fetchWithTimeout(setDoc(userRef, profileData), 2000, null).catch((dbErr) => {
         console.warn("Operasi setDoc Firestore di latar belakang tertunda:", dbErr);
       });
     } catch (error: any) {
