@@ -720,7 +720,13 @@ export default function FoodCostTab({
     targetIds.forEach((sId: string) => {
       const sasItem = dayPM.sasaran.find(item => item.id === sId);
       if (sasItem) {
-        count += (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+        if (selectedType === "Alergi") {
+          const cAlergi = porsi === "besar" ? (Number(sasItem.alergiBesar) || 0) : (Number(sasItem.alergiKecil) || 0);
+          const cNormal = (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+          count += cAlergi > 0 ? cAlergi : cNormal;
+        } else {
+          count += (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+        }
       }
     });
     
@@ -842,18 +848,27 @@ export default function FoodCostTab({
   const porsiKecilPerPorsi = pmKecil > 0 ? Math.round(porsiKecilActualCost / pmKecil) : 0;
   const porsiBesarPerPorsi = pmBesar > 0 ? Math.round(porsiBesarActualCost / pmBesar) : 0;
 
-  // Custom tables actual cost
+  const bumbuKecilNominal = results.bumbuKecilCost || 0;
+  const bumbuBesarNominal = results.bumbuBesarCost || 0;
+
+  // Custom tables actual cost & bumbu nominal
+  let customTablesBumbuTotal = 0;
   const customTablesActualTotal = (customTables || []).reduce((acc, t) => {
     const calcCustom = t.porsi === "besar"
       ? calculateDay(t.bahanList || [], [], Number(t.pmCount) || 0, 0, t.bufferPct || 5, tkpiList)
       : calculateDay([], t.bahanList || [], 0, Number(t.pmCount) || 0, t.bufferPct || 5, tkpiList);
     
+    const bumbuCustom = t.porsi === "besar" ? calcCustom.bumbuBesarCost : calcCustom.bumbuKecilCost;
+    customTablesBumbuTotal += bumbuCustom;
+
     if (t.porsi === "besar") {
       return acc + (planningMode === "with_bumbu_10" ? calcCustom.subtotalBesarCost : calcCustom.totalBesarBahanCost);
     } else {
       return acc + (planningMode === "with_bumbu_10" ? calcCustom.subtotalKecilCost : calcCustom.totalKecilBahanCost);
     }
   }, 0);
+
+  const totalBumbu10Nominal = bumbuKecilNominal + bumbuBesarNominal + customTablesBumbuTotal;
 
   const totalActualCost = porsiKecilActualCost + porsiBesarActualCost + customTablesActualTotal;
   const sisaEfisiensiAnggaran = totalRAB - totalActualCost;
@@ -1561,7 +1576,30 @@ export default function FoodCostTab({
                   
                   {idx === 0 && (
                     <td rowSpan={items.length} className="p-1 border border-black text-center font-extrabold bg-[#FFF2CC] align-middle font-mono w-[64px] min-w-[64px] text-slate-950 text-xs">
-                      {recipientCount}
+                      {isPrint ? (
+                        <span className="font-mono font-extrabold text-slate-950 text-xs">{recipientCount}</span>
+                      ) : (
+                        <input
+                          type="number"
+                          min="0"
+                          value={
+                            porsi === "besar"
+                              ? (currentDayData.customPmBesarCount !== undefined ? currentDayData.customPmBesarCount : recipientCount)
+                              : (currentDayData.customPmKecilCount !== undefined ? currentDayData.customPmKecilCount : recipientCount)
+                          }
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const val = raw === "" ? undefined : Math.max(0, Number(raw));
+                            if (porsi === "besar") {
+                              updateDayData({ ...currentDayData, customPmBesarCount: val });
+                            } else {
+                              updateDayData({ ...currentDayData, customPmKecilCount: val });
+                            }
+                          }}
+                          className="w-full text-center bg-transparent border-0 font-mono font-extrabold p-0.5 text-slate-950 text-xs focus:bg-white focus:ring-1 focus:ring-amber-500 rounded cursor-pointer hover:bg-amber-100/60"
+                          title="Klik untuk mengedit atau menghapus/mengubah Jumlah Penerima Manfaat"
+                        />
+                      )}
                     </td>
                   )}
                   
@@ -2229,7 +2267,22 @@ export default function FoodCostTab({
                   
                   {idx === 0 && (
                     <td rowSpan={items.length} className="p-1 border border-black text-center font-extrabold bg-[#FFF2CC] align-middle font-mono w-[64px] min-w-[64px] text-slate-950 text-xs">
-                      {recipientCount}
+                      {isPrint ? (
+                        <span className="font-mono font-extrabold text-slate-950 text-xs">{recipientCount}</span>
+                      ) : (
+                        <input
+                          type="number"
+                          min="0"
+                          value={table.pmCount !== undefined ? table.pmCount : ""}
+                          onChange={(e) => {
+                            const raw = e.target.value;
+                            const val = raw === "" ? 0 : Math.max(0, Number(raw));
+                            editCustomTableMeta(table.id, "pmCount", val);
+                          }}
+                          className="w-full text-center bg-transparent border-0 font-mono font-extrabold p-0.5 text-slate-950 text-xs focus:bg-white focus:ring-1 focus:ring-amber-500 rounded cursor-pointer hover:bg-amber-100/60"
+                          title="Klik untuk mengedit atau menghapus/mengubah Jumlah Penerima Manfaat"
+                        />
+                      )}
                     </td>
                   )}
                   
@@ -2923,15 +2976,35 @@ export default function FoodCostTab({
                     {planningMode === "with_bumbu_10" ? "+10% Bumbu" : "Uraian Bumbu"}
                   </span>
                 </div>
-                <div className="mt-2 flex items-baseline gap-1">
+                <div className="mt-2 flex items-baseline justify-between gap-1">
                   <span className="text-xl font-black text-indigo-900 font-mono">
                     Rp {formatThousandSeparator(totalActualCost)}
                   </span>
+                  {planningMode === "with_bumbu_10" && (
+                    <div className="text-right">
+                      <span className="text-[9px] font-extrabold text-indigo-600 block uppercase tracking-tight">Total Bumbu 10%:</span>
+                      <span className="text-xs font-black text-indigo-900 font-mono">
+                        Rp {formatThousandSeparator(totalBumbu10Nominal)}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
-              <div className="text-[10px] text-indigo-700 font-semibold mt-3 space-y-0.5 border-t border-indigo-200/50 pt-2 font-mono">
-                <div>Kecil: Rp {formatThousandSeparator(porsiKecilActualCost)} (Rp {formatThousandSeparator(porsiKecilPerPorsi)}/porsi)</div>
-                <div>Besar: Rp {formatThousandSeparator(porsiBesarActualCost)} (Rp {formatThousandSeparator(porsiBesarPerPorsi)}/porsi)</div>
+              <div className="text-[10px] text-indigo-700 font-semibold mt-3 space-y-1.5 border-t border-indigo-200/50 pt-2 font-mono">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span>Kecil: Rp {formatThousandSeparator(porsiKecilActualCost)} (Rp {formatThousandSeparator(porsiKecilPerPorsi)}/porsi)</span>
+                  <span className="text-[9.5px] font-bold text-indigo-900 bg-indigo-100/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shrink-0 w-fit">
+                    Bumbu 10%: Rp {formatThousandSeparator(bumbuKecilNominal)}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span>Besar: Rp {formatThousandSeparator(porsiBesarActualCost)} (Rp {formatThousandSeparator(porsiBesarPerPorsi)}/porsi)</span>
+                  <span className="text-[9.5px] font-bold text-indigo-900 bg-indigo-100/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shrink-0 w-fit">
+                    Bumbu 10%: Rp {formatThousandSeparator(bumbuBesarNominal)}
+                  </span>
+                </div>
+
                 {customTables && customTables.map((t) => {
                   const calcCustom = t.porsi === "besar"
                     ? calculateDay(t.bahanList || [], [], Number(t.pmCount) || 0, 0, t.bufferPct || 5, tkpiList)
@@ -2940,9 +3013,14 @@ export default function FoodCostTab({
                     ? (planningMode === "with_bumbu_10" ? calcCustom.subtotalBesarCost : calcCustom.totalBesarBahanCost)
                     : (planningMode === "with_bumbu_10" ? calcCustom.subtotalKecilCost : calcCustom.totalKecilBahanCost);
                   const tPerPorsi = t.pmCount > 0 ? Math.round(tActual / t.pmCount) : 0;
+                  const tBumbuNominal = t.porsi === "besar" ? calcCustom.bumbuBesarCost : calcCustom.bumbuKecilCost;
+
                   return (
-                    <div key={t.id} className="text-purple-800 font-bold">
-                      {t.namaTabel}: Rp {formatThousandSeparator(tActual)} (Rp {formatThousandSeparator(tPerPorsi)}/porsi)
+                    <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-purple-800 font-bold">
+                      <span>{t.namaTabel}: Rp {formatThousandSeparator(tActual)} (Rp {formatThousandSeparator(tPerPorsi)}/porsi)</span>
+                      <span className="text-[9.5px] font-bold text-purple-900 bg-purple-100/90 px-1.5 py-0.5 rounded border border-purple-200/70 shrink-0 w-fit">
+                        Bumbu 10%: Rp {formatThousandSeparator(tBumbuNominal)}
+                      </span>
                     </div>
                   );
                 })}
@@ -3167,7 +3245,16 @@ export default function FoodCostTab({
                             const isChecked = settings.porsiBesarSasaranIds.includes(s.id);
                             const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
                             const sasItem = dayPM.sasaran.find(x => x.id === s.id);
-                            const activeCount = sasItem ? (Number(sasItem.porsiBesar) || 0) : 0;
+                            let activeCount = 0;
+                            if (sasItem) {
+                              if (selectedType === "Alergi") {
+                                const cAlergi = Number(sasItem.alergiBesar) || 0;
+                                const cNormal = (Number(sasItem.porsiBesar) || 0) > 0 ? Number(sasItem.porsiBesar) : (Number(sasItem.porsiKecil) || 0);
+                                activeCount = cAlergi > 0 ? cAlergi : cNormal;
+                              } else {
+                                activeCount = (Number(sasItem.porsiBesar) || 0) > 0 ? Number(sasItem.porsiBesar) : (Number(sasItem.porsiKecil) || 0);
+                              }
+                            }
                             return (
                               <label
                                 key={s.id}
@@ -3245,7 +3332,16 @@ export default function FoodCostTab({
                             const isChecked = settings.porsiKecilSasaranIds.includes(s.id);
                             const dayPM = harianPM.find(h => h.hariKe === selectedDay) || harianPM[0] || { sasaran: [] };
                             const sasItem = dayPM.sasaran.find(x => x.id === s.id);
-                            const activeCount = sasItem ? (Number(sasItem.porsiKecil) || 0) : 0;
+                            let activeCount = 0;
+                            if (sasItem) {
+                              if (selectedType === "Alergi") {
+                                const cAlergi = Number(sasItem.alergiKecil) || 0;
+                                const cNormal = (Number(sasItem.porsiKecil) || 0) > 0 ? Number(sasItem.porsiKecil) : (Number(sasItem.porsiBesar) || 0);
+                                activeCount = cAlergi > 0 ? cAlergi : cNormal;
+                              } else {
+                                activeCount = (Number(sasItem.porsiKecil) || 0) > 0 ? Number(sasItem.porsiKecil) : (Number(sasItem.porsiBesar) || 0);
+                              }
+                            }
                             return (
                               <label
                                 key={s.id}

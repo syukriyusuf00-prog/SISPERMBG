@@ -5,7 +5,11 @@
 
 import React, { useState, useEffect, useMemo } from "react";
 import { SPPGProfile, HariPM, FoodCostDay, TKPIItem, MasterMenu } from "../types";
-import { calculateDay, getCountsForDay } from "../utils/calc";
+import { calculateDay, getCountsForDay, formatRupiah } from "../utils/calc";
+
+const formatThousandSeparator = (val: number) => {
+  return new Intl.NumberFormat("id-ID").format(Math.round(val || 0));
+};
 import { Printer, Download, RefreshCw, Plus, Trash2, Calendar, FileText, Check, Combine, Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
 import { PriceCalculatorPopover } from "./PriceCalculatorPopover";
 import * as XLSX from "xlsx";
@@ -195,6 +199,120 @@ export default function NotaPesananLogistikTab({
   const [tanggal, setTanggal] = useState("");
   const [namaKepala, setNamaKepala] = useState(profile.namaKepala);
   const [jabatanKepala, setJabatanKepala] = useState("Kepala Satuan Pelayanan Pemenuhan Gizi");
+
+  // Settings for Target Price and Classifications
+  const [settings] = useState(() => {
+    const saved = localStorage.getItem("sisper_pm_settings");
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) {}
+    }
+    return {
+      porsiKecilHarga: 8000,
+      porsiBesarHarga: 10000,
+      porsiKecilSasaranIds: ["tk_paud_lb", "sd_kelas_1_3", "anak_balita", "anak_balita_13_59", "balita_6_11"],
+      porsiBesarSasaranIds: ["sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan", "ibu_hamil", "ibu_menyusui"]
+    };
+  });
+
+  // Compute RAB, Realisasi Belanja, and Surplus for Nota Pesanan Logistik Tab
+  const getCombinedSummaryStats = () => {
+    const isCombined = mode === "gabungan";
+    const daysToProcess = isCombined ? selectedDays : [selectedDay];
+
+    let totalRAB = 0;
+    let rabPorsiKecilTotal = 0;
+    let rabPorsiBesarTotal = 0;
+    let totalPMKecil = 0;
+    let totalPMBesar = 0;
+
+    let totalActualCost = 0;
+    let porsiKecilActualCostTotal = 0;
+    let porsiBesarActualCostTotal = 0;
+
+    let totalBumbu10Nominal = 0;
+    let bumbuKecilNominalTotal = 0;
+    let bumbuBesarNominalTotal = 0;
+
+    daysToProcess.forEach((d) => {
+      const dayPM = harianPM.find((h) => h.hariKe === d) || harianPM[0] || { sasaran: [] };
+      let pmKecil = 0;
+      let pmBesar = 0;
+
+      (settings.porsiKecilSasaranIds || []).forEach((sId: string) => {
+        const sasItem = dayPM.sasaran.find((item) => item.id === sId);
+        if (sasItem) {
+          pmKecil += (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+        }
+      });
+
+      (settings.porsiBesarSasaranIds || []).forEach((sId: string) => {
+        const sasItem = dayPM.sasaran.find((item) => item.id === sId);
+        if (sasItem) {
+          pmBesar += (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+        }
+      });
+
+      const dayFC = foodCostDays.find((fd) => fd.hariKe === d);
+
+      if (dayFC && dayFC.customPmBesarCount !== undefined) {
+        pmBesar = dayFC.customPmBesarCount;
+      }
+      if (dayFC && dayFC.customPmKecilCount !== undefined) {
+        pmKecil = dayFC.customPmKecilCount;
+      }
+
+      totalPMKecil += pmKecil;
+      totalPMBesar += pmBesar;
+
+      const rabKecilDay = pmKecil * (settings.porsiKecilHarga || 8000);
+      const rabBesarDay = pmBesar * (settings.porsiBesarHarga || 10000);
+      rabPorsiKecilTotal += rabKecilDay;
+      rabPorsiBesarTotal += rabBesarDay;
+      totalRAB += rabKecilDay + rabBesarDay;
+
+      const calcDay = calculateDay(
+        dayFC?.porsiBesarBahan || [],
+        dayFC?.porsiKecilBahan || [],
+        pmBesar,
+        pmKecil,
+        dayFC?.bufferPct ?? 3,
+        tkpiList
+      );
+
+      const actualKecilDay = calcDay.subtotalKecilCost;
+      const actualBesarDay = calcDay.subtotalBesarCost;
+      porsiKecilActualCostTotal += actualKecilDay;
+      porsiBesarActualCostTotal += actualBesarDay;
+      totalActualCost += actualKecilDay + actualBesarDay;
+
+      bumbuKecilNominalTotal += calcDay.bumbuKecilCost;
+      bumbuBesarNominalTotal += calcDay.bumbuBesarCost;
+      totalBumbu10Nominal += calcDay.bumbuKecilCost + calcDay.bumbuBesarCost;
+    });
+
+    const sisaEfisiensiAnggaran = totalRAB - totalActualCost;
+    const porsiKecilPerPorsi = totalPMKecil > 0 ? Math.round(porsiKecilActualCostTotal / totalPMKecil) : 0;
+    const porsiBesarPerPorsi = totalPMBesar > 0 ? Math.round(porsiBesarActualCostTotal / totalPMBesar) : 0;
+
+    return {
+      isCombined,
+      daysToProcess,
+      totalRAB,
+      rabPorsiKecilTotal,
+      rabPorsiBesarTotal,
+      totalPMKecil,
+      totalPMBesar,
+      totalActualCost,
+      porsiKecilActualCostTotal,
+      porsiBesarActualCostTotal,
+      porsiKecilPerPorsi,
+      porsiBesarPerPorsi,
+      totalBumbu10Nominal,
+      bumbuKecilNominalTotal,
+      bumbuBesarNominalTotal,
+      sisaEfisiensiAnggaran
+    };
+  };
 
   // Recipient numbers for current selected day
   const dayCounts = useMemo(() => getCountsForDay(harianPM, selectedDay), [harianPM, selectedDay]);
@@ -1109,6 +1227,103 @@ export default function NotaPesananLogistikTab({
           </div>
         </div>
       </div>
+
+      {/* RAB & Realisasi Belanja Dashboard for Gabungan Semua Food Cost */}
+      {(() => {
+        const stats = getCombinedSummaryStats();
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 my-4 no-print">
+            {/* 1. Rencana Anggaran Biaya (RAB) */}
+            <div className="bg-gradient-to-br from-emerald-50 to-emerald-100/40 p-4 rounded-2xl border border-emerald-100 shadow-xs flex flex-col justify-between">
+              <div>
+                <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">
+                  Rencana Anggaran Biaya ({stats.isCombined ? "RAB Gabungan" : "RAB Harian"})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-xl font-black text-emerald-900 font-mono">
+                    Rp {formatThousandSeparator(stats.totalRAB)}
+                  </span>
+                </div>
+              </div>
+              <div className="text-[10px] text-emerald-700 font-semibold mt-3 space-y-0.5 border-t border-emerald-200/50 pt-2 font-mono">
+                <div>Kecil: {stats.totalPMKecil} PM x Rp {formatThousandSeparator(settings.porsiKecilHarga)} = Rp {formatThousandSeparator(stats.rabPorsiKecilTotal)}</div>
+                <div>Besar: {stats.totalPMBesar} PM x Rp {formatThousandSeparator(settings.porsiBesarHarga)} = Rp {formatThousandSeparator(stats.rabPorsiBesarTotal)}</div>
+              </div>
+            </div>
+
+            {/* 2. Realisasi Belanja Actual */}
+            <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/40 p-4 rounded-2xl border border-indigo-100 shadow-xs flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black text-indigo-800 uppercase tracking-wider block">
+                    Realisasi Belanja ({stats.isCombined ? "Gabungan" : "Harian"}) (Actual)
+                  </span>
+                  <span className="text-[9px] font-black px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-800 border border-indigo-200">
+                    +10% Bumbu
+                  </span>
+                </div>
+                <div className="mt-2 flex items-baseline justify-between gap-1">
+                  <span className="text-xl font-black text-indigo-900 font-mono">
+                    Rp {formatThousandSeparator(stats.totalActualCost)}
+                  </span>
+                  <div className="text-right">
+                    <span className="text-[9px] font-extrabold text-indigo-600 block uppercase tracking-tight">Total Bumbu 10%:</span>
+                    <span className="text-xs font-black text-indigo-900 font-mono">
+                      Rp {formatThousandSeparator(stats.totalBumbu10Nominal)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+              <div className="text-[10px] text-indigo-700 font-semibold mt-3 space-y-1.5 border-t border-indigo-200/50 pt-2 font-mono">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span>Kecil: Rp {formatThousandSeparator(stats.porsiKecilActualCostTotal)} (Rp {formatThousandSeparator(stats.porsiKecilPerPorsi)}/porsi)</span>
+                  <span className="text-[9.5px] font-bold text-indigo-900 bg-indigo-100/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shrink-0 w-fit">
+                    Bumbu 10%: Rp {formatThousandSeparator(stats.bumbuKecilNominalTotal)}
+                  </span>
+                </div>
+
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                  <span>Besar: Rp {formatThousandSeparator(stats.porsiBesarActualCostTotal)} (Rp {formatThousandSeparator(stats.porsiBesarPerPorsi)}/porsi)</span>
+                  <span className="text-[9.5px] font-bold text-indigo-900 bg-indigo-100/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shrink-0 w-fit">
+                    Bumbu 10%: Rp {formatThousandSeparator(stats.bumbuBesarNominalTotal)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* 3. Sisa / Efisiensi Anggaran (Surplus) */}
+            <div className={`p-4 rounded-2xl border shadow-xs flex flex-col justify-between ${
+              stats.sisaEfisiensiAnggaran >= 0 
+                ? "bg-gradient-to-br from-teal-50 to-teal-100/40 border-teal-100" 
+                : "bg-gradient-to-br from-rose-50 to-rose-100/40 border-rose-100"
+            }`}>
+              <div>
+                <span className={`text-[10px] font-black uppercase tracking-wider block ${
+                  stats.sisaEfisiensiAnggaran >= 0 ? "text-teal-800" : "text-rose-800"
+                }`}>
+                  {stats.sisaEfisiensiAnggaran >= 0 ? "Sisa / Efisiensi Anggaran (Surplus)" : "Defisit / Melebihi Anggaran"}
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className={`text-xl font-black font-mono ${
+                    stats.sisaEfisiensiAnggaran >= 0 ? "text-teal-900" : "text-rose-900"
+                  }`}>
+                    {stats.sisaEfisiensiAnggaran >= 0 ? "+" : ""}{formatRupiah(stats.sisaEfisiensiAnggaran)}
+                  </span>
+                </div>
+              </div>
+              <div className={`text-[10px] font-semibold mt-3 border-t pt-2 ${
+                stats.sisaEfisiensiAnggaran >= 0 
+                  ? "text-teal-700 border-teal-200/50" 
+                  : "text-rose-700 border-rose-200/50"
+              }`}>
+                {stats.sisaEfisiensiAnggaran >= 0 
+                  ? "✓ Komponen belanja aman di bawah plafon harian." 
+                  : "⚠️ Perhatian: Anggaran belanja melebihi pagu dana yang diatur!"}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
         {/* Printable Fields Editors (no-print) */}
