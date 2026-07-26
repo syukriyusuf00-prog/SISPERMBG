@@ -281,7 +281,7 @@ function createSanitizedComputedStyle(origFn: typeof window.getComputedStyle) {
 /**
  * Applies onclone DOM transformations and getComputedStyle patch for html2canvas
  */
-function prepareClonedDoc(clonedDoc: Document, elementId: string) {
+function prepareClonedDoc(clonedDoc: Document, elementTarget: string | HTMLElement) {
   const clonedWin = clonedDoc.defaultView || window;
   if (clonedWin) {
     clonedWin.getComputedStyle = createSanitizedComputedStyle(clonedWin.getComputedStyle.bind(clonedWin));
@@ -333,7 +333,18 @@ function prepareClonedDoc(clonedDoc: Document, elementId: string) {
   });
 
   // 4. Adjust target element layout if present
-  const clonedEl = clonedDoc.getElementById(elementId);
+  let clonedEl: HTMLElement | null = null;
+  if (typeof elementTarget === "string") {
+    clonedEl = clonedDoc.getElementById(elementTarget);
+  } else if (elementTarget) {
+    if (elementTarget.id) {
+      clonedEl = clonedDoc.getElementById(elementTarget.id);
+    }
+    if (!clonedEl) {
+      clonedEl = (clonedDoc.querySelector(".paper-sheet") || clonedDoc.body?.firstElementChild) as HTMLElement;
+    }
+  }
+
   if (clonedEl) {
     clonedEl.style.transform = "none";
     clonedEl.style.margin = "0 auto";
@@ -347,10 +358,14 @@ function prepareClonedDoc(clonedDoc: Document, elementId: string) {
  * Downloads a specific DOM element as a high-resolution PNG image.
  * Uses html2canvas with proper cross-origin configurations and OKLCH/OKLAB color sanitization.
  */
-export const downloadElementAsImage = async (elementId: string, filename: string, onProgress?: (msg: string | null) => void) => {
-  const element = document.getElementById(elementId);
+export const downloadElementAsImage = async (
+  elementTarget: string | HTMLElement,
+  filename: string,
+  onProgress?: (msg: string | null) => void
+) => {
+  const element = typeof elementTarget === "string" ? document.getElementById(elementTarget) : elementTarget;
   if (!element) {
-    console.error(`Element with id ${elementId} not found.`);
+    console.error(`Element target not found.`);
     if (onProgress) onProgress("Elemen tidak ditemukan.");
     return;
   }
@@ -372,7 +387,7 @@ export const downloadElementAsImage = async (elementId: string, filename: string
       windowWidth: document.documentElement.offsetWidth,
       windowHeight: document.documentElement.offsetHeight,
       onclone: (clonedDoc) => {
-        prepareClonedDoc(clonedDoc, elementId);
+        prepareClonedDoc(clonedDoc, elementTarget);
       }
     });
     
@@ -409,14 +424,14 @@ export const triggerPrint = () => {
  * taking into account custom zoom scale percentages.
  */
 export const exportToPDF = async (
-  elementId: string,
+  elementTarget: string | HTMLElement,
   filename: string,
   scalePercent: number = 100,
   onProgress?: (msg: string | null) => void
 ) => {
-  const element = document.getElementById(elementId);
+  const element = typeof elementTarget === "string" ? document.getElementById(elementTarget) : elementTarget;
   if (!element) {
-    console.error(`Element with id ${elementId} not found.`);
+    console.error(`Element target not found.`);
     if (onProgress) onProgress("Elemen tidak ditemukan.");
     return;
   }
@@ -440,7 +455,7 @@ export const exportToPDF = async (
       windowWidth: document.documentElement.offsetWidth,
       windowHeight: document.documentElement.offsetHeight,
       onclone: (clonedDoc) => {
-        prepareClonedDoc(clonedDoc, elementId);
+        prepareClonedDoc(clonedDoc, elementTarget);
       }
     });
 

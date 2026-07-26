@@ -146,21 +146,12 @@ export default function PenerimaManfaatTab({
   const totalPM = totalPorsiKecil + totalPorsiBesar;
 
   // Dynamic RAB calculations based on user settings & current day inputs
-  const rabPorsiKecil = activeDayData.sasaran.reduce((acc, curr) => {
-    if (settings.porsiKecilSasaranIds.includes(curr.id)) {
-      return acc + (Number(curr.porsiKecil) || 0) * settings.porsiKecilHarga;
-    }
-    return acc;
-  }, 0);
+  const rabPorsiKecil = totalPorsiKecil * settings.porsiKecilHarga;
+  const rabPorsiBesar = totalPorsiBesar * settings.porsiBesarHarga;
+  const rabAlergiKecil = totalAlergiKecil * settings.porsiKecilHarga;
+  const rabAlergiBesar = totalAlergiBesar * settings.porsiBesarHarga;
 
-  const rabPorsiBesar = activeDayData.sasaran.reduce((acc, curr) => {
-    if (settings.porsiBesarSasaranIds.includes(curr.id)) {
-      return acc + (Number(curr.porsiBesar) || 0) * settings.porsiBesarHarga;
-    }
-    return acc;
-  }, 0);
-
-  const totalRABHarian = rabPorsiKecil + rabPorsiBesar;
+  const totalRABHarian = rabPorsiKecil + rabPorsiBesar + rabAlergiKecil + rabAlergiBesar;
 
   // Format currency for IDR cleanly
   const formatIDR = (num: number) => {
@@ -434,7 +425,7 @@ export default function PenerimaManfaatTab({
             </div>
           </div>
           <p className="text-[9px] text-emerald-100/90 mt-2 truncate">
-            Kecil: {formatIDR(rabPorsiKecil)} | Besar: {formatIDR(rabPorsiBesar)}
+            Kecil: {formatIDR(rabPorsiKecil + rabAlergiKecil)} | Besar: {formatIDR(rabPorsiBesar + rabAlergiBesar)}
           </p>
         </div>
 
@@ -672,7 +663,12 @@ export default function PenerimaManfaatTab({
                 <td className="p-4 text-center font-mono text-emerald-800 text-sm">
                   {formatIDR(rabPorsiBesar)}
                 </td>
-                <td colSpan={2} className="bg-emerald-50/5"></td>
+                <td className="p-4 text-center font-mono text-emerald-800 text-sm bg-amber-50/20">
+                  {formatIDR(rabAlergiKecil)}
+                </td>
+                <td className="p-4 text-center font-mono text-emerald-800 text-sm bg-orange-50/20">
+                  {formatIDR(rabAlergiBesar)}
+                </td>
                 <td className="p-4 text-right font-mono text-emerald-950 text-base pr-6">
                   {formatIDR(totalRABHarian)}
                 </td>

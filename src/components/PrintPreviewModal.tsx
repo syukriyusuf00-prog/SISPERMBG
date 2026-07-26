@@ -11,7 +11,9 @@ import {
   Sliders, 
   Check, 
   Sparkles,
-  Maximize2
+  Maximize2,
+  Edit3,
+  RotateCcw
 } from "lucide-react";
 import { exportToPDF, downloadElementAsImage, sanitizeOklchString } from "../lib/printUtils";
 
@@ -40,6 +42,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
   const [paperSize, setPaperSize] = useState<"A4" | "F4">(defaultPaperSize);
   const [orientation, setOrientation] = useState<"portrait" | "landscape">(defaultOrientation);
   const [autoPrint, setAutoPrint] = useState<boolean>(true);
+  const [isEditable, setIsEditable] = useState<boolean>(true);
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [statusMsg, setStatusMsg] = useState<string | null>(null);
 
@@ -55,18 +58,24 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
     }
   }, [isOpen, defaultScale, defaultPaperSize, defaultOrientation]);
 
-  // Update iframe content whenever dependencies change
+  // Initial document clone when modal opens or target element changes
   useEffect(() => {
     if (!isOpen) return;
 
     const timer = setTimeout(() => {
-      updateIframeContent();
+      initIframeContent();
     }, 150);
 
     return () => clearTimeout(timer);
-  }, [isOpen, elementId, scale, paperSize, orientation]);
+  }, [isOpen, elementId]);
 
-  const updateIframeContent = () => {
+  // Dynamically update paper size, orientation, zoom scale & edit mode without resetting user edits
+  useEffect(() => {
+    if (!isOpen) return;
+    updateIframeStyles();
+  }, [scale, paperSize, orientation, isEditable]);
+
+  const initIframeContent = () => {
     const iframe = iframeRef.current;
     if (!iframe) return;
 
@@ -125,7 +134,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
         <head>
           <meta charset="utf-8">
           <title>${title}</title>
-          <style>
+          <style id="dynamic-preview-styles">
             ${sanitizedCss}
 
             /* Custom Iframe Base & Reset */
@@ -162,6 +171,20 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
               border: 1px solid #cbd5e1;
               zoom: ${scale}%;
               transition: zoom 0.15s ease-in-out;
+              outline: none;
+            }
+
+            /* Live Editable Focus & Hover styles */
+            .paper-sheet[contenteditable="true"] *:hover {
+              outline: 1px dashed #6366f1 !important;
+              cursor: text;
+            }
+
+            .paper-sheet[contenteditable="true"] *:focus {
+              outline: 2px solid #4f46e5 !important;
+              outline-offset: 2px;
+              background-color: rgba(238, 242, 255, 0.6) !important;
+              border-radius: 2px;
             }
 
             @media print {
@@ -183,6 +206,11 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
                 padding: 0 !important;
                 margin: 0 !important;
                 zoom: ${scale}% !important;
+                outline: none !important;
+              }
+              .paper-sheet * {
+                outline: none !important;
+                background-color: transparent !important;
               }
               @page {
                 size: ${paperSize} ${orientation};
@@ -193,7 +221,7 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
         </head>
         <body>
           <div class="preview-wrapper">
-            <div class="paper-sheet">
+            <div id="paper-sheet-content" class="paper-sheet" contenteditable="${isEditable ? "true" : "false"}" suppresscontenteditablewarning="true">
               ${clonedEl.outerHTML}
             </div>
           </div>
@@ -227,9 +255,36 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
     }
   };
 
+  const updateIframeStyles = () => {
+    const iframe = iframeRef.current;
+    if (!iframe) return;
+    const doc = iframe.contentDocument || iframe.contentWindow?.document;
+    if (!doc) return;
+
+    let sheetWidthMm = paperSize === "A4" ? 210 : 215;
+    let sheetHeightMm = paperSize === "A4" ? 297 : 330;
+    if (orientation === "landscape") {
+      const temp = sheetWidthMm;
+      sheetWidthMm = sheetHeightMm;
+      sheetHeightMm = temp;
+    }
+
+    const sheet = doc.getElementById("paper-sheet-content");
+    if (sheet) {
+      sheet.style.width = `${sheetWidthMm}mm`;
+      sheet.style.minHeight = `${sheetHeightMm}mm`;
+      sheet.style.zoom = `${scale}%`;
+      sheet.setAttribute("contenteditable", isEditable ? "true" : "false");
+    }
+  };
+
   const handlePrintDirect = () => {
     setIsProcessing(true);
     setStatusMsg("Mempersiapkan pencetakan...");
+    const iframeDoc = iframeRef.current?.contentDocument;
+    if (iframeDoc?.activeElement instanceof HTMLElement) {
+      iframeDoc.activeElement.blur();
+    }
     setTimeout(() => {
       if (iframeRef.current && iframeRef.current.contentWindow) {
         try {
@@ -248,13 +303,35 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
 
   const handlePDFExport = async () => {
     setIsProcessing(true);
-    await exportToPDF(elementId, filename, scale, (msg) => setStatusMsg(msg));
+    const iframeDoc = iframeRef.current?.contentDocument;
+    const paperSheetEl = iframeDoc?.getElementById("paper-sheet-content") as HTMLElement;
+    if (paperSheetEl) {
+      paperSheetEl.setAttribute("contenteditable", "false");
+      if (iframeDoc?.activeElement instanceof HTMLElement) {
+        iframeDoc.activeElement.blur();
+      }
+      await exportToPDF(paperSheetEl, filename, scale, (msg) => setStatusMsg(msg));
+      if (isEditable) paperSheetEl.setAttribute("contenteditable", "true");
+    } else {
+      await exportToPDF(elementId, filename, scale, (msg) => setStatusMsg(msg));
+    }
     setIsProcessing(false);
   };
 
   const handlePNGExport = async () => {
     setIsProcessing(true);
-    await downloadElementAsImage(elementId, filename, (msg) => setStatusMsg(msg));
+    const iframeDoc = iframeRef.current?.contentDocument;
+    const paperSheetEl = iframeDoc?.getElementById("paper-sheet-content") as HTMLElement;
+    if (paperSheetEl) {
+      paperSheetEl.setAttribute("contenteditable", "false");
+      if (iframeDoc?.activeElement instanceof HTMLElement) {
+        iframeDoc.activeElement.blur();
+      }
+      await downloadElementAsImage(paperSheetEl, filename, (msg) => setStatusMsg(msg));
+      if (isEditable) paperSheetEl.setAttribute("contenteditable", "true");
+    } else {
+      await downloadElementAsImage(elementId, filename, (msg) => setStatusMsg(msg));
+    }
     setIsProcessing(false);
   };
 
@@ -383,6 +460,32 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
             </div>
           </div>
 
+          {/* Live Text Editing Mode Toggle */}
+          <button
+            type="button"
+            onClick={() => setIsEditable((prev) => !prev)}
+            className={`px-2.5 py-1.5 rounded-lg border text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer ${
+              isEditable
+                ? "bg-indigo-50 border-indigo-300 text-indigo-800 shadow-xs"
+                : "bg-white border-slate-200 text-slate-500 hover:bg-slate-100"
+            }`}
+            title="Klik teks apa saja di dalam kertas pratinjau untuk langsung mengubah, menambah, atau menghapus teks/kop/judul"
+          >
+            <Edit3 className={`w-3.5 h-3.5 ${isEditable ? "text-indigo-600" : "text-slate-400"}`} />
+            <span>Edit Teks Kertas: <strong>{isEditable ? "AKTIF" : "NONAKTIF"}</strong></span>
+          </button>
+
+          {/* Reset Content Button */}
+          <button
+            type="button"
+            onClick={initIframeContent}
+            className="px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs font-semibold text-slate-600 bg-white hover:bg-slate-100 transition cursor-pointer flex items-center gap-1.5"
+            title="Kembalikan teks kertas ke susunan asli dari sistem"
+          >
+            <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+            <span>Reset Teks</span>
+          </button>
+
           {/* Auto-Print Toggle */}
           <button
             type="button"
@@ -461,13 +564,14 @@ export const PrintPreviewModal: React.FC<PrintPreviewModalProps> = ({
       </div>
 
       {/* Bottom Footer Tip */}
-      <div className="bg-white/90 backdrop-blur-md rounded-xl p-2.5 px-4 border border-slate-200 text-xs text-slate-600 flex items-center justify-between shrink-0">
+      <div className="bg-white/90 backdrop-blur-md rounded-xl p-2.5 px-4 border border-slate-200 text-xs text-slate-600 flex flex-wrap items-center justify-between gap-2 shrink-0">
         <div className="flex items-center gap-2">
-          <Maximize2 className="w-3.5 h-3.5 text-indigo-600" />
-          <span>Format Kertas: <strong>{paperSize} ({orientation === "portrait" ? "Potret" : "Lansekap"})</strong> — Skala Tampilan: <strong>{scale}%</strong></span>
+          <Maximize2 className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
+          <span>Format: <strong>{paperSize} ({orientation === "portrait" ? "Potret" : "Lansekap"})</strong> — Skala: <strong>{scale}%</strong></span>
         </div>
-        <div className="hidden sm:block text-[11px] text-slate-400">
-          Iframe dirender dengan proteksi kompatibilitas warna & Tailwind CSS
+        <div className="flex items-center gap-2 text-[11px] text-indigo-700 bg-indigo-50 px-2.5 py-1 rounded-lg border border-indigo-100 font-semibold">
+          <Edit3 className="w-3 h-3 text-indigo-600 shrink-0" />
+          <span><strong>Tips:</strong> Klik teks mana saja pada kertas di atas untuk mengubah/menghapus kop, judul, atau isi tabel secara langsung.</span>
         </div>
       </div>
 
