@@ -722,20 +722,47 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshUserProfile = async () => {
     const customUid = localStorage.getItem("custom_logged_in_uid");
-    if (customUid) {
+    const activeUid = customUid || userProfile?.uid || user?.uid;
+
+    if (activeUid) {
+      if (activeUid === "admin_sukriyusuf82" || activeUid === "admin_syukriyusuf82" || activeUid === "syukriyusuf82_simulated_uid") {
+        return;
+      }
+
       try {
-        const userRef = doc(db, "users", customUid);
-        const snap = await getDoc(userRef);
-        if (snap.exists()) {
+        const userRef = doc(db, "users", activeUid);
+        const snap: any = await fetchWithTimeout(getDoc(userRef), 2000, null);
+        let freshData: any = null;
+
+        if (snap && snap.exists()) {
+          freshData = snap.data();
+        }
+
+        // Check local storage cache
+        const offlineKey = `offline_user_${activeUid}`;
+        const rawOffline = localStorage.getItem(offlineKey);
+        if (rawOffline) {
+          try {
+            const parsedOffline = JSON.parse(rawOffline);
+            if (!freshData) {
+              freshData = parsedOffline;
+            } else {
+              freshData = { ...parsedOffline, ...freshData };
+            }
+          } catch (e) {}
+        }
+
+        if (freshData) {
+          localStorage.setItem(offlineKey, JSON.stringify(freshData));
           updateSession({
-            uid: customUid,
-            email: snap.data().email,
-            displayName: snap.data().namaLengkap,
+            uid: activeUid,
+            email: freshData.email,
+            displayName: freshData.namaLengkap,
             emailVerified: true
-          } as any, snap.data());
+          } as any, freshData);
         }
       } catch (e) {
-        console.error(e);
+        console.error("Gagal menyegarkan profil:", e);
       }
       return;
     }
