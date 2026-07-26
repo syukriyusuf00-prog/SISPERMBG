@@ -9,6 +9,7 @@ import {
   doc, 
   getDoc, 
   setDoc,
+  onSnapshot,
   serverTimestamp,
   collection,
   query,
@@ -325,6 +326,48 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (typeof unsub === "function") unsub();
     };
   }, []);
+
+  // Real-time synchronization of user profile status and expiration date from Firestore
+  useEffect(() => {
+    const activeUid = userProfile?.uid || user?.uid || localStorage.getItem("custom_logged_in_uid");
+    if (!activeUid) return;
+
+    // Skip snapshot listener for local simulated admin override
+    if (activeUid === "admin_sukriyusuf82" || activeUid === "admin_syukriyusuf82" || activeUid === "syukriyusuf82_simulated_uid") {
+      return;
+    }
+
+    try {
+      const userRef = doc(db, "users", activeUid);
+      const unsubscribe = onSnapshot(userRef, (snap) => {
+        if (snap.exists()) {
+          const freshData = snap.data();
+          setUserProfile((prev: any) => {
+            if (!prev) return freshData;
+            // Detect updates in statusPersetujuan, berakhirPada, peran, or other fields
+            if (
+              prev.statusPersetujuan !== freshData.statusPersetujuan ||
+              prev.berakhirPada !== freshData.berakhirPada ||
+              prev.peran !== freshData.peran ||
+              prev.namaLengkap !== freshData.namaLengkap ||
+              prev.namaSPPG !== freshData.namaSPPG
+            ) {
+              const updated = { ...prev, ...freshData };
+              localStorage.setItem("sisper_user_profile", JSON.stringify(updated));
+              return updated;
+            }
+            return prev;
+          });
+        }
+      }, (err) => {
+        console.warn("User profile onSnapshot listener notice:", err);
+      });
+
+      return () => unsubscribe();
+    } catch (err) {
+      console.warn("Could not attach user profile onSnapshot:", err);
+    }
+  }, [userProfile?.uid, user?.uid]);
 
   const simulateAdminLogin = () => {
     setLoading(true);

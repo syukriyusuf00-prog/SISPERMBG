@@ -3,8 +3,10 @@ import {
   collection, 
   getDocs, 
   doc, 
+  setDoc,
   updateDoc, 
   deleteDoc, 
+  onSnapshot,
   serverTimestamp 
 } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase.ts";
@@ -41,62 +43,69 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   const [activeTab, setActiveTab] = useState<"manajemen" | "riwayat" | "diagnostik">("manajemen");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
 
-  // Load all users from Firestore
+  // Load all users in real-time from Firestore
   useEffect(() => {
-    const fetchUsers = async () => {
-      setLoading(true);
-      try {
-        const usersCol = collection(db, "users");
-        const snapshot = await getDocs(usersCol);
-        const userList: any[] = [];
+    setLoading(true);
+    const usersCol = collection(db, "users");
+    
+    const unsubscribe = onSnapshot(usersCol, (snapshot) => {
+      const userList: any[] = [];
 
-        for (const docSnap of snapshot.docs) {
-          const data = docSnap.data();
-          // Auto-clean duplicate/legacy admin document (admin_sukriyusuf82 or sukriyusuf82@gmail.com)
-          if (docSnap.id === "admin_sukriyusuf82" || (data.email && data.email.toLowerCase().trim() === "sukriyusuf82@gmail.com")) {
-            try {
-              await deleteDoc(doc(db, "users", docSnap.id));
-            } catch (cleanErr) {
-              console.warn("Gagal menghapus dokumen admin ganda secara otomatis:", cleanErr);
-            }
-            continue; // Skip adding duplicate to list
-          }
-
-          userList.push({ 
-            id: docSnap.id, 
-            uid: data.uid || docSnap.id, 
-            ...data 
-          });
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        // Auto-clean duplicate/legacy admin document (admin_sukriyusuf82 or sukriyusuf82@gmail.com)
+        if (docSnap.id === "admin_sukriyusuf82" || (data.email && data.email.toLowerCase().trim() === "sukriyusuf82@gmail.com")) {
+          deleteDoc(doc(db, "users", docSnap.id)).catch(() => {});
+          return; // Skip adding duplicate to list
         }
-        
-        // Sort users: latest registered/login first
-        userList.sort((a, b) => {
-          const timeA = a.createdAt?.seconds || 0;
-          const timeB = b.createdAt?.seconds || 0;
-          return timeB - timeA;
-        });
-        
-        setUsers(userList);
-      } catch (err) {
-        console.error("Gagal memuat pengguna:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
 
-    fetchUsers();
+        userList.push({ 
+          id: docSnap.id, 
+          uid: data.uid || docSnap.id, 
+          ...data 
+        });
+      });
+      
+      // Sort users: latest registered/login first
+      userList.sort((a, b) => {
+        const timeA = a.createdAt?.seconds || a.updatedAt?.seconds || 0;
+        const timeB = b.createdAt?.seconds || b.updatedAt?.seconds || 0;
+        return timeB - timeA;
+      });
+      
+      setUsers(userList);
+      setLoading(false);
+    }, (err) => {
+      console.error("Gagal memuat listener pengguna:", err);
+      setLoading(false);
+    });
+
+    return () => unsubscribe();
   }, [refreshTrigger]);
 
-  // Handle toggling approval status
-  const handleToggleStatus = async (userId: string, currentStatus: string) => {
-    const newStatus = currentStatus === "aktif" ? "diblokir" : "aktif";
+  // Handle setting explicit approval status (ACC / Menunggu / Blokir)
+  const handleSetStatus = async (userId: string, newStatus: "aktif" | "menunggu" | "diblokir") => {
     const userRef = doc(db, "users", userId);
     try {
-      await updateDoc(userRef, {
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      const userObj = users.find(u => u.uid === userId || u.id === userId);
+
+      const updates: any = {
         statusPersetujuan: newStatus,
         updatedAt: serverTimestamp()
-      });
-      setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, statusPersetujuan: newStatus } : u));
+      };
+
+      // If approving (ACC) and ending date is missing or in past, default to 1 year from now
+      if (newStatus === "aktif" && (!userObj?.berakhirPada || userObj.berakhirPada < todayStr)) {
+        const nextYear = new Date();
+        nextYear.setFullYear(now.getFullYear() + 1);
+        const defaultExp = `${nextYear.getFullYear()}-${String(nextYear.getMonth() + 1).padStart(2, '0')}-${String(nextYear.getDate()).padStart(2, '0')}`;
+        updates.berakhirPada = defaultExp;
+      }
+
+      await setDoc(userRef, updates, { merge: true });
+      setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, ...updates } : u));
     } catch (err) {
       console.error("Gagal memperbarui status:", err);
       alert("Gagal memperbarui status persetujuan. Pastikan Anda memiliki hak akses penuh.");
@@ -112,13 +121,48 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   const handleUpdateExpiration = async (userId: string, dateStr: string) => {
     const userRef = doc(db, "users", userId);
     try {
-      await updateDoc(userRef, {
+      await setDoc(userRef, {
         berakhirPada: dateStr,
         updatedAt: serverTimestamp()
-      });
+      }, { merge: true });
       setUsers(users.map(u => u.uid === userId ? { ...u, berakhirPada: dateStr } : u));
     } catch (err) {
       console.error("Gagal memperbarui tanggal kedaluwarsa:", err);
+    }
+  };
+
+  // Quick preset helpers for expiration date
+  const handleAddDuration = async (userId: string, monthsToAdd: number) => {
+    const userRef = doc(db, "users", userId);
+    const d = new Date();
+    d.setMonth(d.getMonth() + monthsToAdd);
+    const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    try {
+      await setDoc(userRef, {
+        berakhirPada: dateStr,
+        statusPersetujuan: "aktif",
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, berakhirPada: dateStr, statusPersetujuan: "aktif" } : u));
+    } catch (err) {
+      console.error("Gagal menambah durasi:", err);
+    }
+  };
+
+  const handleRevokeAccessNow = async (userId: string) => {
+    const userRef = doc(db, "users", userId);
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    const pastStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
+    try {
+      await setDoc(userRef, {
+        berakhirPada: pastStr,
+        statusPersetujuan: "diblokir",
+        updatedAt: serverTimestamp()
+      }, { merge: true });
+      setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, berakhirPada: pastStr, statusPersetujuan: "diblokir" } : u));
+    } catch (err) {
+      console.error("Gagal memutuskan akses:", err);
     }
   };
 
@@ -443,37 +487,109 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
                         {/* Status Persetujuan */}
                         <td className="p-4 text-center">
-                          <button
-                            onClick={() => handleToggleStatus(item.uid || item.id, item.statusPersetujuan)}
-                            title="Klik untuk mengubah status persetujuan"
-                            className={`inline-flex items-center gap-1.5 px-3 py-1 text-[11px] font-bold rounded-full cursor-pointer transition shadow-2xs ${
-                              item.statusPersetujuan === "aktif"
-                                ? "bg-emerald-100/90 text-emerald-800 hover:bg-emerald-200 border border-emerald-300"
-                                : "bg-rose-100/90 text-rose-800 hover:bg-rose-200 border border-rose-300"
-                            }`}
-                          >
+                          <div className="flex flex-col items-center gap-1.5">
                             {item.statusPersetujuan === "aktif" ? (
-                              <>
-                                <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
-                                Disetujui
-                              </>
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[10.5px] font-extrabold rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                  <CheckCircle className="w-3 h-3 text-emerald-600" />
+                                  Disetujui (ACC)
+                                </span>
+                                <button
+                                  onClick={() => handleSetStatus(item.uid || item.id, "diblokir")}
+                                  className="text-[10px] text-rose-600 hover:text-rose-800 font-bold underline cursor-pointer"
+                                  title="Putuskan akses pengguna ini"
+                                >
+                                  Putuskan Akses
+                                </button>
+                              </div>
+                            ) : item.statusPersetujuan === "menunggu" || item.statusPersetujuan === "pending" ? (
+                              <div className="flex flex-col items-center gap-1">
+                                <button
+                                  onClick={() => handleSetStatus(item.uid || item.id, "aktif")}
+                                  className="inline-flex items-center gap-1 px-3 py-1 text-xs font-black rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-sm cursor-pointer animate-pulse"
+                                  title="Klik untuk menyetujui (ACC) dan memberi akses"
+                                >
+                                  <CheckCircle className="w-3.5 h-3.5 text-white" />
+                                  ACC / Setujui
+                                </button>
+                                <button
+                                  onClick={() => handleSetStatus(item.uid || item.id, "diblokir")}
+                                  className="text-[10px] text-rose-600 hover:text-rose-800 font-bold cursor-pointer"
+                                >
+                                  Tolak & Blokir
+                                </button>
+                              </div>
                             ) : (
-                              <>
-                                <XCircle className="w-3.5 h-3.5 text-rose-600" />
-                                Menunggu / Diblokir
-                              </>
+                              <div className="flex flex-col items-center gap-1">
+                                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 text-[10.5px] font-extrabold rounded-full bg-rose-100 text-rose-800 border border-rose-300">
+                                  <XCircle className="w-3 h-3 text-rose-600" />
+                                  Diblokir
+                                </span>
+                                <button
+                                  onClick={() => handleSetStatus(item.uid || item.id, "aktif")}
+                                  className="px-2.5 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] rounded transition cursor-pointer shadow-xs"
+                                  title="Aktifkan kembali akses akun"
+                                >
+                                  Buka Akses (ACC)
+                                </button>
+                              </div>
                             )}
-                          </button>
+                          </div>
                         </td>
 
                         {/* Berakhir Pada */}
                         <td className="p-4 text-center">
-                          <input
-                            type="date"
-                            value={item.berakhirPada || ""}
-                            onChange={(e) => handleUpdateExpiration(item.uid, e.target.value)}
-                            className="p-1 border border-slate-200 rounded text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono w-[130px]"
-                          />
+                          <div className="flex flex-col items-center gap-1">
+                            <input
+                              type="date"
+                              value={item.berakhirPada || ""}
+                              onChange={(e) => handleUpdateExpiration(item.uid || item.id, e.target.value)}
+                              className="p-1 border border-slate-200 rounded text-xs bg-slate-50 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono w-[130px] text-center"
+                            />
+                            
+                            {/* Status Expiration Check */}
+                            {(() => {
+                              const now = new Date();
+                              const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                              const isExpired = item.berakhirPada ? todayStr > item.berakhirPada : false;
+                              if (isExpired && item.statusPersetujuan === "aktif") {
+                                return <span className="text-[9.5px] font-bold text-rose-600 bg-rose-50 px-1.5 py-0.5 rounded border border-rose-200">⚠️ Kedaluwarsa</span>;
+                              }
+                              return null;
+                            })()}
+
+                            {/* Quick Presets */}
+                            <div className="flex items-center gap-1 text-[9px] font-bold text-slate-500 mt-0.5">
+                              <button
+                                onClick={() => handleAddDuration(item.uid || item.id, 1)}
+                                className="px-1.5 py-0.5 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded transition cursor-pointer"
+                                title="+1 Bulan masa aktif"
+                              >
+                                +1Bln
+                              </button>
+                              <button
+                                onClick={() => handleAddDuration(item.uid || item.id, 6)}
+                                className="px-1.5 py-0.5 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded transition cursor-pointer"
+                                title="+6 Bulan masa aktif"
+                              >
+                                +6Bln
+                              </button>
+                              <button
+                                onClick={() => handleAddDuration(item.uid || item.id, 12)}
+                                className="px-1.5 py-0.5 bg-slate-100 hover:bg-indigo-100 hover:text-indigo-700 rounded transition cursor-pointer"
+                                title="+1 Tahun masa aktif"
+                              >
+                                +1Thn
+                              </button>
+                              <button
+                                onClick={() => handleRevokeAccessNow(item.uid || item.id)}
+                                className="px-1.5 py-0.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded transition cursor-pointer"
+                                title="Set tanggal kedaluwarsa ke kemarin (Putuskan Akses Langsung)"
+                              >
+                                Putuskan
+                              </button>
+                            </div>
+                          </div>
                         </td>
 
                         {/* Login Terakhir */}
