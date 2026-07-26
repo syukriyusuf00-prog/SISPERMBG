@@ -1997,7 +1997,7 @@ export default function App() {
               );
             })}
 
-            {userProfile?.peran === "ADMIN" && (
+            {isAdminUser && (
               <button
                 id="tab-nav-admin"
                 onClick={() => setIsAdminPanelOpen(!isAdminPanelOpen)}
