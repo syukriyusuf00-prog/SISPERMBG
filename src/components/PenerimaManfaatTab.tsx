@@ -144,7 +144,7 @@ export default function PenerimaManfaatTab({
   const totalAlergiKecil = activeDayData.sasaran.reduce((acc, curr) => acc + (Number(curr.alergiKecil) || 0), 0);
   const totalAlergiBesar = activeDayData.sasaran.reduce((acc, curr) => acc + (Number(curr.alergiBesar) || 0), 0);
   const totalAlergi = totalAlergiKecil + totalAlergiBesar;
-  const totalPM = totalPorsiKecil + totalPorsiBesar;
+  const totalPM = totalPorsiKecil + totalPorsiBesar + totalAlergiKecil + totalAlergiBesar;
 
   // Dynamic RAB calculations based on user settings & current day inputs
   const rabPorsiKecil = totalPorsiKecil * settings.porsiKecilHarga;
@@ -231,7 +231,7 @@ export default function PenerimaManfaatTab({
       "Porsi Besar": s.porsiBesar,
       "PM Alergi Porsi Kecil": s.alergiKecil,
       "PM Alergi Porsi Besar": s.alergiBesar,
-      "Total PM (Kecil + Besar)": Number(s.porsiKecil) + Number(s.porsiBesar)
+      "Total Sasaran": (Number(s.porsiKecil) || 0) + (Number(s.porsiBesar) || 0) + (Number(s.alergiKecil) || 0) + (Number(s.alergiBesar) || 0)
     }));
 
     const ws = XLSX.utils.json_to_sheet(dataToExport);
@@ -561,7 +561,7 @@ export default function PenerimaManfaatTab({
             </thead>
             <tbody className="divide-y divide-slate-100 text-sm text-slate-700">
               {activeDayData.sasaran.map((s, idx) => {
-                const rowTotal = (Number(s.porsiKecil) || 0) + (Number(s.porsiBesar) || 0);
+                const rowTotal = (Number(s.porsiKecil) || 0) + (Number(s.porsiBesar) || 0) + (Number(s.alergiKecil) || 0) + (Number(s.alergiBesar) || 0);
                 return (
                   <tr key={s.id} className="hover:bg-slate-50/50 transition-colors">
                     <td className="p-3 text-center font-mono text-xs text-slate-400">{idx + 1}</td>
