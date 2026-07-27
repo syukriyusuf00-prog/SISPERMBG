@@ -243,19 +243,35 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       // 1. Instant local state update (0ms UI latency)
       setUsers(prev => prev.map(u => (u.uid === userId || u.id === userId) ? { ...u, ...updates } : u));
 
-      // 2. Instant offline storage persistence
-      const offlineKey = `offline_user_${userId}`;
-      const savedStr = localStorage.getItem(offlineKey);
-      if (savedStr) {
+      // 2. Instant offline storage persistence across all key variations
+      const userEmail = (userObj?.email || "").toLowerCase().trim();
+      const emailSlug = userEmail.replace(/[@.]/g, '_');
+      const customUid = `custom_user_${emailSlug}`;
+
+      const keysToUpdate = Array.from(new Set([
+        `offline_user_${userId}`,
+        `offline_user_${customUid}`,
+        userObj?.uid ? `offline_user_${userObj.uid}` : ''
+      ].filter(Boolean)));
+
+      keysToUpdate.forEach((k) => {
+        const savedStr = localStorage.getItem(k);
+        if (savedStr) {
+          try {
+            const parsed = JSON.parse(savedStr);
+            localStorage.setItem(k, JSON.stringify({ ...parsed, ...updates }));
+          } catch (e) {}
+        }
+      });
+
+      // 3. Fast background cloud sync to Firestore
+      const docIdsToUpdate = Array.from(new Set([userId, customUid, userObj?.uid].filter(Boolean)));
+      for (const docId of docIdsToUpdate) {
         try {
-          const parsed = JSON.parse(savedStr);
-          localStorage.setItem(offlineKey, JSON.stringify({ ...parsed, ...updates }));
+          const userRef = doc(db, "users", docId);
+          await fetchWithTimeout(setDoc(userRef, updates, { merge: true }), 1500, null);
         } catch (e) {}
       }
-
-      // 3. Fast background cloud sync with 1500ms timeout
-      const userRef = doc(db, "users", userId);
-      await fetchWithTimeout(setDoc(userRef, updates, { merge: true }), 1500, null);
     } catch (err) {
       console.warn("Status persetujuan diperbarui secara lokal (cloud sync tertunda):", err);
     }
@@ -268,23 +284,40 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
   // Handle update expiration date
   const handleUpdateExpiration = async (userId: string, dateStr: string) => {
+    const userObj = users.find(u => u.uid === userId || u.id === userId);
     setUsers(prev => prev.map(u => (u.uid === userId || u.id === userId) ? { ...u, berakhirPada: dateStr } : u));
-    const offlineKey = `offline_user_${userId}`;
-    const savedStr = localStorage.getItem(offlineKey);
-    if (savedStr) {
+    
+    const userEmail = (userObj?.email || "").toLowerCase().trim();
+    const emailSlug = userEmail.replace(/[@.]/g, '_');
+    const customUid = `custom_user_${emailSlug}`;
+
+    const keysToUpdate = Array.from(new Set([
+      `offline_user_${userId}`,
+      `offline_user_${customUid}`,
+      userObj?.uid ? `offline_user_${userObj.uid}` : ''
+    ].filter(Boolean)));
+
+    keysToUpdate.forEach((k) => {
+      const savedStr = localStorage.getItem(k);
+      if (savedStr) {
+        try {
+          const parsed = JSON.parse(savedStr);
+          localStorage.setItem(k, JSON.stringify({ ...parsed, berakhirPada: dateStr }));
+        } catch (e) {}
+      }
+    });
+
+    const docIdsToUpdate = Array.from(new Set([userId, customUid, userObj?.uid].filter(Boolean)));
+    for (const docId of docIdsToUpdate) {
       try {
-        const parsed = JSON.parse(savedStr);
-        localStorage.setItem(offlineKey, JSON.stringify({ ...parsed, berakhirPada: dateStr }));
-      } catch (e) {}
-    }
-    const userRef = doc(db, "users", userId);
-    try {
-      await fetchWithTimeout(setDoc(userRef, {
-        berakhirPada: dateStr,
-        updatedAt: new Date().toISOString()
-      }, { merge: true }), 1500, null);
-    } catch (err) {
-      console.warn("Tanggal kedaluwarsa diperbarui lokal:", err);
+        const userRef = doc(db, "users", docId);
+        await fetchWithTimeout(setDoc(userRef, {
+          berakhirPada: dateStr,
+          updatedAt: new Date().toISOString()
+        }, { merge: true }), 1500, null);
+      } catch (err) {
+        console.warn("Tanggal kedaluwarsa diperbarui lokal:", err);
+      }
     }
   };
 
@@ -298,19 +331,45 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   };
 
   const handleRevokeAccessNow = async (userId: string) => {
-    const userRef = doc(db, "users", userId);
+    const userObj = users.find(u => u.uid === userId || u.id === userId);
     const yesterday = new Date();
     yesterday.setDate(yesterday.getDate() - 1);
     const pastStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, '0')}-${String(yesterday.getDate()).padStart(2, '0')}`;
-    try {
-      await setDoc(userRef, {
-        berakhirPada: pastStr,
-        statusPersetujuan: "diblokir",
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, berakhirPada: pastStr, statusPersetujuan: "diblokir" } : u));
-    } catch (err) {
-      console.error("Gagal memutuskan akses:", err);
+    
+    setUsers(prev => prev.map(u => (u.uid === userId || u.id === userId) ? { ...u, berakhirPada: pastStr, statusPersetujuan: "diblokir" } : u));
+
+    const userEmail = (userObj?.email || "").toLowerCase().trim();
+    const emailSlug = userEmail.replace(/[@.]/g, '_');
+    const customUid = `custom_user_${emailSlug}`;
+
+    const keysToUpdate = Array.from(new Set([
+      `offline_user_${userId}`,
+      `offline_user_${customUid}`,
+      userObj?.uid ? `offline_user_${userObj.uid}` : ''
+    ].filter(Boolean)));
+
+    keysToUpdate.forEach((k) => {
+      const savedStr = localStorage.getItem(k);
+      if (savedStr) {
+        try {
+          const parsed = JSON.parse(savedStr);
+          localStorage.setItem(k, JSON.stringify({ ...parsed, berakhirPada: pastStr, statusPersetujuan: "diblokir" }));
+        } catch (e) {}
+      }
+    });
+
+    const docIdsToUpdate = Array.from(new Set([userId, customUid, userObj?.uid].filter(Boolean)));
+    for (const docId of docIdsToUpdate) {
+      try {
+        const userRef = doc(db, "users", docId);
+        await setDoc(userRef, {
+          berakhirPada: pastStr,
+          statusPersetujuan: "diblokir",
+          updatedAt: serverTimestamp()
+        }, { merge: true });
+      } catch (err) {
+        console.error("Gagal memutuskan akses:", err);
+      }
     }
   };
 
