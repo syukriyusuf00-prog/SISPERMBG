@@ -1291,7 +1291,7 @@ export default function App() {
       });
 
       alert(
-        `Registrasi Berhasil!\n\nData untuk ketiga peran (Pengawas Gizi, Akuntan, dan Chef/Juru Masak) pada instansi "${regInstansi}" berhasil didaftarkan dan langsung AKTIF.\n\nSilakan klik OK lalu klik Masuk Sekarang untuk masuk langsung ke dasbor.`
+        `Registrasi Berhasil!\n\nData untuk ketiga peran (Pengawas Gizi, Akuntan, dan Chef/Juru Masak) pada instansi "${regInstansi}" berhasil didaftarkan.\n\nAkun Anda saat ini menunggu verifikasi & persetujuan (ACC) dari Administrator. Setelah di-ACC oleh admin, Anda dapat masuk menggunakan email terdaftar dan langsung mengakses dasbor aplikasi.`
       );
       
       // Auto-prefill the login tab with the Pengawas Gizi email

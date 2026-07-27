@@ -497,6 +497,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+const removeDeletedTenantEmail = (email: string) => {
+  if (!email) return;
+  try {
+    const raw = localStorage.getItem("deleted_tenant_emails");
+    if (raw) {
+      const arr: string[] = JSON.parse(raw);
+      const filtered = arr.filter((e) => e !== email.toLowerCase().trim());
+      localStorage.setItem("deleted_tenant_emails", JSON.stringify(filtered));
+    }
+  } catch (e) {}
+};
+
   const registerThreeRoles = async (data: {
     namaSPPG: string;
     sandi: string;
@@ -504,7 +516,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }) => {
     try {
       const promises = data.roles.map(async (r) => {
-        const customUid = `custom_user_${r.email.toLowerCase().replace(/[@.]/g, "_")}`;
+        const lowerEmail = r.email.toLowerCase().trim();
+        removeDeletedTenantEmail(lowerEmail);
+        const customUid = `custom_user_${lowerEmail.replace(/[@.]/g, "_")}`;
         const userRef = doc(db, "users", customUid);
         
         const profileData = {
@@ -516,11 +530,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           noHp: r.noHp,
           sandi: data.sandi,
           peran: "USER" as const,
-          statusPersetujuan: "aktif" as const,
-          berakhirPada: "2030-12-31",
+          statusPersetujuan: "menunggu" as const,
+          berakhirPada: "2027-12-31",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
-          loginTerakhir: serverTimestamp()
+          loginTerakhir: null
         };
 
         // Always save locally immediately for instant responsiveness
@@ -580,6 +594,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
 
       // 2. Remote doc does not exist (meaning never registered or deleted by Admin) -> Purge stale local cache
+      removeDeletedTenantEmail(lowerEmail);
       localStorage.removeItem(`offline_user_${customUid}`);
       localStorage.removeItem(`offline_user_custom_user_${lowerEmail.replace(/[@.]/g, "_")}`);
 
@@ -668,12 +683,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       let data: any = null;
 
-      // 1. Check local cache first for instant login
-      const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
-      if (offlineSavedUser) {
-        try {
-          data = JSON.parse(offlineSavedUser);
-        } catch (e) {}
+      // 1. Check local cache first for instant login unless email is in deleted_tenant_emails
+      let isDeletedLocally = false;
+      try {
+        const raw = localStorage.getItem("deleted_tenant_emails");
+        if (raw) {
+          const deletedList: string[] = JSON.parse(raw);
+          if (deletedList.includes(lowerEmail)) {
+            isDeletedLocally = true;
+          }
+        }
+      } catch (e) {}
+
+      if (isDeletedLocally) {
+        localStorage.removeItem(`offline_user_${customUid}`);
+        localStorage.removeItem(`offline_user_custom_user_${lowerEmail.replace(/[@.]/g, "_")}`);
+        data = null;
+      } else {
+        const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
+        if (offlineSavedUser) {
+          try {
+            data = JSON.parse(offlineSavedUser);
+          } catch (e) {}
+        }
       }
 
       // 2. Fast remote check (500ms timeout) to verify document status or deletion
@@ -706,6 +738,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // 4. Status validation
       if (data.statusPersetujuan === "diblokir") {
         throw new Error("Akses akun Anda telah diputuskan/diblokir oleh Administrator.");
+      }
+
+      if (data.statusPersetujuan === "menunggu" || data.statusPersetujuan === "pending") {
+        throw new Error(`Akun Anda dengan email "${data.email}" masih menunggu verifikasi & persetujuan (ACC) dari Administrator. Silakan hubungi admin utama untuk aktivasi akun Anda.`);
+      }
+
+      if (data.statusPersetujuan !== "aktif") {
+        throw new Error(`Akun Anda belum disetujui/aktif. Silakan hubungi administrator utama untuk persetujuan akun Anda.`);
       }
 
       // 5. Expiration date validation if active

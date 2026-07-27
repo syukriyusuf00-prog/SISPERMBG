@@ -44,9 +44,47 @@ const fetchWithTimeout = <T,>(promise: Promise<T>, timeoutMs: number, defaultVal
   ]);
 };
 
+const DEFAULT_DELETED_EMAILS = [
+  "sofstory96@gmail.com",
+  "desylarasati33@gmail.com",
+  "saharhesa781@gmail.com",
+  "raniramadani696@gmail.com",
+  "erickhernando1@gmail.com",
+  "imranjho373@gmail.com",
+  "widyaainunpratiwi@gmail.com"
+];
+
+// Helper to manage deleted tenant emails persistence
+export const getDeletedTenantEmails = (): Set<string> => {
+  try {
+    const raw = localStorage.getItem("deleted_tenant_emails");
+    if (raw) {
+      const arr = JSON.parse(raw);
+      const combined = new Set([...DEFAULT_DELETED_EMAILS, ...arr]);
+      return combined;
+    }
+  } catch (e) {}
+  return new Set(DEFAULT_DELETED_EMAILS);
+};
+
+export const addDeletedTenantEmail = (email: string) => {
+  if (!email) return;
+  const set = getDeletedTenantEmails();
+  set.add(email.toLowerCase().trim());
+  localStorage.setItem("deleted_tenant_emails", JSON.stringify(Array.from(set)));
+};
+
+export const removeDeletedTenantEmail = (email: string) => {
+  if (!email) return;
+  const set = getDeletedTenantEmails();
+  set.delete(email.toLowerCase().trim());
+  localStorage.setItem("deleted_tenant_emails", JSON.stringify(Array.from(set)));
+};
+
 // Scan localStorage for any offline registered user profiles
 const getOfflineUsers = () => {
   const list: any[] = [];
+  const deletedEmails = getDeletedTenantEmails();
   try {
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -54,7 +92,11 @@ const getOfflineUsers = () => {
         const val = localStorage.getItem(key);
         if (val) {
           try {
-            list.push(JSON.parse(val));
+            const parsed = JSON.parse(val);
+            const userEmail = (parsed.email || "").toLowerCase().trim();
+            if (!deletedEmails.has(userEmail)) {
+              list.push(parsed);
+            }
           } catch (e) {}
         }
       }
@@ -92,6 +134,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     const mergeAndSetUsers = (remoteDocs: any[], isFromFirestore = false) => {
       const map = new Map<string, any>();
       map.set("admin_syukriyusuf82", mainAdminDoc);
+      const deletedEmails = getDeletedTenantEmails();
 
       if (isFromFirestore) {
         // Authoritative list from Firestore
@@ -132,11 +175,13 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         }
 
         remoteDocs.forEach((u) => {
+          const userEmail = (u.email || "").toLowerCase().trim();
           if (
             u.uid &&
             u.uid !== "admin_sukriyusuf82" &&
             u.uid !== "admin_syukriyusuf82" &&
-            !isMainAdminEmail(u.email)
+            !isMainAdminEmail(u.email) &&
+            !deletedEmails.has(userEmail)
           ) {
             map.set(u.uid, u);
           }
@@ -145,11 +190,13 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         // Fallback or initial offline load
         const offlineList = getOfflineUsers();
         offlineList.forEach((u) => {
+          const userEmail = (u.email || "").toLowerCase().trim();
           if (
             u.uid &&
             u.uid !== "admin_sukriyusuf82" &&
             u.uid !== "admin_syukriyusuf82" &&
-            !isMainAdminEmail(u.email)
+            !isMainAdminEmail(u.email) &&
+            !deletedEmails.has(userEmail)
           ) {
             map.set(u.uid, u);
           }
@@ -300,7 +347,8 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       const customUid = `custom_user_${emailSlug}`;
       const idsToDelete = Array.from(new Set([userId, customUid].filter(Boolean)));
 
-      // 1. Delete all doc IDs from Firestore
+      // 1. Mark email as deleted & delete all doc IDs from Firestore
+      addDeletedTenantEmail(lowerEmail);
       for (const id of idsToDelete) {
         try {
           await deleteDoc(doc(db, "users", id));
@@ -363,6 +411,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
       for (const u of usersWithUserRole) {
         const lowerEmail = (u.email || "").toLowerCase().trim();
+        addDeletedTenantEmail(lowerEmail);
         const emailSlug = lowerEmail.replace(/[@.]/g, "_");
         const customUid = `custom_user_${emailSlug}`;
         const idsToDelete = Array.from(new Set([u.uid, u.id, customUid].filter(Boolean)));
@@ -403,6 +452,8 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         localStorage.removeItem("sisper_user_profile");
       }
 
+      setUsers(prev => prev.filter(u => u.uid === "admin_syukriyusuf82" || isMainAdminEmail(u.email)));
+      setLoading(false);
       alert(`Pembersihan & Reset Data Berhasil!\n\nSeluruh data pendaftar (${usersWithUserRole.length} akun) telah terhapus permanen dari server.`);
       setRefreshTrigger(prev => prev + 1);
     }
@@ -419,19 +470,18 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     );
   });
 
-  // Calculate metrics (fallback to placeholder values if empty to match image scale)
-  const totalUsersCount = users.length > 0 ? users.length : 416;
-  const activeUsersCount = users.length > 0 ? users.filter(u => u.statusPersetujuan === "aktif").length : 166;
+  // Calculate metrics based on actual non-admin tenants
+  const tenantUsers = users.filter(u => u.uid !== "admin_syukriyusuf82" && u.uid !== "admin_sukriyusuf82" && !isMainAdminEmail(u.email));
+  const totalUsersCount = tenantUsers.length;
+  const activeUsersCount = tenantUsers.filter(u => u.statusPersetujuan === "aktif").length;
   
   // Calculate users logged in last 24h
   const oneDayAgo = Date.now() - 24 * 60 * 60 * 1000;
-  const login24hCount = users.length > 0 
-    ? users.filter(u => {
-        if (!u.loginTerakhir) return false;
-        const loginTime = u.loginTerakhir?.seconds ? u.loginTerakhir.seconds * 1000 : new Date(u.loginTerakhir).getTime();
-        return loginTime > oneDayAgo;
-      }).length 
-    : 11;
+  const login24hCount = tenantUsers.filter(u => {
+    if (!u.loginTerakhir) return false;
+    const loginTime = u.loginTerakhir?.seconds ? u.loginTerakhir.seconds * 1000 : new Date(u.loginTerakhir).getTime();
+    return loginTime > oneDayAgo;
+  }).length;
 
   // Format date display
   const formatTimestamp = (ts: any) => {
