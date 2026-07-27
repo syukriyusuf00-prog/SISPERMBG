@@ -78,7 +78,7 @@ import {
 import * as XLSX from "xlsx";
 import { useAuth, isMainAdminEmail } from "./context/AuthContext.tsx";
 import { db } from "./lib/firebase.ts";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 
 export default function App() {
   // Load initial state from LocalStorage or use default initial values
@@ -220,6 +220,8 @@ export default function App() {
     setAuthError,
     simulateAdminLogin
   } = useAuth();
+
+  const isAdminUser = user ? (isMainAdminEmail(user.email) || userProfile?.peran === "ADMIN" || user.uid === "admin_syukriyusuf82" || user.uid === "admin_sukriyusuf82") : false;
 
   // Authentication Tab & Form States
   const [authTab, setAuthTab] = useState<"masuk" | "daftar">("masuk");
@@ -367,8 +369,26 @@ export default function App() {
           if (cloudTkpi) {
             setTkpiList(cloudTkpi);
           } else {
-            setTkpiList(INITIAL_TKPI_DATABASE);
-            await saveStateToCloud("tkpi", INITIAL_TKPI_DATABASE);
+            let defaultTkpi: TKPIItem[] = [];
+            try {
+              const globalSnap = await getDoc(doc(db, "global_settings", "tkpi"));
+              if (globalSnap && globalSnap.exists()) {
+                const raw = globalSnap.data().data;
+                if (raw) defaultTkpi = JSON.parse(raw);
+              }
+            } catch (e) {}
+
+            if (!defaultTkpi || defaultTkpi.length === 0) {
+              const globalLocalStr = localStorage.getItem("sisper_global_admin_tkpi");
+              if (globalLocalStr) {
+                try {
+                  defaultTkpi = JSON.parse(globalLocalStr);
+                } catch (e) {}
+              }
+            }
+
+            setTkpiList(defaultTkpi || []);
+            await saveStateToCloud("tkpi", defaultTkpi || []);
           }
 
           if (cloudCustomLogo) {
@@ -572,11 +592,24 @@ export default function App() {
 
   useEffect(() => {
     localStorage.setItem("sisper_tkpi_list", JSON.stringify(tkpiList));
+    if (isAdminUser) {
+      localStorage.setItem("sisper_global_admin_tkpi", JSON.stringify(tkpiList));
+    }
     if (isCloudActive && !isCloudLoading) {
-      const timer = setTimeout(() => saveStateToCloud("tkpi", tkpiList), 1500);
+      const timer = setTimeout(() => {
+        saveStateToCloud("tkpi", tkpiList);
+        if (isAdminUser) {
+          try {
+            setDoc(doc(db, "global_settings", "tkpi"), {
+              data: JSON.stringify(tkpiList),
+              updatedAt: new Date().toISOString()
+            }, { merge: true });
+          } catch (e) {}
+        }
+      }, 1500);
       return () => clearTimeout(timer);
     }
-  }, [tkpiList, isCloudActive, isCloudLoading]);
+  }, [tkpiList, isCloudActive, isCloudLoading, isAdminUser]);
 
   useEffect(() => {
     localStorage.setItem("kop_line1", kopLine1);
@@ -1138,10 +1171,17 @@ export default function App() {
   const restoreDefaultTkpi = () => {
     if (
       confirm(
-        "Apakah Anda yakin ingin mengembalikan database TKPI ke data standar awal sistem (TKPI 2020)?"
+        "Apakah Anda yakin ingin menyegarkan database TKPI sesuai dengan data acuan yang dikelola oleh Administrator?"
       )
     ) {
-      setTkpiList(INITIAL_TKPI_DATABASE);
+      let defaultTkpi: TKPIItem[] = [];
+      const globalLocalStr = localStorage.getItem("sisper_global_admin_tkpi");
+      if (globalLocalStr) {
+        try {
+          defaultTkpi = JSON.parse(globalLocalStr);
+        } catch (e) {}
+      }
+      setTkpiList(defaultTkpi || []);
       setSelectedCategoryFilter("all");
     }
   };
@@ -1303,8 +1343,6 @@ export default function App() {
       setIsRegistering(false);
     }
   };
-
-  const isAdminUser = user ? (isMainAdminEmail(user.email) || userProfile?.peran === "ADMIN") : false;
 
   // If user is not logged in, show beautiful GiziSync / SISPERMBG Login screen
   if (!user) {

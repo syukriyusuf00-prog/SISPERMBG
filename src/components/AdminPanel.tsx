@@ -137,44 +137,9 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       const deletedEmails = getDeletedTenantEmails();
 
       if (isFromFirestore) {
-        // Authoritative list from Firestore
-        const remoteIds = new Set(
-          remoteDocs.flatMap((d) => [
-            d.uid, 
-            d.id, 
-            d.email ? `custom_user_${d.email.toLowerCase().trim().replace(/[@.]/g, '_')}` : ''
-          ]).filter(Boolean)
-        );
-
-        // Purge offline_user_ keys from localStorage that no longer exist in Firestore
-        try {
-          const keysToRemove: string[] = [];
-          for (let i = 0; i < localStorage.length; i++) {
-            const key = localStorage.key(i);
-            if (key && key.startsWith("offline_user_")) {
-              const val = localStorage.getItem(key);
-              if (val) {
-                try {
-                  const parsed = JSON.parse(val);
-                  const isMainAdmin =
-                    parsed.uid === "admin_syukriyusuf82" ||
-                    parsed.uid === "admin_sukriyusuf82" ||
-                    isMainAdminEmail(parsed.email);
-                  const parsedEmailSlug = (parsed.email || "").toLowerCase().trim().replace(/[@.]/g, '_');
-                  const expectedUid = `custom_user_${parsedEmailSlug}`;
-                  if (!isMainAdmin && parsed.uid && !remoteIds.has(parsed.uid) && !remoteIds.has(expectedUid)) {
-                    keysToRemove.push(key);
-                  }
-                } catch (e) {}
-              }
-            }
-          }
-          keysToRemove.forEach((k) => localStorage.removeItem(k));
-        } catch (e) {
-          console.warn("Notice cleaning stale localStorage keys:", e);
-        }
-
-        remoteDocs.forEach((u) => {
+        // First merge all offline users so new registrations show immediately
+        const offlineList = getOfflineUsers();
+        offlineList.forEach((u) => {
           const userEmail = (u.email || "").toLowerCase().trim();
           if (
             u.uid &&
@@ -184,6 +149,21 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
             !deletedEmails.has(userEmail)
           ) {
             map.set(u.uid, u);
+          }
+        });
+
+        // Overlay Firestore remote docs (remote status takes precedence)
+        remoteDocs.forEach((u) => {
+          const userEmail = (u.email || "").toLowerCase().trim();
+          if (
+            u.uid &&
+            u.uid !== "admin_sukriyusuf82" &&
+            u.uid !== "admin_syukriyusuf82" &&
+            !isMainAdminEmail(u.email) &&
+            !deletedEmails.has(userEmail)
+          ) {
+            const existing = map.get(u.uid) || {};
+            map.set(u.uid, { ...existing, ...u });
           }
         });
       } else {
