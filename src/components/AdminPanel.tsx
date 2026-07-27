@@ -11,7 +11,6 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase.ts";
 import { isMainAdminEmail } from "../context/AuthContext.tsx";
-import { analyzeRegistrantsWithAI } from "../lib/aiVerification.ts";
 import { 
   Users, 
   CheckCircle, 
@@ -31,8 +30,7 @@ import {
   Mail,
   User,
   Briefcase,
-  Building,
-  Sparkles
+  Building
 } from "lucide-react";
 
 interface AdminPanelProps {
@@ -73,8 +71,6 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"manajemen" | "riwayat" | "diagnostik">("manajemen");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const [aiRunning, setAiRunning] = useState(false);
-  const [aiStatusMsg, setAiStatusMsg] = useState("");
 
   // Load all users combining instant local cache + real-time Firestore
   useEffect(() => {
@@ -99,7 +95,13 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
       if (isFromFirestore) {
         // Authoritative list from Firestore
-        const remoteIds = new Set(remoteDocs.map((d) => d.uid));
+        const remoteIds = new Set(
+          remoteDocs.flatMap((d) => [
+            d.uid, 
+            d.id, 
+            d.email ? `custom_user_${d.email.toLowerCase().trim().replace(/[@.]/g, '_')}` : ''
+          ]).filter(Boolean)
+        );
 
         // Purge offline_user_ keys from localStorage that no longer exist in Firestore
         try {
@@ -115,7 +117,9 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
                     parsed.uid === "admin_syukriyusuf82" ||
                     parsed.uid === "admin_sukriyusuf82" ||
                     isMainAdminEmail(parsed.email);
-                  if (!isMainAdmin && parsed.uid && !remoteIds.has(parsed.uid)) {
+                  const parsedEmailSlug = (parsed.email || "").toLowerCase().trim().replace(/[@.]/g, '_');
+                  const expectedUid = `custom_user_${parsedEmailSlug}`;
+                  if (!isMainAdmin && parsed.uid && !remoteIds.has(parsed.uid) && !remoteIds.has(expectedUid)) {
                     keysToRemove.push(key);
                   }
                 } catch (e) {}
@@ -230,39 +234,6 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     }
   };
 
-  // Run AI Gemini Auto-ACC Verification
-  const handleRunAiVerification = async () => {
-    setAiRunning(true);
-    setAiStatusMsg("Menjalankan AI Gemini 2.5 Flash untuk verifikasi pendaftar...");
-    try {
-      const results = await analyzeRegistrantsWithAI(users);
-      if (results.length === 0) {
-        alert("Tidak ada pendaftar baru dengan status 'menunggu' yang perlu diverifikasi.");
-        setAiRunning(false);
-        return;
-      }
-
-      let accCount = 0;
-      for (const res of results) {
-        if (res.isRecommendedACC) {
-          await handleSetStatus(res.userId, "aktif");
-          if (res.suggestedExpiration) {
-            await handleUpdateExpiration(res.userId, res.suggestedExpiration);
-          }
-          accCount++;
-        }
-      }
-
-      alert(`⚡ AI Gemini Auto-Verifikasi Selesai!\n\n${accCount} pendaftar baru terverifikasi sah dan berhasil di-ACC (Setujui).`);
-    } catch (err) {
-      console.error("Gagal verifikasi AI:", err);
-      alert("Gagal menjalankan AI verifikasi. Menggunakan verifikasi standar.");
-    } finally {
-      setAiRunning(false);
-      setAiStatusMsg("");
-    }
-  };
-
   // Enforce Single Main Admin rule
   const handleToggleRole = async (_userId: string, _currentRole: string) => {
     alert("Sistem dirancang secara khusus hanya memiliki 1 Administrator Utama (Main Admin). Pengguna lain terdaftar sebagai USER terisolasi.");
@@ -324,28 +295,49 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       return;
     }
 
-    if (confirm(`Apakah Anda yakin ingin menghapus & mereset akun ${email}? Pengguna lama akan dapat mendaftar kembali menggunakan email yang sama.`)) {
-      const userRef = doc(db, "users", userId);
-      try {
-        await deleteDoc(userRef);
+    if (confirm(`Apakah Anda yakin ingin menghapus data akun ${email}? Data pengguna akan terhapus permanen dari server.`)) {
+      const emailSlug = lowerEmail.replace(/[@.]/g, "_");
+      const customUid = `custom_user_${emailSlug}`;
+      const idsToDelete = Array.from(new Set([userId, customUid].filter(Boolean)));
 
-        // Purge local offline cache
-        localStorage.removeItem(`offline_user_${userId}`);
-        const emailSlug = lowerEmail.replace(/[@.]/g, "_");
+      // 1. Delete all doc IDs from Firestore
+      for (const id of idsToDelete) {
+        try {
+          await deleteDoc(doc(db, "users", id));
+        } catch (err) {
+          console.warn(`Peringatan saat menghapus dokumen Firestore ${id}:`, err);
+        }
+      }
+
+      // 2. Purge local storage offline caches
+      try {
+        idsToDelete.forEach((id) => {
+          localStorage.removeItem(`offline_user_${id}`);
+        });
         localStorage.removeItem(`offline_user_custom_user_${emailSlug}`);
 
-        // Purge session if it was active
-        if (localStorage.getItem("custom_logged_in_uid") === userId) {
-          localStorage.removeItem("custom_logged_in_uid");
-          localStorage.removeItem("sisper_user_profile");
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && (key.includes(userId) || key.includes(emailSlug) || key.includes(lowerEmail))) {
+            keysToRemove.push(key);
+          }
         }
-
-        setUsers(prev => prev.filter(u => u.uid !== userId && u.id !== userId));
-        alert(`Akun ${email} berhasil dihapus & direset. Pengguna lama dapat mendaftar kembali menggunakan email tersebut.`);
-      } catch (err) {
-        console.error("Gagal menghapus pengguna:", err);
-        alert("Gagal menghapus pengguna.");
+        keysToRemove.forEach((k) => localStorage.removeItem(k));
+      } catch (e) {
+        console.warn("Notice clearing local storage for deleted user:", e);
       }
+
+      // 3. Purge active session if it was logged in
+      const currentUid = localStorage.getItem("custom_logged_in_uid");
+      if (currentUid && idsToDelete.includes(currentUid)) {
+        localStorage.removeItem("custom_logged_in_uid");
+        localStorage.removeItem("sisper_user_profile");
+      }
+
+      // 4. Update UI immediately
+      setUsers(prev => prev.filter(u => !idsToDelete.includes(u.uid) && !idsToDelete.includes(u.id) && (u.email || "").toLowerCase().trim() !== lowerEmail));
+      alert(`Data pengguna ${email} berhasil terhapus permanen dari server dan sistem.`);
     }
   };
 
@@ -363,26 +355,31 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       return;
     }
 
-    const confirmMsg = `Peringatan: Anda akan menghapus & mereset SELURUH data pendaftar (${usersWithUserRole.length} akun).\n\nSetelah dibersihkan, seluruh pendaftar lama dapat mendaftar kembali menggunakan email yang sama.\n\nApakah Anda yakin ingin melanjutkan?`;
+    const confirmMsg = `Peringatan: Anda akan menghapus & mereset SELURUH data pendaftar (${usersWithUserRole.length} akun) secara permanen dari server.\n\nApakah Anda yakin ingin melanjutkan?`;
     if (confirm(confirmMsg)) {
       setLoading(true);
       let successCount = 0;
       let failCount = 0;
 
       for (const u of usersWithUserRole) {
-        try {
-          const userRef = doc(db, "users", u.uid);
-          await deleteDoc(userRef);
+        const lowerEmail = (u.email || "").toLowerCase().trim();
+        const emailSlug = lowerEmail.replace(/[@.]/g, "_");
+        const customUid = `custom_user_${emailSlug}`;
+        const idsToDelete = Array.from(new Set([u.uid, u.id, customUid].filter(Boolean)));
 
-          // Purge local storage offline cache for this user
-          localStorage.removeItem(`offline_user_${u.uid}`);
-          const emailSlug = (u.email || "").toLowerCase().trim().replace(/[@.]/g, "_");
-          localStorage.removeItem(`offline_user_custom_user_${emailSlug}`);
-          successCount++;
-        } catch (err) {
-          console.error(`Gagal menghapus pengguna ${u.email}:`, err);
-          failCount++;
+        for (const id of idsToDelete) {
+          try {
+            await deleteDoc(doc(db, "users", id));
+            successCount++;
+          } catch (err) {
+            console.error(`Gagal menghapus dokumen Firestore ${id}:`, err);
+            failCount++;
+          }
         }
+
+        // Clean offline storage keys
+        idsToDelete.forEach((id) => localStorage.removeItem(`offline_user_${id}`));
+        localStorage.removeItem(`offline_user_custom_user_${emailSlug}`);
       }
 
       // Clean all non-admin offline_user_ keys in localStorage
@@ -406,7 +403,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         localStorage.removeItem("sisper_user_profile");
       }
 
-      alert(`Pembersihan & Reset Data Berhasil!\n\nSelesai mereset ${successCount} akun pendaftar.\nSeluruh pendaftar lama kini dapat mendaftar kembali menggunakan email yang sudah terdaftar sebelumnya.`);
+      alert(`Pembersihan & Reset Data Berhasil!\n\nSeluruh data pendaftar (${usersWithUserRole.length} akun) telah terhapus permanen dari server.`);
       setRefreshTrigger(prev => prev + 1);
     }
   };
@@ -577,15 +574,6 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <button
-                onClick={handleRunAiVerification}
-                disabled={aiRunning}
-                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
-                title="Jalankan AI Gemini untuk verifikasi & ACC pendaftar otomatis"
-              >
-                <Sparkles className={`w-3.5 h-3.5 ${aiRunning ? "animate-spin" : ""}`} />
-                {aiRunning ? "Memproses AI..." : "⚡ AI Auto-ACC (Gemini)"}
-              </button>
               <button
                 onClick={handleClearAllUsers}
                 className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition cursor-pointer"

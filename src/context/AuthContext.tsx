@@ -274,7 +274,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           return;
         }
 
-        // Stale-while-revalidate for saved profile
+        // Fast load from saved local profile
         const savedProfile = localStorage.getItem("sisper_user_profile");
         if (savedProfile) {
           try {
@@ -285,28 +285,31 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
               displayName: data.namaLengkap,
               emailVerified: true
             } as any, data);
-            setLoading(false);
           } catch (e) {
             console.warn("Gagal parsing profil lokal:", e);
           }
         }
 
-        try {
-          const userRef = doc(db, "users", customUid);
-          const snap = await getDoc(userRef);
-          if (snap.exists()) {
-            const data = snap.data();
-            updateSession({
-              uid: customUid,
-              email: data.email,
-              displayName: data.namaLengkap,
-              emailVerified: true
-            } as any, data);
-          }
-        } catch (e) {
-          console.warn("Gagal memuat profil awan secara asinkron (menggunakan cache lokal):", e);
-        }
+        // Instantly unblock loading screen so app opens without delay
         setLoading(false);
+
+        // Background profile verification with 800ms fast timeout
+        fetchWithTimeout(getDoc(doc(db, "users", customUid)), 800, null)
+          .then((snap: any) => {
+            if (snap && snap.exists()) {
+              const data = snap.data();
+              updateSession({
+                uid: customUid,
+                email: data.email,
+                displayName: data.namaLengkap,
+                emailVerified: true
+              } as any, data);
+            }
+          })
+          .catch((e) => {
+            console.warn("Gagal memuat profil awan secara asinkron:", e);
+          });
+
         return;
       }
 
@@ -559,11 +562,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       const userRef = doc(db, "users", customUid);
       
-      // 1. Check if user is active in remote Firestore
+      // 1. Fast duplicate check in remote Firestore (500ms timeout)
       let remoteUserExists = false;
       if (!isAdminEmail) {
         try {
-          const userSnap: any = await fetchWithTimeout(getDoc(userRef), 1500, null);
+          const userSnap: any = await fetchWithTimeout(getDoc(userRef), 500, null);
           if (userSnap && userSnap.exists()) {
             remoteUserExists = true;
           }
@@ -644,12 +647,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           loginTerakhir: serverTimestamp()
         };
 
-        // Create or update this admin profile in Firestore
-        try {
-          await fetchWithTimeout(setDoc(userRef, profileData, { merge: true }), 1500, null);
-        } catch (dbErr) {
-          console.warn("Gagal setDoc admin di database, menggunakan fallback lokal:", dbErr);
-        }
+        // Asynchronous background update for admin profile
+        setDoc(userRef, profileData, { merge: true }).catch((dbErr) => {
+          console.warn("Notice setDoc admin di database:", dbErr);
+        });
         
         updateSession({
           uid: adminUid,
@@ -667,9 +668,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       let data: any = null;
 
-      // 1. Fetch remote Firestore state to verify user existence
+      // 1. Check local cache first for instant login
+      const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
+      if (offlineSavedUser) {
+        try {
+          data = JSON.parse(offlineSavedUser);
+        } catch (e) {}
+      }
+
+      // 2. Fast remote check (500ms timeout) to verify document status or deletion
       try {
-        const userSnap: any = await fetchWithTimeout(getDoc(userRef), 1800, null);
+        const userSnap: any = await fetchWithTimeout(getDoc(userRef), 500, null);
         if (userSnap && userSnap.exists()) {
           data = userSnap.data();
           localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
@@ -680,17 +689,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           data = null;
         }
       } catch (dbErr: any) {
-        console.warn("Pemeriksaan Firestore notice, mencoba offline cache:", dbErr);
-      }
-
-      // 2. Fallback to local offline saved user if Firestore check was unreachable
-      if (!data) {
-        const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
-        if (offlineSavedUser) {
-          try {
-            data = JSON.parse(offlineSavedUser);
-          } catch (e) {}
-        }
+        console.warn("Pemeriksaan Firestore notice, menggunakan cache lokal:", dbErr);
       }
       
       if (!data) {
@@ -727,14 +726,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         emailVerified: true
       } as any, data);
       
-      try {
-        await setDoc(userRef, {
-          loginTerakhir: serverTimestamp(),
-          updatedAt: serverTimestamp()
-        }, { merge: true });
-      } catch (err) {
+      // Background non-blocking timestamp update
+      setDoc(userRef, {
+        loginTerakhir: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }, { merge: true }).catch((err) => {
         console.warn("Gagal sinkron login terakhir ke Firestore:", err);
-      }
+      });
       
     } catch (error: any) {
       console.error("Gagal masuk:", error);
