@@ -10,6 +10,7 @@ import {
   serverTimestamp 
 } from "firebase/firestore";
 import { db } from "../lib/firebase.ts";
+import { isMainAdminEmail } from "../context/AuthContext.tsx";
 import { analyzeRegistrantsWithAI } from "../lib/aiVerification.ts";
 import { 
   Users, 
@@ -92,25 +93,64 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       berakhirPada: "2035-12-31"
     };
 
-    const mergeAndSetUsers = (remoteDocs: any[]) => {
+    const mergeAndSetUsers = (remoteDocs: any[], isFromFirestore = false) => {
       const map = new Map<string, any>();
       map.set("admin_syukriyusuf82", mainAdminDoc);
 
-      // 1. Add offline users stored in local storage (instant 0ms response)
-      const offlineList = getOfflineUsers();
-      offlineList.forEach((u) => {
-        if (u.uid && u.uid !== "admin_sukriyusuf82") {
-          map.set(u.uid, u);
-        }
-      });
+      if (isFromFirestore) {
+        // Authoritative list from Firestore
+        const remoteIds = new Set(remoteDocs.map((d) => d.uid));
 
-      // 2. Merge Firestore remote docs over local cache
-      remoteDocs.forEach((u) => {
-        if (u.uid && u.uid !== "admin_sukriyusuf82" && (u.email || "").toLowerCase().trim() !== "sukriyusuf82@gmail.com") {
-          const existing = map.get(u.uid) || {};
-          map.set(u.uid, { ...existing, ...u });
+        // Purge offline_user_ keys from localStorage that no longer exist in Firestore
+        try {
+          const keysToRemove: string[] = [];
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("offline_user_")) {
+              const val = localStorage.getItem(key);
+              if (val) {
+                try {
+                  const parsed = JSON.parse(val);
+                  const isMainAdmin =
+                    parsed.uid === "admin_syukriyusuf82" ||
+                    parsed.uid === "admin_sukriyusuf82" ||
+                    isMainAdminEmail(parsed.email);
+                  if (!isMainAdmin && parsed.uid && !remoteIds.has(parsed.uid)) {
+                    keysToRemove.push(key);
+                  }
+                } catch (e) {}
+              }
+            }
+          }
+          keysToRemove.forEach((k) => localStorage.removeItem(k));
+        } catch (e) {
+          console.warn("Notice cleaning stale localStorage keys:", e);
         }
-      });
+
+        remoteDocs.forEach((u) => {
+          if (
+            u.uid &&
+            u.uid !== "admin_sukriyusuf82" &&
+            u.uid !== "admin_syukriyusuf82" &&
+            !isMainAdminEmail(u.email)
+          ) {
+            map.set(u.uid, u);
+          }
+        });
+      } else {
+        // Fallback or initial offline load
+        const offlineList = getOfflineUsers();
+        offlineList.forEach((u) => {
+          if (
+            u.uid &&
+            u.uid !== "admin_sukriyusuf82" &&
+            u.uid !== "admin_syukriyusuf82" &&
+            !isMainAdminEmail(u.email)
+          ) {
+            map.set(u.uid, u);
+          }
+        });
+      }
 
       const userList = Array.from(map.values());
       userList.sort((a, b) => {
@@ -124,7 +164,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     };
 
     // Render immediately with offline cache
-    mergeAndSetUsers([]);
+    mergeAndSetUsers([], false);
 
     // Subscribe to Firestore for real-time cloud updates
     const usersCol = collection(db, "users");
@@ -132,7 +172,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       const remoteList: any[] = [];
       snapshot.docs.forEach((docSnap) => {
         const data = docSnap.data();
-        if (docSnap.id === "admin_sukriyusuf82" || (data.email && data.email.toLowerCase().trim() === "sukriyusuf82@gmail.com")) {
+        if (docSnap.id === "admin_sukriyusuf82" || docSnap.id === "admin_syukriyusuf82" || (data.email && isMainAdminEmail(data.email))) {
           return;
         }
         remoteList.push({ 
@@ -141,7 +181,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
           ...data 
         });
       });
-      mergeAndSetUsers(remoteList);
+      mergeAndSetUsers(remoteList, true);
     }, (err) => {
       console.warn("Firestore user listener notice (menggunakan mode data offline):", err);
       setLoading(false);
@@ -279,16 +319,29 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   // Handle delete user
   const handleDeleteUser = async (userId: string, email: string) => {
     const lowerEmail = (email || "").toLowerCase().trim();
-    if (userId === "admin_syukriyusuf82" || lowerEmail === "syukriyusuf82@gmail.com") {
+    if (userId === "admin_syukriyusuf82" || isMainAdminEmail(lowerEmail)) {
       alert(`Admin Utama (${email}) tidak dapat dihapus!`);
       return;
     }
 
-    if (confirm(`Apakah Anda yakin ingin menghapus pengguna ${email}? Seluruh akun dan statusnya akan dihapus permanen.`)) {
+    if (confirm(`Apakah Anda yakin ingin menghapus & mereset akun ${email}? Pengguna lama akan dapat mendaftar kembali menggunakan email yang sama.`)) {
       const userRef = doc(db, "users", userId);
       try {
         await deleteDoc(userRef);
-        setUsers(users.filter(u => u.uid !== userId && u.id !== userId));
+
+        // Purge local offline cache
+        localStorage.removeItem(`offline_user_${userId}`);
+        const emailSlug = lowerEmail.replace(/[@.]/g, "_");
+        localStorage.removeItem(`offline_user_custom_user_${emailSlug}`);
+
+        // Purge session if it was active
+        if (localStorage.getItem("custom_logged_in_uid") === userId) {
+          localStorage.removeItem("custom_logged_in_uid");
+          localStorage.removeItem("sisper_user_profile");
+        }
+
+        setUsers(prev => prev.filter(u => u.uid !== userId && u.id !== userId));
+        alert(`Akun ${email} berhasil dihapus & direset. Pengguna lama dapat mendaftar kembali menggunakan email tersebut.`);
       } catch (err) {
         console.error("Gagal menghapus pengguna:", err);
         alert("Gagal menghapus pengguna.");
@@ -298,20 +351,19 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
   // Handle clearing all users with the "USER" role
   const handleClearAllUsers = async () => {
-    // Exclude the main admin
+    // Exclude main admin
     const usersWithUserRole = users.filter(u => {
       const emailLower = (u.email || "").toLowerCase().trim();
-      const isAdmin = u.uid === "admin_syukriyusuf82" || emailLower === "syukriyusuf82@gmail.com";
-      const isRoleAdmin = u.peran === "ADMIN";
-      return !isAdmin && !isRoleAdmin;
+      const isAdmin = u.uid === "admin_syukriyusuf82" || isMainAdminEmail(emailLower) || u.peran === "ADMIN";
+      return !isAdmin;
     });
 
     if (usersWithUserRole.length === 0) {
-      alert("Tidak ada pengguna dengan peran 'USER' yang dapat dibersihkan.");
+      alert("Tidak ada data pendaftar pengguna (role USER) yang perlu dibersihkan.");
       return;
     }
 
-    const confirmMsg = `Peringatan: Tindakan ini akan menghapus permanen semua akun (${usersWithUserRole.length} akun) yang terdaftar dengan peran 'USER'.\n\nApakah Anda yakin ingin melanjutkan?`;
+    const confirmMsg = `Peringatan: Anda akan menghapus & mereset SELURUH data pendaftar (${usersWithUserRole.length} akun).\n\nSetelah dibersihkan, seluruh pendaftar lama dapat mendaftar kembali menggunakan email yang sama.\n\nApakah Anda yakin ingin melanjutkan?`;
     if (confirm(confirmMsg)) {
       setLoading(true);
       let successCount = 0;
@@ -321,6 +373,11 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         try {
           const userRef = doc(db, "users", u.uid);
           await deleteDoc(userRef);
+
+          // Purge local storage offline cache for this user
+          localStorage.removeItem(`offline_user_${u.uid}`);
+          const emailSlug = (u.email || "").toLowerCase().trim().replace(/[@.]/g, "_");
+          localStorage.removeItem(`offline_user_custom_user_${emailSlug}`);
           successCount++;
         } catch (err) {
           console.error(`Gagal menghapus pengguna ${u.email}:`, err);
@@ -328,7 +385,28 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         }
       }
 
-      alert(`Pembersihan Berhasil!\nSelesai menghapus ${successCount} akun.\nGagal menghapus ${failCount} akun.`);
+      // Clean all non-admin offline_user_ keys in localStorage
+      try {
+        const keysToRemove: string[] = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith("offline_user_") && !key.includes("syukriyusuf") && !key.includes("sukriyusuf")) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+      } catch (e) {
+        console.warn("Notice clearing offline_user_ keys:", e);
+      }
+
+      // Clear active session if logged in user was cleared
+      const currentUid = localStorage.getItem("custom_logged_in_uid");
+      if (currentUid && currentUid !== "admin_syukriyusuf82" && !currentUid.includes("syukriyusuf")) {
+        localStorage.removeItem("custom_logged_in_uid");
+        localStorage.removeItem("sisper_user_profile");
+      }
+
+      alert(`Pembersihan & Reset Data Berhasil!\n\nSelesai mereset ${successCount} akun pendaftar.\nSeluruh pendaftar lama kini dapat mendaftar kembali menggunakan email yang sudah terdaftar sebelumnya.`);
       setRefreshTrigger(prev => prev + 1);
     }
   };

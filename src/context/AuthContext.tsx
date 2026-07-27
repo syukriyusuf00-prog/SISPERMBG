@@ -339,8 +339,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const activeUid = userProfile?.uid || user?.uid || localStorage.getItem("custom_logged_in_uid");
     if (!activeUid) return;
 
-    // Skip snapshot listener for local simulated admin override
-    if (activeUid === "admin_sukriyusuf82" || activeUid === "admin_syukriyusuf82" || activeUid === "syukriyusuf82_simulated_uid") {
+    // Skip snapshot listener for local simulated admin override or main admin
+    if (activeUid === "admin_sukriyusuf82" || activeUid === "admin_syukriyusuf82" || isMainAdminEmail(userProfile?.email)) {
       return;
     }
 
@@ -349,22 +349,40 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const unsubscribe = onSnapshot(userRef, (snap) => {
         if (snap.exists()) {
           const freshData = snap.data();
-          setUserProfile((prev: any) => {
-            if (!prev) return freshData;
-            // Detect updates in statusPersetujuan, berakhirPada, peran, or other fields
-            if (
-              prev.statusPersetujuan !== freshData.statusPersetujuan ||
-              prev.berakhirPada !== freshData.berakhirPada ||
-              prev.peran !== freshData.peran ||
-              prev.namaLengkap !== freshData.namaLengkap ||
-              prev.namaSPPG !== freshData.namaSPPG
-            ) {
-              const updated = { ...prev, ...freshData };
-              localStorage.setItem("sisper_user_profile", JSON.stringify(updated));
-              return updated;
-            }
-            return prev;
-          });
+          
+          // Check expiration
+          const now = new Date();
+          const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+          const isExpired = freshData.berakhirPada ? todayStr > freshData.berakhirPada : false;
+
+          if (freshData.statusPersetujuan === "diblokir" || isExpired) {
+            signOutUser();
+            setAuthError(
+              isExpired
+                ? `Masa aktif akun Anda telah berakhir pada ${freshData.berakhirPada}. Silakan hubungi admin untuk memperpanjang.`
+                : "Akses akun Anda telah diputuskan/diblokir oleh Administrator."
+            );
+          } else {
+            setUserProfile((prev: any) => {
+              if (!prev) return freshData;
+              if (
+                prev.statusPersetujuan !== freshData.statusPersetujuan ||
+                prev.berakhirPada !== freshData.berakhirPada ||
+                prev.peran !== freshData.peran ||
+                prev.namaLengkap !== freshData.namaLengkap ||
+                prev.namaSPPG !== freshData.namaSPPG
+              ) {
+                const updated = { ...prev, ...freshData };
+                localStorage.setItem("sisper_user_profile", JSON.stringify(updated));
+                return updated;
+              }
+              return prev;
+            });
+          }
+        } else {
+          // User document was deleted/reset by Admin!
+          signOutUser();
+          setAuthError("Data akun Anda telah direset/dihapus oleh Administrator. Silakan melakukan pendaftaran ulang dengan email Anda.");
         }
       }, (err) => {
         console.warn("User profile onSnapshot listener notice:", err);
@@ -541,25 +559,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         
       const userRef = doc(db, "users", customUid);
       
-      // Fast check in offline cache first
-      const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
-      if (offlineSavedUser) {
-        throw new Error("Email ini sudah terdaftar di sistem.");
-      }
-
+      // 1. Check if user is active in remote Firestore
+      let remoteUserExists = false;
       if (!isAdminEmail) {
         try {
-          const userSnap: any = await fetchWithTimeout(getDoc(userRef), 1200, null);
+          const userSnap: any = await fetchWithTimeout(getDoc(userRef), 1500, null);
           if (userSnap && userSnap.exists()) {
-            throw new Error("Email ini sudah terdaftar di sistem.");
+            remoteUserExists = true;
           }
-        } catch (checkErr: any) {
-          if (checkErr?.message?.includes("sudah terdaftar")) {
-            throw checkErr;
-          }
-          console.warn("Pemeriksaan Firestore pengguna ganda melebihi batas waktu, melanjutkan registrasi:", checkErr);
+        } catch (checkErr) {
+          console.warn("Pemeriksaan Firestore pengguna ganda notice:", checkErr);
         }
       }
+
+      if (remoteUserExists) {
+        throw new Error(`Email "${lowerEmail}" sudah terdaftar dan statusnya aktif di sistem. Silakan langsung masuk atau hubungi Administrator jika perlu bantuan.`);
+      }
+
+      // 2. Remote doc does not exist (meaning never registered or deleted by Admin) -> Purge stale local cache
+      localStorage.removeItem(`offline_user_${customUid}`);
+      localStorage.removeItem(`offline_user_custom_user_${lowerEmail.replace(/[@.]/g, "_")}`);
 
       const profileData = {
         uid: customUid,
@@ -576,14 +595,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginTerakhir: null
       };
 
-      // 1. Immediately store in local storage so registration is 100% instant and durable
+      // 3. Store in local storage so registration is instant and durable
       localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
         ...profileData,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
       }));
 
-      // 2. Fire Firestore write with fast timeout (non-blocking if cloud connection is slow)
+      // 4. Fire Firestore write
       fetchWithTimeout(setDoc(userRef, profileData), 1500, null).catch((dbErr) => {
         console.warn("Operasi setDoc Firestore di latar belakang tertunda:", dbErr);
       });
@@ -646,41 +665,51 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const customUid = `custom_user_${lowerEmail.replace(/[@.]/g, "_")}`;
       const userRef = doc(db, "users", customUid);
       
-      // Check offline stored user registrations first
       let data: any = null;
-      const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
-      if (offlineSavedUser) {
-        try {
-          data = JSON.parse(offlineSavedUser);
-        } catch (e) {
-          console.warn("Gagal mengurai pengguna offline disimpan:", e);
+
+      // 1. Fetch remote Firestore state to verify user existence
+      try {
+        const userSnap: any = await fetchWithTimeout(getDoc(userRef), 1800, null);
+        if (userSnap && userSnap.exists()) {
+          data = userSnap.data();
+          localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
+        } else if (userSnap && !userSnap.exists()) {
+          // Document was deleted by Admin -> Purge local cache
+          localStorage.removeItem(`offline_user_${customUid}`);
+          localStorage.removeItem(`offline_user_custom_user_${lowerEmail.replace(/[@.]/g, "_")}`);
+          data = null;
         }
+      } catch (dbErr: any) {
+        console.warn("Pemeriksaan Firestore notice, mencoba offline cache:", dbErr);
       }
 
+      // 2. Fallback to local offline saved user if Firestore check was unreachable
       if (!data) {
-        let userSnap: any;
-        try {
-          userSnap = await fetchWithTimeout(getDoc(userRef), 1800, null);
-          if (userSnap && userSnap.exists()) {
-            data = userSnap.data();
-          }
-        } catch (dbErr: any) {
-          console.warn("Gagal getDoc dari database, menggunakan fallback lokal / offline:", dbErr);
+        const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
+        if (offlineSavedUser) {
+          try {
+            data = JSON.parse(offlineSavedUser);
+          } catch (e) {}
         }
       }
       
       if (!data) {
-        throw new Error("Email belum terdaftar. Silakan melakukan pendaftaran terlebih dahulu.");
+        throw new Error("Email belum terdaftar atau telah direset oleh Admin. Silakan melakukan pendaftaran terlebih dahulu.");
       }
 
-      // 1. Password validation
+      // 3. Password validation
       const enteredSandi = sandi ? sandi.trim() : "";
       const storedSandi = data.sandi ? data.sandi.trim() : "";
       if (storedSandi && enteredSandi !== storedSandi) {
         throw new Error("Kata sandi salah. Silakan coba lagi.");
       }
 
-      // 2. Expiration date validation if active
+      // 4. Status validation
+      if (data.statusPersetujuan === "diblokir") {
+        throw new Error("Akses akun Anda telah diputuskan/diblokir oleh Administrator.");
+      }
+
+      // 5. Expiration date validation if active
       if (data.statusPersetujuan === "aktif" && data.berakhirPada) {
         const expirationDate = new Date(data.berakhirPada);
         const today = new Date();
