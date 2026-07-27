@@ -9,7 +9,8 @@ import {
   onSnapshot,
   serverTimestamp 
 } from "firebase/firestore";
-import { db, handleFirestoreError, OperationType } from "../lib/firebase.ts";
+import { db } from "../lib/firebase.ts";
+import { analyzeRegistrantsWithAI } from "../lib/aiVerification.ts";
 import { 
   Users, 
   CheckCircle, 
@@ -29,12 +30,41 @@ import {
   Mail,
   User,
   Briefcase,
-  Building
+  Building,
+  Sparkles
 } from "lucide-react";
 
 interface AdminPanelProps {
   onClose: () => void;
 }
+
+const fetchWithTimeout = <T,>(promise: Promise<T>, timeoutMs: number, defaultValue: T): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => resolve(defaultValue), timeoutMs))
+  ]);
+};
+
+// Scan localStorage for any offline registered user profiles
+const getOfflineUsers = () => {
+  const list: any[] = [];
+  try {
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith("offline_user_")) {
+        const val = localStorage.getItem(key);
+        if (val) {
+          try {
+            list.push(JSON.parse(val));
+          } catch (e) {}
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("Notice reading offline users:", e);
+  }
+  return list;
+};
 
 export default function AdminPanel({ onClose }: AdminPanelProps) {
   const [users, setUsers] = useState<any[]>([]);
@@ -42,125 +72,86 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState<"manajemen" | "riwayat" | "diagnostik">("manajemen");
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [aiRunning, setAiRunning] = useState(false);
+  const [aiStatusMsg, setAiStatusMsg] = useState("");
 
-  // Function to gather users from Firestore snapshot + localStorage offline cache
-  const processAndSetUsers = (snapshotDocs: any[]) => {
-    const userList: any[] = [];
-    const seenEmails = new Set<string>();
-    const seenUids = new Set<string>();
-
-    snapshotDocs.forEach((docSnap) => {
-      const data = docSnap.data();
-      const emailLower = (data.email || "").toLowerCase().trim();
-
-      // Auto-clean duplicate/legacy admin document (admin_sukriyusuf82 or sukriyusuf82@gmail.com)
-      if (docSnap.id === "admin_sukriyusuf82" || emailLower === "sukriyusuf82@gmail.com") {
-        deleteDoc(doc(db, "users", docSnap.id)).catch(() => {});
-        return; // Skip adding duplicate to list
-      }
-
-      const uid = data.uid || docSnap.id;
-      if (emailLower) seenEmails.add(emailLower);
-      if (uid) seenUids.add(uid);
-
-      userList.push({ 
-        id: docSnap.id, 
-        uid: uid, 
-        ...data 
-      });
-    });
-
-    // Merge offline registered users from localStorage if not already in Firestore snapshot
-    try {
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith("offline_user_")) {
-          const raw = localStorage.getItem(key);
-          if (raw) {
-            const localObj = JSON.parse(raw);
-            const localEmail = (localObj.email || "").toLowerCase().trim();
-            const localUid = localObj.uid || key.replace("offline_user_", "");
-
-            if (localEmail && localEmail === "sukriyusuf82@gmail.com") continue;
-
-            if (!seenEmails.has(localEmail) && !seenUids.has(localUid)) {
-              userList.push({
-                id: localUid,
-                uid: localUid,
-                ...localObj,
-                isOfflineLocal: true
-              });
-              seenEmails.add(localEmail);
-              seenUids.add(localUid);
-            }
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("Gagal membaca cache lokal untuk panel admin:", e);
-    }
-
-    // Sort users: latest registered/login first
-    userList.sort((a, b) => {
-      const getTimestamp = (u: any) => {
-        if (u.createdAt?.seconds) return u.createdAt.seconds * 1000;
-        if (typeof u.createdAt === "string") return new Date(u.createdAt).getTime();
-        if (u.updatedAt?.seconds) return u.updatedAt.seconds * 1000;
-        if (typeof u.updatedAt === "string") return new Date(u.updatedAt).getTime();
-        return 0;
-      };
-      return getTimestamp(b) - getTimestamp(a);
-    });
-
-    setUsers(userList);
-  };
-
-  // Load all users in real-time from Firestore + LocalStorage
+  // Load all users combining instant local cache + real-time Firestore
   useEffect(() => {
     setLoading(true);
-    const usersCol = collection(db, "users");
-    
-    const unsubscribe = onSnapshot(usersCol, (snapshot) => {
-      processAndSetUsers(snapshot.docs);
+
+    const mainAdminDoc = {
+      id: "admin_syukriyusuf82",
+      uid: "admin_syukriyusuf82",
+      email: "syukriyusuf82@gmail.com",
+      namaLengkap: "LA ODE MUHAMMAD SUKRI YUSUF",
+      profesi: "AHLI GIZI",
+      namaSPPG: "SPPG MUNA BARAT SAWERIGADI ONDOKE",
+      noHp: "0822271059251",
+      peran: "ADMIN",
+      statusPersetujuan: "aktif",
+      berakhirPada: "2035-12-31"
+    };
+
+    const mergeAndSetUsers = (remoteDocs: any[]) => {
+      const map = new Map<string, any>();
+      map.set("admin_syukriyusuf82", mainAdminDoc);
+
+      // 1. Add offline users stored in local storage (instant 0ms response)
+      const offlineList = getOfflineUsers();
+      offlineList.forEach((u) => {
+        if (u.uid && u.uid !== "admin_sukriyusuf82") {
+          map.set(u.uid, u);
+        }
+      });
+
+      // 2. Merge Firestore remote docs over local cache
+      remoteDocs.forEach((u) => {
+        if (u.uid && u.uid !== "admin_sukriyusuf82" && (u.email || "").toLowerCase().trim() !== "sukriyusuf82@gmail.com") {
+          const existing = map.get(u.uid) || {};
+          map.set(u.uid, { ...existing, ...u });
+        }
+      });
+
+      const userList = Array.from(map.values());
+      userList.sort((a, b) => {
+        const timeA = typeof a.createdAt === "string" ? new Date(a.createdAt).getTime() : (a.createdAt?.seconds ? a.createdAt.seconds * 1000 : 0);
+        const timeB = typeof b.createdAt === "string" ? new Date(b.createdAt).getTime() : (b.createdAt?.seconds ? b.createdAt.seconds * 1000 : 0);
+        return timeB - timeA;
+      });
+
+      setUsers(userList);
       setLoading(false);
+    };
+
+    // Render immediately with offline cache
+    mergeAndSetUsers([]);
+
+    // Subscribe to Firestore for real-time cloud updates
+    const usersCol = collection(db, "users");
+    const unsubscribe = onSnapshot(usersCol, (snapshot) => {
+      const remoteList: any[] = [];
+      snapshot.docs.forEach((docSnap) => {
+        const data = docSnap.data();
+        if (docSnap.id === "admin_sukriyusuf82" || (data.email && data.email.toLowerCase().trim() === "sukriyusuf82@gmail.com")) {
+          return;
+        }
+        remoteList.push({ 
+          id: docSnap.id, 
+          uid: data.uid || docSnap.id, 
+          ...data 
+        });
+      });
+      mergeAndSetUsers(remoteList);
     }, (err) => {
-      console.error("Gagal memuat listener pengguna:", err);
-      // Fallback to local storage if Firestore listener fails
-      processAndSetUsers([]);
+      console.warn("Firestore user listener notice (menggunakan mode data offline):", err);
       setLoading(false);
     });
 
-    // Listen for instant registration events
-    const handleLocalReg = (e: any) => {
-      if (e.detail) {
-        setRefreshTrigger(prev => prev + 1);
-      }
-    };
-    window.addEventListener("sisper_user_registered", handleLocalReg);
-
-    return () => {
-      unsubscribe();
-      window.removeEventListener("sisper_user_registered", handleLocalReg);
-    };
+    return () => unsubscribe();
   }, [refreshTrigger]);
-
-  // Helper to sync local storage if offline_user_ key exists
-  const syncLocalStorageUser = (userId: string, updates: Record<string, any>) => {
-    const offlineKey = `offline_user_${userId}`;
-    const raw = localStorage.getItem(offlineKey);
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        localStorage.setItem(offlineKey, JSON.stringify({ ...parsed, ...updates }));
-      } catch (e) {
-        console.warn("Error updating local storage cache for user:", e);
-      }
-    }
-  };
 
   // Handle setting explicit approval status (ACC / Menunggu / Blokir)
   const handleSetStatus = async (userId: string, newStatus: "aktif" | "menunggu" | "diblokir") => {
-    const userRef = doc(db, "users", userId);
     try {
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -168,10 +159,9 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
       const updates: any = {
         statusPersetujuan: newStatus,
-        updatedAt: serverTimestamp()
+        updatedAt: new Date().toISOString()
       };
 
-      // If approving (ACC) and ending date is missing or in past, default to 1 year from now
       if (newStatus === "aktif" && (!userObj?.berakhirPada || userObj.berakhirPada < todayStr)) {
         const nextYear = new Date();
         nextYear.setFullYear(now.getFullYear() + 1);
@@ -179,12 +169,57 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         updates.berakhirPada = defaultExp;
       }
 
-      await setDoc(userRef, updates, { merge: true });
-      syncLocalStorageUser(userId, { statusPersetujuan: newStatus, berakhirPada: updates.berakhirPada || userObj?.berakhirPada });
-      setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, ...updates } : u));
+      // 1. Instant local state update (0ms UI latency)
+      setUsers(prev => prev.map(u => (u.uid === userId || u.id === userId) ? { ...u, ...updates } : u));
+
+      // 2. Instant offline storage persistence
+      const offlineKey = `offline_user_${userId}`;
+      const savedStr = localStorage.getItem(offlineKey);
+      if (savedStr) {
+        try {
+          const parsed = JSON.parse(savedStr);
+          localStorage.setItem(offlineKey, JSON.stringify({ ...parsed, ...updates }));
+        } catch (e) {}
+      }
+
+      // 3. Fast background cloud sync with 1500ms timeout
+      const userRef = doc(db, "users", userId);
+      await fetchWithTimeout(setDoc(userRef, updates, { merge: true }), 1500, null);
     } catch (err) {
-      console.error("Gagal memperbarui status:", err);
-      alert("Gagal memperbarui status persetujuan. Pastikan Anda memiliki hak akses penuh.");
+      console.warn("Status persetujuan diperbarui secara lokal (cloud sync tertunda):", err);
+    }
+  };
+
+  // Run AI Gemini Auto-ACC Verification
+  const handleRunAiVerification = async () => {
+    setAiRunning(true);
+    setAiStatusMsg("Menjalankan AI Gemini 2.5 Flash untuk verifikasi pendaftar...");
+    try {
+      const results = await analyzeRegistrantsWithAI(users);
+      if (results.length === 0) {
+        alert("Tidak ada pendaftar baru dengan status 'menunggu' yang perlu diverifikasi.");
+        setAiRunning(false);
+        return;
+      }
+
+      let accCount = 0;
+      for (const res of results) {
+        if (res.isRecommendedACC) {
+          await handleSetStatus(res.userId, "aktif");
+          if (res.suggestedExpiration) {
+            await handleUpdateExpiration(res.userId, res.suggestedExpiration);
+          }
+          accCount++;
+        }
+      }
+
+      alert(`⚡ AI Gemini Auto-Verifikasi Selesai!\n\n${accCount} pendaftar baru terverifikasi sah dan berhasil di-ACC (Setujui).`);
+    } catch (err) {
+      console.error("Gagal verifikasi AI:", err);
+      alert("Gagal menjalankan AI verifikasi. Menggunakan verifikasi standar.");
+    } finally {
+      setAiRunning(false);
+      setAiStatusMsg("");
     }
   };
 
@@ -195,36 +230,33 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
   // Handle update expiration date
   const handleUpdateExpiration = async (userId: string, dateStr: string) => {
+    setUsers(prev => prev.map(u => (u.uid === userId || u.id === userId) ? { ...u, berakhirPada: dateStr } : u));
+    const offlineKey = `offline_user_${userId}`;
+    const savedStr = localStorage.getItem(offlineKey);
+    if (savedStr) {
+      try {
+        const parsed = JSON.parse(savedStr);
+        localStorage.setItem(offlineKey, JSON.stringify({ ...parsed, berakhirPada: dateStr }));
+      } catch (e) {}
+    }
     const userRef = doc(db, "users", userId);
     try {
-      await setDoc(userRef, {
+      await fetchWithTimeout(setDoc(userRef, {
         berakhirPada: dateStr,
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      syncLocalStorageUser(userId, { berakhirPada: dateStr });
-      setUsers(users.map(u => u.uid === userId ? { ...u, berakhirPada: dateStr } : u));
+        updatedAt: new Date().toISOString()
+      }, { merge: true }), 1500, null);
     } catch (err) {
-      console.error("Gagal memperbarui tanggal kedaluwarsa:", err);
+      console.warn("Tanggal kedaluwarsa diperbarui lokal:", err);
     }
   };
 
   // Quick preset helpers for expiration date
   const handleAddDuration = async (userId: string, monthsToAdd: number) => {
-    const userRef = doc(db, "users", userId);
     const d = new Date();
     d.setMonth(d.getMonth() + monthsToAdd);
     const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-    try {
-      await setDoc(userRef, {
-        berakhirPada: dateStr,
-        statusPersetujuan: "aktif",
-        updatedAt: serverTimestamp()
-      }, { merge: true });
-      syncLocalStorageUser(userId, { berakhirPada: dateStr, statusPersetujuan: "aktif" });
-      setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, berakhirPada: dateStr, statusPersetujuan: "aktif" } : u));
-    } catch (err) {
-      console.error("Gagal menambah durasi:", err);
-    }
+    await handleSetStatus(userId, "aktif");
+    await handleUpdateExpiration(userId, dateStr);
   };
 
   const handleRevokeAccessNow = async (userId: string) => {
@@ -238,7 +270,6 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         statusPersetujuan: "diblokir",
         updatedAt: serverTimestamp()
       }, { merge: true });
-      syncLocalStorageUser(userId, { berakhirPada: pastStr, statusPersetujuan: "diblokir" });
       setUsers(users.map(u => (u.uid === userId || u.id === userId) ? { ...u, berakhirPada: pastStr, statusPersetujuan: "diblokir" } : u));
     } catch (err) {
       console.error("Gagal memutuskan akses:", err);
@@ -257,7 +288,6 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       const userRef = doc(db, "users", userId);
       try {
         await deleteDoc(userRef);
-        localStorage.removeItem(`offline_user_${userId}`);
         setUsers(users.filter(u => u.uid !== userId && u.id !== userId));
       } catch (err) {
         console.error("Gagal menghapus pengguna:", err);
@@ -469,6 +499,15 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                onClick={handleRunAiVerification}
+                disabled={aiRunning}
+                className="flex items-center gap-1.5 px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white font-bold text-xs rounded-xl shadow-xs transition cursor-pointer disabled:opacity-50"
+                title="Jalankan AI Gemini untuk verifikasi & ACC pendaftar otomatis"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${aiRunning ? "animate-spin" : ""}`} />
+                {aiRunning ? "Memproses AI..." : "⚡ AI Auto-ACC (Gemini)"}
+              </button>
               <button
                 onClick={handleClearAllUsers}
                 className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition cursor-pointer"

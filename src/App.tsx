@@ -1146,27 +1146,49 @@ export default function App() {
     }
   };
 
-  const availableCategories = React.useMemo(() => {
-    const set = new Set<string>();
+  const [tkpiPage, setTkpiPage] = useState<number>(1);
+  const [tkpiItemsPerPage, setTkpiItemsPerPage] = useState<number>(50);
+
+  const { availableCategories, categoryCountsMap } = React.useMemo(() => {
+    const counts: Record<string, number> = {};
     tkpiList.forEach((item) => {
       const cat = (item.kategori || item.sumber || "Umum").trim();
-      if (cat) set.add(cat);
+      if (cat) {
+        counts[cat] = (counts[cat] || 0) + 1;
+      }
     });
-    return Array.from(set).sort();
+    return {
+      availableCategories: Object.keys(counts).sort(),
+      categoryCountsMap: counts
+    };
   }, [tkpiList]);
 
-  const filteredTkpiList = tkpiList.filter((item) => {
-    const cat = (item.kategori || item.sumber || "Umum").trim();
-    if (selectedCategoryFilter !== "all" && cat !== selectedCategoryFilter) {
-      return false;
-    }
-    if (!tkpiSearchQuery) return true;
-    const q = tkpiSearchQuery.toLowerCase();
-    const namaMatch = (item.nama || "").toLowerCase().includes(q);
-    const sumberMatch = (item.sumber || "").toLowerCase().includes(q);
-    const kategoriMatch = (item.kategori || "").toLowerCase().includes(q);
-    return namaMatch || sumberMatch || kategoriMatch;
-  });
+  const filteredTkpiList = React.useMemo(() => {
+    const q = tkpiSearchQuery.toLowerCase().trim();
+    return tkpiList.filter((item) => {
+      const cat = (item.kategori || item.sumber || "Umum").trim();
+      if (selectedCategoryFilter !== "all" && cat !== selectedCategoryFilter) {
+        return false;
+      }
+      if (!q) return true;
+      const namaMatch = (item.nama || "").toLowerCase().includes(q);
+      const sumberMatch = (item.sumber || "").toLowerCase().includes(q);
+      const kategoriMatch = (item.kategori || "").toLowerCase().includes(q);
+      return namaMatch || sumberMatch || kategoriMatch;
+    });
+  }, [tkpiList, selectedCategoryFilter, tkpiSearchQuery]);
+
+  const totalTkpiPages = Math.ceil(filteredTkpiList.length / tkpiItemsPerPage) || 1;
+
+  const paginatedTkpiList = React.useMemo(() => {
+    const start = (tkpiPage - 1) * tkpiItemsPerPage;
+    return filteredTkpiList.slice(start, start + tkpiItemsPerPage);
+  }, [filteredTkpiList, tkpiPage, tkpiItemsPerPage]);
+
+  // Reset page to 1 when filter or items per page change
+  React.useEffect(() => {
+    setTkpiPage(1);
+  }, [selectedCategoryFilter, tkpiSearchQuery, tkpiItemsPerPage]);
 
   if (loading) {
     return (
@@ -2323,7 +2345,7 @@ export default function App() {
                   Semua Kategori ({tkpiList.length})
                 </button>
                 {availableCategories.map((cat) => {
-                  const count = tkpiList.filter((t) => (t.kategori || t.sumber || "Umum").trim() === cat).length;
+                  const count = categoryCountsMap[cat] || 0;
                   const isSelected = selectedCategoryFilter === cat;
                   return (
                     <div
@@ -2696,19 +2718,26 @@ export default function App() {
               <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden xl:col-span-8 flex flex-col h-[750px]">
                 <div className="p-4 bg-slate-50/50 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div className="space-y-1">
-                    <h4 className="font-bold text-slate-800 text-sm">Daftar Bahan Terdaftar ({filteredTkpiList.length})</h4>
-                    <span className="text-[10px] text-slate-400 italic font-medium">Bahan kustom memiliki tombol hapus. Geser tabel ke kanan untuk melihat nutrisi lengkap.</span>
+                    <h4 className="font-bold text-slate-800 text-sm">
+                      Daftar Bahan Terdaftar ({filteredTkpiList.length} Bahan)
+                    </h4>
+                    <span className="text-[10px] text-slate-400 italic font-medium">
+                      Bahan kustom memiliki tombol hapus. Geser tabel ke kanan untuk melihat nutrisi lengkap.
+                    </span>
                   </div>
-                  <div className="relative w-full sm:w-72">
-                    <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                    <input
-                      id="search-tkpi-input"
-                      type="text"
-                      placeholder="Cari nama, kategori, sumber..."
-                      value={tkpiSearchQuery}
-                      onChange={(e) => setTkpiSearchQuery(e.target.value)}
-                      className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
-                    />
+
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative w-full sm:w-60">
+                      <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                      <input
+                        id="search-tkpi-input"
+                        type="text"
+                        placeholder="Cari nama, kategori, sumber..."
+                        value={tkpiSearchQuery}
+                        onChange={(e) => setTkpiSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-3 py-1.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-rose-500"
+                      />
+                    </div>
                   </div>
                 </div>
 
@@ -2746,58 +2775,108 @@ export default function App() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {filteredTkpiList.map((t, idx) => {
-                        const isSystemItem = INITIAL_TKPI_DATABASE.some((item) => item.id === t.id);
-                        return (
-                          <tr key={t.id} className="hover:bg-slate-50/50">
-                            <td className="p-2.5 text-center text-slate-400 font-mono">{idx + 1}</td>
-                            <td className="p-2.5 truncate font-semibold text-rose-800 bg-rose-50/10">
-                              {t.kategori || t.sumber || "Umum"}
-                            </td>
-                            <td className="p-2.5 font-bold text-slate-800 truncate" title={t.nama}>{t.nama}</td>
-                            <td className="p-2.5 truncate text-slate-500 font-medium">{t.sumber}</td>
-                            <td className="p-2.5 text-center font-mono text-indigo-700 font-medium">
-                              {t.beratStandar !== undefined ? t.beratStandar : 100} g
-                            </td>
-                            <td className="p-2.5 text-center font-mono font-bold text-slate-600">{t.bdd}%</td>
-                            <td className="p-2.5 text-center font-mono text-amber-700 font-extrabold">{t.energi.toFixed(0)}</td>
-                            <td className="p-2.5 text-center font-mono text-indigo-700 font-bold">{t.protein.toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-rose-700 font-bold">{t.lemak.toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-cyan-700 font-bold">{t.kh.toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-emerald-700 font-bold">{t.serat.toFixed(1)}g</td>
-                            <td className="p-2.5 text-center font-mono text-slate-500">{t.abu !== undefined ? t.abu.toFixed(1) : "0.0"}g</td>
-                            <td className="p-2.5 text-center font-mono text-teal-700 font-semibold">{t.ca !== undefined ? t.ca : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-purple-700">{t.p !== undefined ? t.p : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-pink-700 font-semibold">{t.fe !== undefined ? t.fe.toFixed(1) : "0.0"}</td>
-                            <td className="p-2.5 text-center font-mono text-blue-700">{t.na !== undefined ? t.na : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-orange-700">{t.k !== undefined ? t.k : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-yellow-800">{t.cu !== undefined ? t.cu.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-violet-800">{t.zn !== undefined ? t.zn.toFixed(1) : "0.0"}</td>
-                            <td className="p-2.5 text-center font-mono text-red-600">{t.retinol !== undefined ? t.retinol : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-orange-600">{t.b_karoten !== undefined ? t.b_karoten : 0}</td>
-                            <td className="p-2.5 text-center font-mono text-amber-600 font-medium">{t.thiamin !== undefined ? t.thiamin.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-lime-600 font-medium">{t.riboflavin !== undefined ? t.riboflavin.toFixed(2) : "0.00"}</td>
-                            <td className="p-2.5 text-center font-mono text-indigo-500">{t.niasin !== undefined ? t.niasin.toFixed(1) : "0.0"}</td>
-                            <td className="p-2.5 text-center font-mono text-red-500 font-semibold">{t.vit_c !== undefined ? t.vit_c.toFixed(1) : "0.0"}</td>
-                            <td className="p-2.5 text-center font-mono text-sky-600 font-semibold bg-sky-50/10">
-                              {t.air !== undefined ? t.air.toFixed(1) : "0.0"}g
-                            </td>
-                            <td className="p-2.5 text-center">
-                              <button
-                                id={`btn-del-tkpi-${t.id}`}
-                                type="button"
-                                onClick={() => deleteTkpiItem(t.id)}
-                                className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition inline-flex items-center justify-center cursor-pointer"
-                                title="Hapus bahan makanan ini"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {paginatedTkpiList.length > 0 ? (
+                        paginatedTkpiList.map((t, idx) => {
+                          const globalIdx = (tkpiPage - 1) * tkpiItemsPerPage + idx + 1;
+                          return (
+                            <tr key={t.id} className="hover:bg-slate-50/50">
+                              <td className="p-2.5 text-center text-slate-400 font-mono">{globalIdx}</td>
+                              <td className="p-2.5 truncate font-semibold text-rose-800 bg-rose-50/10">
+                                {t.kategori || t.sumber || "Umum"}
+                              </td>
+                              <td className="p-2.5 font-bold text-slate-800 truncate" title={t.nama}>{t.nama}</td>
+                              <td className="p-2.5 truncate text-slate-500 font-medium">{t.sumber}</td>
+                              <td className="p-2.5 text-center font-mono text-indigo-700 font-medium">
+                                {t.beratStandar !== undefined ? t.beratStandar : 100} g
+                              </td>
+                              <td className="p-2.5 text-center font-mono font-bold text-slate-600">{t.bdd}%</td>
+                              <td className="p-2.5 text-center font-mono text-amber-700 font-extrabold">{t.energi.toFixed(0)}</td>
+                              <td className="p-2.5 text-center font-mono text-indigo-700 font-bold">{t.protein.toFixed(1)}g</td>
+                              <td className="p-2.5 text-center font-mono text-rose-700 font-bold">{t.lemak.toFixed(1)}g</td>
+                              <td className="p-2.5 text-center font-mono text-cyan-700 font-bold">{t.kh.toFixed(1)}g</td>
+                              <td className="p-2.5 text-center font-mono text-emerald-700 font-bold">{t.serat.toFixed(1)}g</td>
+                              <td className="p-2.5 text-center font-mono text-slate-500">{t.abu !== undefined ? t.abu.toFixed(1) : "0.0"}g</td>
+                              <td className="p-2.5 text-center font-mono text-teal-700 font-semibold">{t.ca !== undefined ? t.ca : 0}</td>
+                              <td className="p-2.5 text-center font-mono text-purple-700">{t.p !== undefined ? t.p : 0}</td>
+                              <td className="p-2.5 text-center font-mono text-pink-700 font-semibold">{t.fe !== undefined ? t.fe.toFixed(1) : "0.0"}</td>
+                              <td className="p-2.5 text-center font-mono text-blue-700">{t.na !== undefined ? t.na : 0}</td>
+                              <td className="p-2.5 text-center font-mono text-orange-700">{t.k !== undefined ? t.k : 0}</td>
+                              <td className="p-2.5 text-center font-mono text-yellow-800">{t.cu !== undefined ? t.cu.toFixed(2) : "0.00"}</td>
+                              <td className="p-2.5 text-center font-mono text-violet-800">{t.zn !== undefined ? t.zn.toFixed(1) : "0.0"}</td>
+                              <td className="p-2.5 text-center font-mono text-red-600">{t.retinol !== undefined ? t.retinol : 0}</td>
+                              <td className="p-2.5 text-center font-mono text-orange-600">{t.b_karoten !== undefined ? t.b_karoten : 0}</td>
+                              <td className="p-2.5 text-center font-mono text-amber-600 font-medium">{t.thiamin !== undefined ? t.thiamin.toFixed(2) : "0.00"}</td>
+                              <td className="p-2.5 text-center font-mono text-lime-600 font-medium">{t.riboflavin !== undefined ? t.riboflavin.toFixed(2) : "0.00"}</td>
+                              <td className="p-2.5 text-center font-mono text-indigo-500">{t.niasin !== undefined ? t.niasin.toFixed(1) : "0.0"}</td>
+                              <td className="p-2.5 text-center font-mono text-red-500 font-semibold">{t.vit_c !== undefined ? t.vit_c.toFixed(1) : "0.0"}</td>
+                              <td className="p-2.5 text-center font-mono text-sky-600 font-semibold bg-sky-50/10">
+                                {t.air !== undefined ? t.air.toFixed(1) : "0.0"}g
+                              </td>
+                              <td className="p-2.5 text-center">
+                                <button
+                                  id={`btn-del-tkpi-${t.id}`}
+                                  type="button"
+                                  onClick={() => deleteTkpiItem(t.id)}
+                                  className="p-1 hover:bg-rose-50 text-slate-400 hover:text-rose-600 rounded transition inline-flex items-center justify-center cursor-pointer"
+                                  title="Hapus bahan makanan ini"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </td>
+                            </tr>
+                          );
+                        })
+                      ) : (
+                        <tr>
+                          <td colSpan={27} className="p-8 text-center text-slate-400 italic">
+                            Tidak ada bahan makanan yang sesuai dengan kata kunci atau filter.
+                          </td>
+                        </tr>
+                      )}
                     </tbody>
                   </table>
+                </div>
+
+                {/* Pagination Controls */}
+                <div className="p-3 bg-slate-50 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600 shrink-0 select-none">
+                  <div className="flex items-center gap-2">
+                    <span>Tampilkan per halaman:</span>
+                    <select
+                      value={tkpiItemsPerPage}
+                      onChange={(e) => setTkpiItemsPerPage(Number(e.target.value))}
+                      className="bg-white border border-slate-200 rounded px-2 py-1 text-xs font-semibold focus:outline-none focus:ring-1 focus:ring-rose-500"
+                    >
+                      <option value={25}>25</option>
+                      <option value={50}>50</option>
+                      <option value={100}>100</option>
+                      <option value={250}>250</option>
+                    </select>
+                    <span className="text-slate-400">
+                      • Menampilkan {filteredTkpiList.length > 0 ? (tkpiPage - 1) * tkpiItemsPerPage + 1 : 0} - {Math.min(tkpiPage * tkpiItemsPerPage, filteredTkpiList.length)} dari {filteredTkpiList.length} bahan
+                    </span>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={tkpiPage <= 1}
+                      onClick={() => setTkpiPage((p) => Math.max(1, p - 1))}
+                      className="px-3 py-1 bg-white border border-slate-200 rounded text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 font-semibold transition"
+                    >
+                      &laquo; Sebelumnya
+                    </button>
+                    <span className="font-bold text-slate-800">
+                      Halaman {tkpiPage} dari {totalTkpiPages}
+                    </span>
+                    <button
+                      type="button"
+                      disabled={tkpiPage >= totalTkpiPages}
+                      onClick={() => setTkpiPage((p) => Math.min(totalTkpiPages, p + 1))}
+                      className="px-3 py-1 bg-white border border-slate-200 rounded text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed hover:bg-slate-100 font-semibold transition"
+                    >
+                      Berikutnya &raquo;
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>

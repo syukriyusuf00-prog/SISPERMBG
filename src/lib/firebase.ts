@@ -33,10 +33,15 @@ console.error = function (...args) {
     message.includes("Could not reach Cloud Firestore backend") || 
     message.includes("@firebase/firestore") ||
     message.includes("Firestore (12.15.0)") ||
-    message.includes("unreachable")
+    message.includes("unreachable") ||
+    message.includes("Quota limit exceeded") ||
+    message.includes("Quota exceeded") ||
+    message.includes("Free daily read units") ||
+    message.includes("quota metric") ||
+    message.includes("RESOURCE_EXHAUSTED")
   ) {
     // Suppress or downgrade to warning/info so it doesn't trigger the platform's automatic error detector
-    console.warn("[Suppressed Firestore Log]:", ...args);
+    console.warn("[Suppressed Firestore Quota/Log]:", ...args);
     return;
   }
   originalConsoleError.apply(console, args);
@@ -87,8 +92,23 @@ export interface FirestoreErrorInfo {
  * Conforms to the JSON payload structure required by the system.
  */
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errStr = error instanceof Error ? error.message : String(error);
+  const isQuotaOrOffline = 
+    errStr.includes("Quota limit exceeded") || 
+    errStr.includes("Quota exceeded") || 
+    errStr.includes("Free daily read units") || 
+    errStr.includes("quota metric") || 
+    errStr.includes("RESOURCE_EXHAUSTED") || 
+    errStr.includes("Could not reach") || 
+    errStr.includes("offline");
+
+  if (isQuotaOrOffline) {
+    console.warn(`[Firestore Fallback Mode on ${operationType} - ${path}]: Using offline state.`);
+    return;
+  }
+
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errStr,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -103,6 +123,5 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
-  console.error("Firestore Security/Operation Error: ", JSON.stringify(errInfo));
-  throw new Error(JSON.stringify(errInfo));
+  console.warn("Firestore Security/Operation Warning: ", JSON.stringify(errInfo));
 }

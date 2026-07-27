@@ -577,18 +577,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       };
 
       // 1. Immediately store in local storage so registration is 100% instant and durable
-      const localProfile = {
+      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
         ...profileData,
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString()
-      };
-      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(localProfile));
+      }));
 
-      // 2. Dispatch window event for instant synchronization across components
-      window.dispatchEvent(new CustomEvent("sisper_user_registered", { detail: localProfile }));
-
-      // 3. Fire Firestore write with fast timeout (non-blocking if cloud connection is slow)
-      fetchWithTimeout(setDoc(userRef, profileData), 2000, null).catch((dbErr) => {
+      // 2. Fire Firestore write with fast timeout (non-blocking if cloud connection is slow)
+      fetchWithTimeout(setDoc(userRef, profileData), 1500, null).catch((dbErr) => {
         console.warn("Operasi setDoc Firestore di latar belakang tertunda:", dbErr);
       });
     } catch (error: any) {
@@ -722,47 +718,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const refreshUserProfile = async () => {
     const customUid = localStorage.getItem("custom_logged_in_uid");
-    const activeUid = customUid || userProfile?.uid || user?.uid;
-
-    if (activeUid) {
-      if (activeUid === "admin_sukriyusuf82" || activeUid === "admin_syukriyusuf82" || activeUid === "syukriyusuf82_simulated_uid") {
-        return;
-      }
-
+    if (customUid) {
       try {
-        const userRef = doc(db, "users", activeUid);
-        const snap: any = await fetchWithTimeout(getDoc(userRef), 2000, null);
-        let freshData: any = null;
-
-        if (snap && snap.exists()) {
-          freshData = snap.data();
-        }
-
-        // Check local storage cache
-        const offlineKey = `offline_user_${activeUid}`;
-        const rawOffline = localStorage.getItem(offlineKey);
-        if (rawOffline) {
-          try {
-            const parsedOffline = JSON.parse(rawOffline);
-            if (!freshData) {
-              freshData = parsedOffline;
-            } else {
-              freshData = { ...parsedOffline, ...freshData };
-            }
-          } catch (e) {}
-        }
-
-        if (freshData) {
-          localStorage.setItem(offlineKey, JSON.stringify(freshData));
+        const userRef = doc(db, "users", customUid);
+        const snap = await getDoc(userRef);
+        if (snap.exists()) {
           updateSession({
-            uid: activeUid,
-            email: freshData.email,
-            displayName: freshData.namaLengkap,
+            uid: customUid,
+            email: snap.data().email,
+            displayName: snap.data().namaLengkap,
             emailVerified: true
-          } as any, freshData);
+          } as any, snap.data());
         }
       } catch (e) {
-        console.error("Gagal menyegarkan profil:", e);
+        console.error(e);
       }
       return;
     }
@@ -780,19 +749,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const path = `users/${user.uid}/states/${key}`;
     try {
       const serializedData = typeof data === "string" ? data : JSON.stringify(data);
-      await setDoc(stateRef, {
+      await fetchWithTimeout(setDoc(stateRef, {
         userId: user.uid,
         stateKey: key,
         data: serializedData,
         updatedAt: serverTimestamp()
-      });
+      }), 2000, null);
     } catch (error: any) {
-      const isOfflineOrPerm = error?.message?.includes("offline") || error?.message?.includes("Could not reach") || error?.message?.includes("permission") || error?.message?.includes("Permission");
-      if (isOfflineOrPerm) {
-        console.warn("Firestore offline/permission error while saving state:", error);
-        return; // Silently fallback to offline mode
-      }
-      handleFirestoreError(error, OperationType.WRITE, path);
+      console.warn(`Firestore state save notice (${key}) - fallback ke penyimpanan lokal:`, error);
     }
   };
 
@@ -802,10 +766,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     if (!isApproved) return null;
 
     const stateRef = doc(db, "users", user.uid, "states", key);
-    const path = `users/${user.uid}/states/${key}`;
     try {
-      const snap = await getDoc(stateRef);
-      if (snap.exists()) {
+      const snap: any = await fetchWithTimeout(getDoc(stateRef), 2000, null);
+      if (snap && snap.exists()) {
         const rawData = snap.data().data;
         if (typeof rawData === "string") {
           try {
@@ -817,12 +780,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return rawData;
       }
     } catch (error: any) {
-      const isOfflineOrPerm = error?.message?.includes("offline") || error?.message?.includes("Could not reach") || error?.message?.includes("permission") || error?.message?.includes("Permission");
-      if (isOfflineOrPerm) {
-        console.warn("Firestore offline/permission error while loading state:", error);
-        return null; // Gracefully return null to fallback to local state
-      }
-      handleFirestoreError(error, OperationType.GET, path);
+      console.warn(`Firestore state load notice (${key}) - fallback ke penyimpanan lokal:`, error);
+      return null;
     }
     return null;
   };

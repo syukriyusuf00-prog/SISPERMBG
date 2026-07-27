@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import { TKPIItem } from "../types";
 import { ChevronDown, AlertCircle } from "lucide-react";
 
@@ -26,7 +26,9 @@ export default function SearchableTkpiDropdown({
   const [searchQuery, setSearchQuery] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  const selectedItem = tkpiList.find((t) => t.id === selectedValue);
+  const selectedItem = useMemo(() => {
+    return tkpiList.find((t) => t.id === selectedValue);
+  }, [tkpiList, selectedValue]);
 
   // Sync state when selection changes
   useEffect(() => {
@@ -55,17 +57,24 @@ export default function SearchableTkpiDropdown({
     };
   }, [selectedItem]);
 
-  // Filter list based on search input
-  const filteredList = tkpiList.filter((item) => {
-    if (!searchQuery) return true;
-    const q = searchQuery.toLowerCase();
-    
-    const nameMatch = (item.nama || "").toLowerCase().includes(q);
-    const categoryMatch = (item.kategori || "").toLowerCase().includes(q);
-    const sourceMatch = (item.sumber || "").toLowerCase().includes(q);
-    
-    return nameMatch || categoryMatch || sourceMatch;
-  });
+  // Filter list based on search input efficiently using useMemo
+  const filteredList = useMemo(() => {
+    if (!searchQuery) return tkpiList;
+    const q = searchQuery.toLowerCase().trim();
+    if (!q) return tkpiList;
+
+    return tkpiList.filter((item) => {
+      const nameMatch = (item.nama || "").toLowerCase().includes(q);
+      const categoryMatch = (item.kategori || "").toLowerCase().includes(q);
+      const sourceMatch = (item.sumber || "").toLowerCase().includes(q);
+      return nameMatch || categoryMatch || sourceMatch;
+    });
+  }, [tkpiList, searchQuery]);
+
+  // Limit rendered items to 40 for ultra-fast rendering on large datasets (1200+ items)
+  const displayedList = useMemo(() => {
+    return filteredList.slice(0, 40);
+  }, [filteredList]);
 
   const handleSelect = (item: TKPIItem) => {
     onChange(item.id);
@@ -109,20 +118,27 @@ export default function SearchableTkpiDropdown({
 
       {isOpen && (
         <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-50 max-h-60 overflow-y-auto divide-y divide-slate-50">
-          {filteredList.length > 0 ? (
-            filteredList.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => handleSelect(t)}
-                className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition flex flex-col space-y-0.5 ${t.id === selectedValue ? "bg-indigo-50/50 font-semibold text-indigo-700" : "text-slate-700"}`}
-              >
-                <span className="font-bold text-slate-800">{t.nama}</span>
-                <span className="text-[10px] text-slate-400 font-medium">
-                  [{t.kategori || t.sumber || "Umum"}] {t.sumber}
-                </span>
-              </button>
-            ))
+          {displayedList.length > 0 ? (
+            <>
+              {displayedList.map((t) => (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => handleSelect(t)}
+                  className={`w-full text-left px-3 py-2 text-xs hover:bg-slate-50 transition flex flex-col space-y-0.5 ${t.id === selectedValue ? "bg-indigo-50/50 font-semibold text-indigo-700" : "text-slate-700"}`}
+                >
+                  <span className="font-bold text-slate-800">{t.nama}</span>
+                  <span className="text-[10px] text-slate-400 font-medium">
+                    [{t.kategori || t.sumber || "Umum"}] {t.sumber}
+                  </span>
+                </button>
+              ))}
+              {filteredList.length > 40 && (
+                <div className="p-2 text-center text-[10px] text-slate-400 font-medium bg-slate-50 italic">
+                  Menampilkan 40 dari {filteredList.length} hasil. Ketik lebih spesifik untuk menyaring.
+                </div>
+              )}
+            </>
           ) : (
             <div className="p-3 text-center text-xs text-rose-600 font-semibold flex flex-col items-center justify-center gap-1.5 bg-rose-50/20">
               <AlertCircle className="w-4 h-4 text-rose-500" />

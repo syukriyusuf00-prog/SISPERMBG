@@ -68,6 +68,15 @@ export default function CekGiziTab({
   const [isDownloading, setIsDownloading] = useState<string | null>(null);
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
 
+  const tkpiMap = React.useMemo(() => {
+    const map = new Map<string, TKPIItem>();
+    for (let i = 0; i < tkpiList.length; i++) {
+      const item = tkpiList[i];
+      if (item && item.id) map.set(item.id, item);
+    }
+    return map;
+  }, [tkpiList]);
+
   // Initialize detailed targets for all 19 nutrients
   const [akgTargets, setAkgTargets] = useState<Record<string, number>>(() => {
     const targetEnergy = 634; // standard for sd_besar
@@ -215,7 +224,7 @@ export default function CekGiziTab({
   });
 
   items.forEach((item) => {
-    const tkpi = tkpiList.find((t) => t.id === item.tkpiId);
+    const tkpi = tkpiMap.get(item.tkpiId);
     if (tkpi) {
       const factor = (Number(item.berat) || 0) / 100;
       nutrientsList.forEach((n) => {
@@ -674,7 +683,7 @@ export default function CekGiziTab({
                   </thead>
                   <tbody>
                     {items.map((item, idx) => {
-                      const tkpi = tkpiList.find((t) => t.id === item.tkpiId);
+                      const tkpi = tkpiMap.get(item.tkpiId);
                       return (
                         <tr key={item.id} className="text-slate-800 font-medium">
                           <td className="border border-slate-300 p-1.5 text-center font-mono">{idx + 1}</td>

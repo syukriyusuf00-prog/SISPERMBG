@@ -86,37 +86,57 @@ export function formatRupiah(value: number): string {
   }).format(value);
 }
 
+export function createTkpiMap(tkpiList: TKPIItem[]): Map<string, TKPIItem> {
+  const map = new Map<string, TKPIItem>();
+  for (let i = 0; i < tkpiList.length; i++) {
+    const item = tkpiList[i];
+    if (item && item.id) {
+      map.set(item.id, item);
+    }
+  }
+  return map;
+}
+
 export function calculateIngredient(
   input: BahanMakananInput,
-  tkpiList: TKPIItem[],
+  tkpiListOrMap: TKPIItem[] | Map<string, TKPIItem>,
   jumlahPM: number,
   bufferPct: number = 3
 ): CalcIngredientResult {
-  const tkpi = tkpiList.find((t) => t.id === input.tkpiId) || {
-    id: "unknown",
-    nama: "Bahan Tidak Diketahui",
-    sumber: "Umum",
-    bdd: 100,
-    energi: 0,
-    protein: 0,
-    lemak: 0,
-    kh: 0,
-    serat: 0,
-    abu: 0,
-    ca: 0,
-    p: 0,
-    fe: 0,
-    na: 0,
-    k: 0,
-    cu: 0,
-    zn: 0,
-    retinol: 0,
-    b_karoten: 0,
-    thiamin: 0,
-    riboflavin: 0,
-    niasin: 0,
-    vit_c: 0
-  };
+  let tkpi: TKPIItem | undefined;
+  if (tkpiListOrMap instanceof Map) {
+    tkpi = tkpiListOrMap.get(input.tkpiId);
+  } else if (Array.isArray(tkpiListOrMap)) {
+    tkpi = tkpiListOrMap.find((t) => t.id === input.tkpiId);
+  }
+
+  if (!tkpi) {
+    tkpi = {
+      id: "unknown",
+      nama: "Bahan Tidak Diketahui",
+      sumber: "Umum",
+      bdd: 100,
+      energi: 0,
+      protein: 0,
+      lemak: 0,
+      kh: 0,
+      serat: 0,
+      abu: 0,
+      ca: 0,
+      p: 0,
+      fe: 0,
+      na: 0,
+      k: 0,
+      cu: 0,
+      zn: 0,
+      retinol: 0,
+      b_karoten: 0,
+      thiamin: 0,
+      riboflavin: 0,
+      niasin: 0,
+      vit_c: 0
+    };
+  }
 
   const bddPct = typeof input.bdd === "number" ? input.bdd : (tkpi.bdd || 100);
   
@@ -296,10 +316,11 @@ export function calculateDay(
   jumlahPMBesar: number,
   jumlahPMKecil: number,
   bufferPct: number, // 3 or 5
-  tkpiList: TKPIItem[]
+  tkpiListOrMap: TKPIItem[] | Map<string, TKPIItem>
 ): DayCalculatedResult {
-  const besarItems = porsiBesarBahan.map((b) => calculateIngredient(b, tkpiList, jumlahPMBesar, bufferPct));
-  const kecilItems = porsiKecilBahan.map((b) => calculateIngredient(b, tkpiList, jumlahPMKecil, bufferPct));
+  const tkpiMap = tkpiListOrMap instanceof Map ? tkpiListOrMap : createTkpiMap(tkpiListOrMap);
+  const besarItems = porsiBesarBahan.map((b) => calculateIngredient(b, tkpiMap, jumlahPMBesar, bufferPct));
+  const kecilItems = porsiKecilBahan.map((b) => calculateIngredient(b, tkpiMap, jumlahPMKecil, bufferPct));
 
   const totalBesarBahanCost = besarItems.reduce((acc, item) => acc + item.hargaTotal, 0);
   const totalKecilBahanCost = kecilItems.reduce((acc, item) => acc + item.hargaTotal, 0);
