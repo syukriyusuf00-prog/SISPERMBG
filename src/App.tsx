@@ -280,11 +280,20 @@ export default function App() {
     const unsubscribeLogo = onSnapshot(logoDocRef, (snap) => {
       if (snap.exists()) {
         const data = snap.data();
-        if (data && data.url) {
-          setCustomLogo(data.url);
-          setKopLeftLogo(data.url);
-          localStorage.setItem("sisper_custom_logo", data.url);
-          localStorage.setItem("kop_left_logo", data.url);
+        if (data) {
+          const activeUrl = data.rightUrl || data.url;
+          if (activeUrl) {
+            setCustomLogo(activeUrl);
+            localStorage.setItem("sisper_custom_logo", activeUrl);
+          }
+          if (data.url) {
+            setKopLeftLogo(data.url);
+            localStorage.setItem("kop_left_logo", data.url);
+          }
+          if (data.rightUrl !== undefined) {
+            setKopRightLogo(data.rightUrl);
+            localStorage.setItem("kop_right_logo", data.rightUrl || "");
+          }
         }
       }
     }, (error) => {
@@ -1032,15 +1041,20 @@ export default function App() {
         const compressedBase64 = canvas.toDataURL("image/jpeg", 0.85);
         if (compressedBase64) {
           setCustomLogo(compressedBase64);
+          setKopLeftLogo(compressedBase64);
+          setKopRightLogo(compressedBase64);
           localStorage.setItem("sisper_custom_logo", compressedBase64);
+          localStorage.setItem("kop_left_logo", compressedBase64);
+          localStorage.setItem("kop_right_logo", compressedBase64);
 
           try {
             // Write directly to configs/app_logo for global propagation
             await setDoc(doc(db, "configs", "app_logo"), {
               url: compressedBase64,
+              rightUrl: compressedBase64,
               updatedBy: user?.email || "Syukri Yusuf",
               updatedAt: new Date().toISOString()
-            });
+            }, { merge: true });
           } catch (err) {
             console.warn("Gagal memperbarui logo global di Firestore:", err);
           }
@@ -1066,9 +1080,31 @@ export default function App() {
         url: newLogo,
         updatedBy: user?.email || "Admin SISPERMBG",
         updatedAt: new Date().toISOString()
-      });
+      }, { merge: true });
     } catch (err) {
       console.warn("Gagal menyinkronkan logo global ke cloud:", err);
+    }
+  };
+
+  const handleUpdateRightLogo = async (newLogo: string) => {
+    setKopRightLogo(newLogo);
+    setCustomLogo(newLogo);
+    localStorage.setItem("kop_right_logo", newLogo);
+    localStorage.setItem("sisper_custom_logo", newLogo);
+
+    try {
+      if (user) {
+        await saveStateToCloud("kopRightLogo", newLogo);
+        await saveStateToCloud("customLogo", newLogo);
+      }
+      await setDoc(doc(db, "configs", "app_logo"), {
+        url: newLogo,
+        rightUrl: newLogo,
+        updatedBy: user?.email || "Admin SISPERMBG",
+        updatedAt: new Date().toISOString()
+      }, { merge: true });
+    } catch (err) {
+      console.warn("Gagal menyinkronkan logo kanan global ke cloud:", err);
     }
   };
 
@@ -1956,7 +1992,7 @@ export default function App() {
           <div className="flex items-center gap-3.5">
             <div className={`relative shrink-0 w-24 h-24 rounded-full overflow-hidden border-2 border-emerald-400 shadow-lg ${userProfile?.peran === "ADMIN" ? "group cursor-pointer" : ""}`}>
               <img
-                src={customLogo}
+                src={customLogo || kopRightLogo || kopLeftLogo || "/src/assets/images/logo_sppg_1782256222616.jpg"}
                 alt="Logo SPPG"
                 className="w-full h-full object-cover"
                 referrerPolicy="no-referrer"
@@ -2138,7 +2174,7 @@ export default function App() {
                   leftLogo={kopLeftLogo}
                   setLeftLogo={handleUpdateLeftLogo}
                   rightLogo={kopRightLogo}
-                  setRightLogo={setKopRightLogo}
+                  setRightLogo={handleUpdateRightLogo}
                   leftLogoCrop={leftLogoCrop}
                   setLeftLogoCrop={setLeftLogoCrop}
                   rightLogoCrop={rightLogoCrop}
@@ -2168,7 +2204,7 @@ export default function App() {
             leftLogo={kopLeftLogo}
             setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
-            setRightLogo={setKopRightLogo}
+            setRightLogo={handleUpdateRightLogo}
             leftLogoCrop={leftLogoCrop}
             setLeftLogoCrop={setLeftLogoCrop}
             rightLogoCrop={rightLogoCrop}
@@ -2233,7 +2269,7 @@ export default function App() {
             leftLogo={kopLeftLogo}
             setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
-            setRightLogo={setKopRightLogo}
+            setRightLogo={handleUpdateRightLogo}
             leftLogoCrop={leftLogoCrop}
             setLeftLogoCrop={setLeftLogoCrop}
             rightLogoCrop={rightLogoCrop}
@@ -2261,7 +2297,7 @@ export default function App() {
             leftLogo={kopLeftLogo}
             setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
-            setRightLogo={setKopRightLogo}
+            setRightLogo={handleUpdateRightLogo}
             leftLogoCrop={leftLogoCrop}
             setLeftLogoCrop={setLeftLogoCrop}
             rightLogoCrop={rightLogoCrop}
@@ -2292,7 +2328,7 @@ export default function App() {
             leftLogo={kopLeftLogo}
             setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
-            setRightLogo={setKopRightLogo}
+            setRightLogo={handleUpdateRightLogo}
             leftLogoCrop={leftLogoCrop}
             setLeftLogoCrop={setLeftLogoCrop}
             rightLogoCrop={rightLogoCrop}
@@ -2321,7 +2357,7 @@ export default function App() {
             leftLogo={kopLeftLogo}
             setLeftLogo={handleUpdateLeftLogo}
             rightLogo={kopRightLogo}
-            setRightLogo={setKopRightLogo}
+            setRightLogo={handleUpdateRightLogo}
             leftLogoCrop={leftLogoCrop}
             setLeftLogoCrop={setLeftLogoCrop}
             rightLogoCrop={rightLogoCrop}

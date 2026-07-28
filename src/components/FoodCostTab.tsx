@@ -4289,7 +4289,7 @@ export default function FoodCostTab({
                 </div>
                 <div>
                   <h3 className="font-extrabold text-base text-slate-900 leading-tight">
-                    Konfigurasi Penyusutan (Buffer) & Jumlah + Buffer
+                    Konfigurasi Penyusutan/Kerusakan (Buffer) & Jumlah + Buffer
                   </h3>
                   <p className="text-xs text-slate-500 font-medium mt-0.5">
                     Bahan: <span className="text-indigo-600 font-bold font-mono">{activeBufferConfig.namaBahan}</span>
@@ -4315,7 +4315,7 @@ export default function FoodCostTab({
                     1
                   </span>
                   <h4 className="text-xs font-black text-slate-800 uppercase tracking-wider">
-                    Pilih Basis Perhitungan Nilai Penyusutan (Buffer)
+                    Pilih Basis Perhitungan Nilai Penyusutan/Kerusakan (Buffer)
                   </h4>
                 </div>
                 <p className="text-xs text-slate-500 font-medium leading-relaxed">

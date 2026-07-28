@@ -58,13 +58,12 @@ const DEFAULT_DELETED_EMAILS = [
 export const getDeletedTenantEmails = (): Set<string> => {
   try {
     const raw = localStorage.getItem("deleted_tenant_emails");
-    if (raw) {
+    if (raw !== null) {
       const arr = JSON.parse(raw);
-      const combined = new Set([...DEFAULT_DELETED_EMAILS, ...arr]);
-      return combined;
+      return new Set(arr.map((e: string) => e.toLowerCase().trim()));
     }
   } catch (e) {}
-  return new Set(DEFAULT_DELETED_EMAILS);
+  return new Set(DEFAULT_DELETED_EMAILS.map(e => e.toLowerCase().trim()));
 };
 
 export const addDeletedTenantEmail = (email: string) => {
