@@ -358,11 +358,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
           const isExpired = freshData.berakhirPada ? todayStr > freshData.berakhirPada : false;
 
-          if (freshData.statusPersetujuan === "diblokir" || isExpired) {
+          if (freshData.statusPersetujuan === "diblokir" || freshData.statusPersetujuan === "menunggu" || isExpired) {
             signOutUser();
             setAuthError(
               isExpired
                 ? `Masa aktif akun Anda telah berakhir pada ${freshData.berakhirPada}. Silakan hubungi admin untuk memperpanjang.`
+                : freshData.statusPersetujuan === "menunggu"
+                ? `Status akun Anda berada dalam DAFTAR TUNGGU (menunggu persetujuan Admin).`
                 : "Akses akun Anda telah diputuskan/diblokir oleh Administrator."
             );
           } else {
@@ -383,25 +385,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             });
           }
         } else {
-          // User document not found in remote snapshot
-          const activeEmail = (userProfile?.email || user?.email || "").toLowerCase().trim();
-          let isDeleted = false;
-          try {
-            const raw = localStorage.getItem("deleted_tenant_emails");
-            if (raw) {
-              const list: string[] = JSON.parse(raw);
-              if (list.map(e => e.toLowerCase().trim()).includes(activeEmail)) {
-                isDeleted = true;
-              }
-            }
-          } catch (e) {}
-
-          if (isDeleted) {
+          // User document removed or reset by Admin in Firestore -> Immediate real-time force logout
+          if (!isMainAdminEmail(userProfile?.email)) {
             signOutUser();
             setAuthError("Data akun Anda telah direset/dihapus oleh Administrator. Silakan melakukan pendaftaran ulang dengan email Anda.");
-          } else if (userProfile) {
-            // Document missing on remote server but local user exists -> Re-sync to Firestore
-            setDoc(userRef, userProfile, { merge: true }).catch(() => {});
           }
         }
       }, (err) => {
@@ -532,6 +519,9 @@ const removeDeletedTenantEmail = (email: string) => {
     roles: Array<{ namaLengkap: string; email: string; noHp: string; profesi: string }>;
   }) => {
     try {
+      if (data.sandi && data.sandi.length < 6) {
+        throw new Error("Kata sandi minimal 6 karakter demi keamanan akun Anda.");
+      }
       const promises = data.roles.map(async (r) => {
         const lowerEmail = r.email.toLowerCase().trim();
         removeDeletedTenantEmail(lowerEmail);
@@ -547,7 +537,7 @@ const removeDeletedTenantEmail = (email: string) => {
           noHp: r.noHp,
           sandi: data.sandi,
           peran: "USER" as const,
-          statusPersetujuan: "aktif" as const,
+          statusPersetujuan: "menunggu" as const, // Default waiting list until Admin approves
           berakhirPada: "2027-12-31",
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
@@ -587,6 +577,11 @@ const removeDeletedTenantEmail = (email: string) => {
     try {
       const lowerEmail = formData.email.toLowerCase().trim();
       const isAdminEmail = isMainAdminEmail(lowerEmail);
+
+      if (!isAdminEmail && formData.sandi && formData.sandi.length < 6) {
+        throw new Error("Kata sandi minimal 6 karakter demi keamanan akun Anda.");
+      }
+
       const customUid = isAdminEmail 
         ? "admin_syukriyusuf82"
         : `custom_user_${lowerEmail.replace(/[@.]/g, "_")}`;
@@ -607,7 +602,7 @@ const removeDeletedTenantEmail = (email: string) => {
       }
 
       if (remoteUserExists) {
-        throw new Error(`Email "${lowerEmail}" sudah terdaftar dan statusnya aktif di sistem. Silakan langsung masuk atau hubungi Administrator jika perlu bantuan.`);
+        throw new Error(`Email "${lowerEmail}" sudah terdaftar di sistem. Silakan langsung masuk atau hubungi Administrator jika perlu bantuan.`);
       }
 
       // 2. Remote doc does not exist (meaning never registered or deleted by Admin) -> Purge stale local cache
@@ -623,7 +618,7 @@ const removeDeletedTenantEmail = (email: string) => {
         namaSPPG: isAdminEmail ? "SPPG MUNA BARAT SAWERIGADI ONDOKE" : formData.namaSPPG,
         sandi: isAdminEmail ? "Syukri@123" : formData.sandi,
         peran: isAdminEmail ? ("ADMIN" as const) : ("USER" as const),
-        statusPersetujuan: "aktif" as const, // Default active on registration so users can log in immediately
+        statusPersetujuan: isAdminEmail ? ("aktif" as const) : ("menunggu" as const), // Waiting list for non-admin
         berakhirPada: isAdminEmail ? "2035-12-31" : "2027-12-31",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -757,50 +752,32 @@ const removeDeletedTenantEmail = (email: string) => {
         console.warn("Pemeriksaan Firestore notice, menggunakan cache lokal/auto-provisioning:", dbErr);
       }
       
-      // 3. Auto-provision user account if not registered yet so login succeeds seamlessly
+      // 3. Ensure user account exists
       if (!data) {
-        const defaultName = lowerEmail.split('@')[0].toUpperCase().replace(/[._]/g, ' ');
-        const enteredSandi = sandi ? sandi.trim() : "123456";
-        data = {
-          uid: customUid,
-          email: lowerEmail,
-          namaLengkap: defaultName,
-          profesi: "AHLI GIZI",
-          namaSPPG: "SPPG / UNIT LAYANAN GIZI",
-          noHp: "-",
-          sandi: enteredSandi,
-          peran: "USER" as const,
-          statusPersetujuan: "aktif" as const,
-          berakhirPada: "2027-12-31",
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          loginTerakhir: new Date().toISOString()
-        };
-
-        localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
-        setDoc(userRef, data, { merge: true }).catch(() => {});
+        throw new Error(`Email "${lowerEmail}" belum terdaftar di sistem. Silakan lakukan pendaftaran akun baru terlebih dahulu.`);
       }
 
-      // 4. Password validation
+      // 4. Strict Password Validation
       const enteredSandi = sandi ? sandi.trim() : "";
       const storedSandi = data.sandi ? data.sandi.trim() : "";
-      if (storedSandi && enteredSandi && storedSandi !== enteredSandi) {
-        // Update stored sandi if user enters new valid sandi
-        data.sandi = enteredSandi;
-        localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
-        setDoc(userRef, { sandi: enteredSandi }, { merge: true }).catch(() => {});
+      if (storedSandi && enteredSandi !== storedSandi) {
+        throw new Error("Kata sandi salah. Silakan masukkan kata sandi yang sesuai saat Anda mendaftar.");
       }
 
-      // 5. Status validation & auto-activation
+      // 5. Status Validation (Waiting List / Blocked / Expired)
+      if (data.statusPersetujuan === "menunggu" || data.statusPersetujuan === "pending") {
+        throw new Error(`Akun Anda (${lowerEmail}) saat ini berada dalam DAFTAR TUNGGU (menunggu persetujuan Admin). Silakan hubungi Administrator untuk pengaktifan akun.`);
+      }
+
       if (data.statusPersetujuan === "diblokir") {
         throw new Error("Akses akun Anda telah diputuskan/diblokir oleh Administrator.");
       }
 
-      // Ensure active status and extended validity
-      data.statusPersetujuan = "aktif";
-      data.berakhirPada = "2027-12-31";
-      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
-      setDoc(userRef, { statusPersetujuan: "aktif", berakhirPada: "2027-12-31" }, { merge: true }).catch(() => {});
+      const now = new Date();
+      const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+      if (data.berakhirPada && todayStr > data.berakhirPada) {
+        throw new Error(`Masa aktif akun Anda telah berakhir pada ${data.berakhirPada}. Silakan hubungi Administrator untuk memperpanjang masa aktif.`);
+      }
 
       updateSession({
         uid: customUid,

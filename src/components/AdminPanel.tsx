@@ -110,8 +110,15 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
-  const [activeTab, setActiveTab] = useState<"manajemen" | "riwayat" | "diagnostik">("manajemen");
+  const [activeTab, setActiveTab] = useState<"manajemen" | "riwayat" | "diagnostik">(() => {
+    return (localStorage.getItem("sisper_admin_tab") as any) || "manajemen";
+  });
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [selectedUserUids, setSelectedUserUids] = useState<string[]>([]);
+
+  useEffect(() => {
+    localStorage.setItem("sisper_admin_tab", activeTab);
+  }, [activeTab]);
 
   // Load all users combining instant local cache + real-time Firestore
   useEffect(() => {
@@ -427,6 +434,48 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     }
   };
 
+  // Handle clearing marked/selected users
+  const handleClearSelectedUsers = async () => {
+    if (selectedUserUids.length === 0) {
+      alert("Silakan tandai / centang pengguna yang ingin dibersihkan terlebih dahulu.");
+      return;
+    }
+
+    const markedUsers = users.filter(u => selectedUserUids.includes(u.uid));
+    const confirmMsg = `Peringatan: Anda akan menghapus & mereset SELURUH data (${markedUsers.length} akun) pengguna yang ditandai secara permanen dari server.\n\nApakah Anda yakin ingin melanjutkan?`;
+    
+    if (confirm(confirmMsg)) {
+      setLoading(true);
+      
+      const deletePromises = markedUsers.map(async (u) => {
+        const lowerEmail = (u.email || "").toLowerCase().trim();
+        addDeletedTenantEmail(lowerEmail);
+        const emailSlug = lowerEmail.replace(/[@.]/g, "_");
+        const customUid = `custom_user_${emailSlug}`;
+        const idsToDelete = Array.from(new Set([u.uid, u.id, customUid].filter(Boolean)));
+
+        for (const id of idsToDelete) {
+          try {
+            await fetchWithTimeout(deleteDoc(doc(db, "users", id)), 3000, null);
+          } catch (err) {
+            console.warn(`Catatan penghapusan dokumen ${id}:`, err);
+          }
+          localStorage.removeItem(`offline_user_${id}`);
+        }
+        localStorage.removeItem(`offline_user_custom_user_${emailSlug}`);
+      });
+
+      await Promise.all(deletePromises);
+
+      // Clean local storage
+      const clearedUids = new Set(markedUsers.map(m => m.uid));
+      setUsers(prev => prev.filter(u => !clearedUids.has(u.uid)));
+      setSelectedUserUids([]);
+      setLoading(false);
+      alert(`Pembersihan Berhasil!\n\nData ${markedUsers.length} pengguna yang ditandai telah dihapus secara permanen dari server.`);
+    }
+  };
+
   // Handle clearing all users with the "USER" role
   const handleClearAllUsers = async () => {
     // Exclude main admin
@@ -444,10 +493,8 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     const confirmMsg = `Peringatan: Anda akan menghapus & mereset SELURUH data pendaftar (${usersWithUserRole.length} akun) secara permanen dari server.\n\nApakah Anda yakin ingin melanjutkan?`;
     if (confirm(confirmMsg)) {
       setLoading(true);
-      let successCount = 0;
-      let failCount = 0;
 
-      for (const u of usersWithUserRole) {
+      const deletePromises = usersWithUserRole.map(async (u) => {
         const lowerEmail = (u.email || "").toLowerCase().trim();
         addDeletedTenantEmail(lowerEmail);
         const emailSlug = lowerEmail.replace(/[@.]/g, "_");
@@ -456,18 +503,16 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
 
         for (const id of idsToDelete) {
           try {
-            await deleteDoc(doc(db, "users", id));
-            successCount++;
+            await fetchWithTimeout(deleteDoc(doc(db, "users", id)), 3000, null);
           } catch (err) {
-            console.error(`Gagal menghapus dokumen Firestore ${id}:`, err);
-            failCount++;
+            console.warn(`Notice deleting document ${id}:`, err);
           }
+          localStorage.removeItem(`offline_user_${id}`);
         }
-
-        // Clean offline storage keys
-        idsToDelete.forEach((id) => localStorage.removeItem(`offline_user_${id}`));
         localStorage.removeItem(`offline_user_custom_user_${emailSlug}`);
-      }
+      });
+
+      await Promise.all(deletePromises);
 
       // Clean all non-admin offline_user_ keys in localStorage
       try {
@@ -483,17 +528,10 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         console.warn("Notice clearing offline_user_ keys:", e);
       }
 
-      // Clear active session if logged in user was cleared
-      const currentUid = localStorage.getItem("custom_logged_in_uid");
-      if (currentUid && currentUid !== "admin_syukriyusuf82" && !currentUid.includes("syukriyusuf")) {
-        localStorage.removeItem("custom_logged_in_uid");
-        localStorage.removeItem("sisper_user_profile");
-      }
-
       setUsers(prev => prev.filter(u => u.uid === "admin_syukriyusuf82" || isMainAdminEmail(u.email)));
+      setSelectedUserUids([]);
       setLoading(false);
       alert(`Pembersihan & Reset Data Berhasil!\n\nSeluruh data pendaftar (${usersWithUserRole.length} akun) telah terhapus permanen dari server.`);
-      setRefreshTrigger(prev => prev + 1);
     }
   };
 
@@ -507,6 +545,24 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       (u.namaSPPG || "").toLowerCase().includes(q)
     );
   });
+
+  // Selection helpers
+  const selectableUsers = filteredUsers.filter(u => u.uid !== "admin_syukriyusuf82" && u.uid !== "admin_sukriyusuf82" && !isMainAdminEmail(u.email));
+  const isAllSelected = selectableUsers.length > 0 && selectableUsers.every(u => selectedUserUids.includes(u.uid));
+
+  const toggleSelectUser = (uid: string) => {
+    setSelectedUserUids(prev =>
+      prev.includes(uid) ? prev.filter(id => id !== uid) : [...prev, uid]
+    );
+  };
+
+  const toggleSelectAll = () => {
+    if (isAllSelected) {
+      setSelectedUserUids([]);
+    } else {
+      setSelectedUserUids(selectableUsers.map(u => u.uid));
+    }
+  };
 
   // Calculate metrics based on actual non-admin tenants
   const tenantUsers = users.filter(u => u.uid !== "admin_syukriyusuf82" && u.uid !== "admin_sukriyusuf82" && !isMainAdminEmail(u.email));
@@ -662,13 +718,23 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
               />
             </div>
             <div className="flex items-center gap-2 flex-wrap">
+              {selectedUserUids.length > 0 && (
+                <button
+                  onClick={handleClearSelectedUsers}
+                  className="flex items-center gap-1.5 px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-xs rounded-xl transition cursor-pointer shadow-sm animate-bounce"
+                  title="Bersihkan data pengguna yang ditandai saja"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  Bersihkan Terpilih ({selectedUserUids.length})
+                </button>
+              )}
               <button
                 onClick={handleClearAllUsers}
                 className="flex items-center gap-1.5 px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-bold text-xs rounded-xl transition cursor-pointer"
                 title="Bersihkan seluruh pengguna dengan peran 'USER' dari sistem secara permanen"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                Bersihkan Data USER
+                Bersihkan Semua USER
               </button>
               <button
                 onClick={() => setRefreshTrigger(prev => prev + 1)}
@@ -686,6 +752,15 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
               <table className="w-full border-collapse text-left text-xs font-sans">
                 <thead className="bg-slate-50 text-slate-500 font-bold uppercase tracking-wider border-b border-slate-200">
                   <tr>
+                    <th className="p-4 text-center w-10">
+                      <input
+                        type="checkbox"
+                        checked={isAllSelected}
+                        onChange={toggleSelectAll}
+                        className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                        title="Tandai / Centang Semua Pengguna"
+                      />
+                    </th>
                     <th className="p-4">Email / Tenant ID</th>
                     <th className="p-4">Data Diri & SPPG</th>
                     <th className="p-4 text-center">Peran</th>
@@ -698,20 +773,33 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
                 <tbody className="divide-y divide-slate-100 text-slate-700">
                   {loading ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-400">
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
                         <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2 text-indigo-500" />
                         Sedang menyinkronkan data dari Firestore...
                       </td>
                     </tr>
                   ) : filteredUsers.length === 0 ? (
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-slate-400">
+                      <td colSpan={8} className="p-8 text-center text-slate-400">
                         Tidak ada tenant atau pengguna ditemukan.
                       </td>
                     </tr>
                   ) : (
                     filteredUsers.map((item) => (
-                      <tr key={item.uid} className="hover:bg-slate-50/50 transition">
+                      <tr key={item.uid} className={`hover:bg-slate-50/50 transition ${selectedUserUids.includes(item.uid) ? "bg-indigo-50/30" : ""}`}>
+                        {/* Checkbox Tandai Pengguna */}
+                        <td className="p-4 text-center">
+                          {item.uid !== "admin_syukriyusuf82" && !isMainAdminEmail(item.email) ? (
+                            <input
+                              type="checkbox"
+                              checked={selectedUserUids.includes(item.uid)}
+                              onChange={() => toggleSelectUser(item.uid)}
+                              className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer w-4 h-4"
+                            />
+                          ) : (
+                            <Shield className="w-4 h-4 text-purple-500 mx-auto" title="Admin Utama" />
+                          )}
+                        </td>
                         {/* Email/Tenant UID */}
                         <td className="p-4">
                           <div className="font-semibold text-slate-900 flex items-center gap-1.5">

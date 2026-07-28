@@ -124,7 +124,15 @@ export default function App() {
     return saved ? JSON.parse(saved) : INITIAL_TKPI_DATABASE;
   });
 
-  const [activeTab, setActiveTab] = useState<string>("dashboard");
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    return localStorage.getItem("sisper_active_tab") || "dashboard";
+  });
+
+  useEffect(() => {
+    if (activeTab) {
+      localStorage.setItem("sisper_active_tab", activeTab);
+    }
+  }, [activeTab]);
   const [tkpiSearchQuery, setTkpiSearchQuery] = useState<string>("");
   const [customLogo, setCustomLogo] = useState<string>(() => {
     return localStorage.getItem("sisper_custom_logo") || "/src/assets/images/logo_sppg_1782256222616.jpg";
