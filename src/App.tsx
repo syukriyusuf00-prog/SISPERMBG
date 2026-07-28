@@ -273,7 +273,7 @@ export default function App() {
   const [isCloudLoading, setIsCloudLoading] = useState(false);
   const [cloudStatusMessage, setCloudStatusMessage] = useState<string>("Mode Lokal");
 
-  // Sync state helpers & Real-time Global Logo subscription
+  // Sync state helpers & Real-time Global Logo & TKPI 2020 subscriptions
   useEffect(() => {
     // Real-time Global Logo Subscription
     const logoDocRef = doc(db, "configs", "app_logo");
@@ -289,6 +289,28 @@ export default function App() {
       }
     }, (error) => {
       console.warn("Gagal berlangganan logo global dari awan:", error);
+    });
+
+    // Real-time Global TKPI 2020 Database Subscription
+    const tkpiDocRef = doc(db, "global_settings", "tkpi");
+    const unsubscribeTkpi = onSnapshot(tkpiDocRef, (snap) => {
+      if (snap.exists()) {
+        const data = snap.data();
+        if (data && data.data) {
+          try {
+            const parsed = JSON.parse(data.data);
+            if (Array.isArray(parsed) && parsed.length > 0) {
+              setTkpiList(parsed);
+              localStorage.setItem("sisper_tkpi_list", JSON.stringify(parsed));
+              localStorage.setItem("sisper_global_admin_tkpi", JSON.stringify(parsed));
+            }
+          } catch (e) {
+            console.warn("Gagal parsing TKPI global:", e);
+          }
+        }
+      }
+    }, (error) => {
+      console.warn("Gagal berlangganan TKPI global dari awan:", error);
     });
 
     if (user) {
@@ -530,7 +552,10 @@ export default function App() {
       localStorage.removeItem("sisper_pm_settings");
     }
 
-    return () => unsubscribeLogo();
+    return () => {
+      unsubscribeLogo();
+      unsubscribeTkpi();
+    };
   }, [user]);
 
   // Save states to local storage and Cloud (with debounce)

@@ -463,6 +463,8 @@ export function getCountsForDay(harianPM: HariPM[], dayNum: number) {
     pmBesar3B,
     totalPorsiKecilAll,
     totalPorsiBesarAll,
+    totalAlergiKecilAll,
+    totalAlergiBesarAll,
     totalAlergiCombined,
     grandTotalPMAll
   };

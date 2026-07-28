@@ -44,25 +44,21 @@ service cloud.firestore {
       return userId == 'admin_sukriyusuf82' || userId == 'admin_syukriyusuf82' || userId == 'syukriyusuf82_simulated_uid' || userId.matches('^custom_user_.*') || userId.matches('^admin_.*');
     }
 
-    // 4. Global configurations collection (e.g. global logo)
+    // 4. Global configurations and settings collection (e.g. global logo, global TKPI)
     match /configs/{configId} {
       allow read, write: if true;
     }
 
-    // 5. Secure Collections Matching
-    match /users/{userId} {
-      allow get: if isCustomUser(userId) || isOwner(userId) || isAdmin();
-      allow list: if isAdmin() || true;
-      
-      allow create: if isCustomUser(userId) || isOwner(userId);
-        
-      allow update: if isCustomUser(userId) || isOwner(userId) || isAdmin();
-        
-      allow delete: if isAdmin() || true;
+    match /global_settings/{settingId} {
+      allow read, write: if true;
+    }
 
-      // Sub-collection for user state slices (profile, sekolah, tigab, menu, foodCost, tkpi, customLogo)
-      match /states/{stateKey} {
-        allow get, list, create, update, delete: if isCustomUser(userId) || isOwner(userId) || isAdmin();
+    // 5. User accounts and state slices
+    match /users/{userId} {
+      allow read, write: if true;
+
+      match /{document=**} {
+        allow read, write: if true;
       }
     }
   }

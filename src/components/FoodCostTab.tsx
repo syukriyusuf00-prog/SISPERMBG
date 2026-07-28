@@ -2857,7 +2857,7 @@ export default function FoodCostTab({
 
               {/* 4. Buffer Rate Selector */}
               <div className="space-y-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase block">Penyusutan (Buffer)</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase block">Penyusutan/Kerusakan (Buffer)</label>
                 <div className="flex bg-slate-50 border border-slate-200 rounded-xl p-1 gap-1 items-center h-10">
                   <button
                     id="btn-buffer-3"
@@ -2993,16 +2993,20 @@ export default function FoodCostTab({
               <div className="text-[10px] text-indigo-700 font-semibold mt-3 space-y-1.5 border-t border-indigo-200/50 pt-2 font-mono">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <span>Kecil: Rp {formatThousandSeparator(porsiKecilActualCost)} (Rp {formatThousandSeparator(porsiKecilPerPorsi)}/porsi)</span>
-                  <span className="text-[9.5px] font-bold text-indigo-900 bg-indigo-100/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shrink-0 w-fit">
-                    Bumbu 10%: Rp {formatThousandSeparator(bumbuKecilNominal)}
-                  </span>
+                  {planningMode === "with_bumbu_10" && (
+                    <span className="text-[9.5px] font-bold text-indigo-900 bg-indigo-100/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shrink-0 w-fit">
+                      Bumbu 10%: Rp {formatThousandSeparator(bumbuKecilNominal)}
+                    </span>
+                  )}
                 </div>
 
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1">
                   <span>Besar: Rp {formatThousandSeparator(porsiBesarActualCost)} (Rp {formatThousandSeparator(porsiBesarPerPorsi)}/porsi)</span>
-                  <span className="text-[9.5px] font-bold text-indigo-900 bg-indigo-100/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shrink-0 w-fit">
-                    Bumbu 10%: Rp {formatThousandSeparator(bumbuBesarNominal)}
-                  </span>
+                  {planningMode === "with_bumbu_10" && (
+                    <span className="text-[9.5px] font-bold text-indigo-900 bg-indigo-100/90 px-1.5 py-0.5 rounded border border-indigo-200/70 shrink-0 w-fit">
+                      Bumbu 10%: Rp {formatThousandSeparator(bumbuBesarNominal)}
+                    </span>
+                  )}
                 </div>
 
                 {customTables && customTables.map((t) => {
@@ -3018,9 +3022,11 @@ export default function FoodCostTab({
                   return (
                     <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 text-purple-800 font-bold">
                       <span>{t.namaTabel}: Rp {formatThousandSeparator(tActual)} (Rp {formatThousandSeparator(tPerPorsi)}/porsi)</span>
-                      <span className="text-[9.5px] font-bold text-purple-900 bg-purple-100/90 px-1.5 py-0.5 rounded border border-purple-200/70 shrink-0 w-fit">
-                        Bumbu 10%: Rp {formatThousandSeparator(tBumbuNominal)}
-                      </span>
+                      {planningMode === "with_bumbu_10" && (
+                        <span className="text-[9.5px] font-bold text-purple-900 bg-purple-100/90 px-1.5 py-0.5 rounded border border-purple-200/70 shrink-0 w-fit">
+                          Bumbu 10%: Rp {formatThousandSeparator(tBumbuNominal)}
+                        </span>
+                      )}
                     </div>
                   );
                 })}

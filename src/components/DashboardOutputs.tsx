@@ -364,81 +364,91 @@ export default function DashboardOutputs({
           </div>
         </div>
 
-        {/* 5 PM Categories Grid */}
+        {/* 5 Porsi & RAB Harian Grid (Harian Real-Time) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-          {/* Card 1: PM ANAK SEKOLAH */}
-          <div className="bg-[#EEF2FF]/40 hover:bg-[#EEF2FF]/60 border border-indigo-100 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200">
-            <div>
-              <span className="text-[10px] font-black text-indigo-800 uppercase tracking-wider block">PM Anak Sekolah</span>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-indigo-900 tracking-tight">{totalSekolahSiswa}</span>
-                <span className="text-xs text-indigo-600 font-bold ml-1">Siswa</span>
+            {/* Card 1: PORSI KECIL */}
+            <div className="bg-[#EEF2FF]/60 border border-indigo-200/60 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+              <div>
+                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider block">
+                  Porsi Kecil (H-{selectedDashboardDay})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-indigo-950 tracking-tight">{currentDayCounts.totalPorsiKecilAll}</span>
+                  <span className="text-xs text-indigo-600 font-bold ml-1">Jiwa</span>
+                </div>
               </div>
+              <p className="text-[10px] text-indigo-500 font-medium leading-tight mt-3 line-clamp-2">
+                Siswa TK/PAUD/LB, Siswa SD/MI/SLB Kelas 1-3, Anak Balita, Anak Balita Usia 13-59 Bulan, Balita 6-11 Bulan
+              </p>
             </div>
-            <div className="text-xs text-indigo-500/90 font-semibold flex justify-between mt-4">
-              <span>Kecil: {pmKecilSekolah}</span>
-              <span>Besar: {pmBesarSekolah}</span>
-            </div>
-          </div>
 
-          {/* Card 2: PM 3B */}
-          <div className="bg-[#FFF1F2]/40 hover:bg-[#FFF1F2]/60 border border-rose-100 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200">
-            <div>
-              <span className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">PM 3B</span>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-rose-900 tracking-tight">{total3BPM}</span>
-                <span className="text-xs text-rose-600 font-bold ml-1">Orang</span>
+            {/* Card 2: PORSI BESAR */}
+            <div className="bg-[#ECFEFF]/60 border border-cyan-200/60 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+              <div>
+                <span className="text-[10px] font-black text-cyan-800 uppercase tracking-wider block">
+                  Porsi Besar (H-{selectedDashboardDay})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-cyan-950 tracking-tight">{currentDayCounts.totalPorsiBesarAll}</span>
+                  <span className="text-xs text-cyan-600 font-bold ml-1">Jiwa</span>
+                </div>
               </div>
+              <p className="text-[10px] text-cyan-600 font-medium leading-tight mt-3 line-clamp-2">
+                Siswa SD/MI/SLB Kelas 4-6, Siswa SMP/MTS/SMPLB, Siswa SMA/SMK/MA, Pendidik, Tenaga Kependidikan, Ibu Hamil, Ibu Menyusui
+              </p>
             </div>
-            <div className="text-xs text-rose-500/90 font-semibold flex justify-between mt-4">
-              <span>Balita: {totalBalita}</span>
-              <span>Bumil: {pmBesar3B}</span>
-            </div>
-          </div>
 
-          {/* Card 3: PM ALERGI */}
-          <div className="bg-[#FEF3C7]/40 hover:bg-[#FEF3C7]/60 border border-amber-100 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200">
-            <div>
-              <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider block">PM Alergi</span>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-amber-900 tracking-tight">{totalAlergiCombined}</span>
-                <span className="text-xs text-amber-600 font-bold ml-1">Orang</span>
+            {/* Card 3: PM ALERGI (H-x) */}
+            <div className="bg-[#FEF3C7]/60 border border-amber-200/60 rounded-2xl p-4 flex flex-col justify-between shadow-xs">
+              <div>
+                <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider block">
+                  PM Alergi (H-{selectedDashboardDay})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-amber-950 tracking-tight">{totalAlergiCombined}</span>
+                  <span className="text-xs text-amber-600 font-bold ml-1">Jiwa</span>
+                </div>
+              </div>
+              <div className="text-[10px] text-amber-700 font-semibold mt-3">
+                Kecil: {currentDayCounts.totalAlergiKecilAll} | Besar: {currentDayCounts.totalAlergiBesarAll}
               </div>
             </div>
-            <div className="text-xs text-amber-600/90 font-semibold flex justify-between mt-4">
-              <span>Sekolah: {totalSekolahAlergi}</span>
-              <span>3B: {total3BAlergi}</span>
-            </div>
-          </div>
 
-          {/* Card 4: PM MP-ASI */}
-          <div className="bg-[#ECFEFF]/40 hover:bg-[#ECFEFF]/60 border border-cyan-100 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200">
-            <div>
-              <span className="text-[10px] font-black text-cyan-800 uppercase tracking-wider block">PM MP ASI (MP-ASI)</span>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-cyan-900 tracking-tight">{totalMPAsi}</span>
-                <span className="text-xs text-cyan-600 font-bold ml-1">Bayi</span>
+            {/* Card 4: TOTAL PM (H-x) */}
+            <div className="bg-[#1E1B4B] border border-indigo-950 text-white rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+              <div>
+                <span className="text-[10px] font-black text-indigo-200 uppercase tracking-wider block">
+                  Total PM (H-{selectedDashboardDay})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-white tracking-tight">
+                    {currentDayCounts.totalPorsiKecilAll + currentDayCounts.totalPorsiBesarAll + totalAlergiCombined}
+                  </span>
+                  <span className="text-xs text-indigo-300 font-bold ml-1">Jiwa</span>
+                </div>
               </div>
+              <p className="text-[10px] text-indigo-200/80 font-medium leading-tight mt-3">
+                Seluruh kelompok penerima gabungan
+              </p>
             </div>
-            <div className="text-xs text-cyan-600/90 font-semibold mt-4">
-              Kelompok MP-ASI Desa 3B
-            </div>
-          </div>
 
-          {/* Card 5: TOTAL PM KESELURUHAN */}
-          <div className="bg-[#ECFDF5]/40 hover:bg-[#ECFDF5]/60 border border-emerald-100 rounded-2xl p-5 flex flex-col justify-between transition-all duration-200">
-            <div>
-              <span className="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">Total PM Keseluruhan</span>
-              <div className="mt-3 flex items-baseline gap-1">
-                <span className="text-3xl font-extrabold text-emerald-900 tracking-tight">{grandTotalPMAll}</span>
-                <span className="text-xs text-emerald-600 font-bold ml-1">Jiwa</span>
+            {/* Card 5: TOTAL RAB HARIAN (H-x) */}
+            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 border border-emerald-800 text-white rounded-2xl p-4 flex flex-col justify-between shadow-sm">
+              <div>
+                <span className="text-[10px] font-black text-emerald-100 uppercase tracking-wider block">
+                  Total RAB Harian (H-{selectedDashboardDay})
+                </span>
+                <div className="mt-2">
+                  <span className="text-2xl font-black text-white tracking-tight block">
+                    Rp {(currentDayCounts.totalPorsiKecilAll * targetBudgetPorsiKecil + currentDayCounts.totalPorsiBesarAll * targetBudgetPorsiBesar).toLocaleString("id-ID")}
+                  </span>
+                </div>
+              </div>
+              <div className="text-[10px] text-emerald-100/90 font-medium leading-tight mt-3 pt-2 border-t border-emerald-500/40">
+                Kecil: Rp {(currentDayCounts.totalPorsiKecilAll * targetBudgetPorsiKecil).toLocaleString("id-ID")} | Besar: Rp {(currentDayCounts.totalPorsiBesarAll * targetBudgetPorsiBesar).toLocaleString("id-ID")}
               </div>
             </div>
-            <div className="text-xs text-emerald-600/90 font-semibold mt-4">
-              Akumulasi seluruh sasaran
-            </div>
           </div>
-        </div>
 
         {/* Selected Day Status Bar */}
         <div className="bg-slate-50 rounded-xl p-3 flex flex-wrap items-center justify-between gap-4 text-xs">
