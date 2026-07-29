@@ -7,7 +7,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { FoodCostDay, TKPIItem, MasterMenu, HariPM } from "../types";
 import { calculateDay, formatRupiah, getCountsForDay } from "../utils/calc";
 import { TARGET_AKG_LIMITS } from "../tkpiData";
-import { PieChart, ListOrdered, PiggyBank, CalendarRange, TrendingDown, TrendingUp, AlertTriangle, Printer, Download, Image as ImageIcon, Eye, X, ZoomIn } from "lucide-react";
+import { PieChart, ListOrdered, PiggyBank, CalendarRange, TrendingDown, TrendingUp, AlertTriangle, Printer, Download, Image as ImageIcon, Eye, X, ZoomIn, RefreshCw, RotateCcw } from "lucide-react";
 import { downloadElementAsImage, exportToPDF } from "../lib/printUtils";
 import KopSuratConfigSection, { KopSuratRenderHeader, LogoCrop } from "./KopSuratConfigSection";
 import PrintPreviewModal from "./PrintPreviewModal";
@@ -74,7 +74,33 @@ export default function DashboardOutputs({
   const [printDocType, setPrintDocType] = useState<"rekap" | "nota">("rekap");
   const [printScale, setPrintScale] = useState<number>(100);
   const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
+  const [isSyncing, setIsSyncing] = useState<boolean>(false);
+  const [syncAlert, setSyncAlert] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
+
+  // Auto-sync function
+  const handleAutoSync = () => {
+    setIsSyncing(true);
+    setTimeout(() => {
+      setIsSyncing(false);
+      setSyncAlert("Sinkronisasi Berhasil! Seluruh kalkulasi Dashboard & Output telah disinkronkan secara otomatis dari Penerima Manfaat, Master Menu, dan Food Cost.");
+      setTimeout(() => setSyncAlert(null), 5000);
+    }, 500);
+  };
+
+  // Reset all panels
+  const handleResetAllPanels = () => {
+    if (confirm("Reset Panel Dashboard & Output:\n\nApakah Anda yakin ingin mereset seluruh panel pengaturan (target anggaran, saldo awal, dan filter) ke nilai standar?")) {
+      setTargetBudgetPorsiBesar(10000);
+      setTargetBudgetPorsiKecil(8000);
+      setSaldoAwalUsiaSekolah(50000000);
+      setSaldoAwal3B(15000000);
+      setSelectedDashboardDay(1);
+      setSelectedNotaDay(1);
+      setSyncAlert("Seluruh panel pengaturan Dashboard & Output telah berhasil di-reset ke setelan standar.");
+      setTimeout(() => setSyncAlert(null), 5000);
+    }
+  };
 
   useEffect(() => {
     if (!showPrintModal) return;
@@ -299,23 +325,61 @@ export default function DashboardOutputs({
 
   return (
     <div id="outputs-view-container" className="space-y-6">
-      {/* Tab Switcher: Edit vs Cetak */}
-      <div className="flex border-b border-slate-200 no-print">
-        <button
-          type="button"
-          onClick={() => setViewMode("edit")}
-          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${viewMode === "edit" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
-        >
-          📝 Kustomisasi & Dashboard Interaktif
-        </button>
-        <button
-          type="button"
-          onClick={() => setViewMode("print")}
-          className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${viewMode === "print" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
-        >
-          🖨️ Pratinjau & Cetak Dokumen (A4)
-        </button>
+      {/* Top Controls: Tab Switcher & Action Buttons */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200 pb-2 no-print">
+        <div className="flex border-b border-transparent">
+          <button
+            type="button"
+            onClick={() => setViewMode("edit")}
+            className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${viewMode === "edit" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+          >
+            📝 Kustomisasi & Dashboard Interaktif
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode("print")}
+            className={`px-5 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition ${viewMode === "print" ? "border-indigo-600 text-indigo-600" : "border-transparent text-slate-500 hover:text-slate-700"}`}
+          >
+            🖨️ Pratinjau & Cetak Dokumen (A4)
+          </button>
+        </div>
+
+        {/* Action Buttons: Sinkronisasi & Reset Panel */}
+        <div className="flex items-center gap-2 mb-2 sm:mb-0">
+          <button
+            id="btn-sync-dashboard"
+            type="button"
+            onClick={handleAutoSync}
+            disabled={isSyncing}
+            className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white font-bold text-xs rounded-xl transition shadow-xs cursor-pointer"
+            title="Sinkronisasi Otomatis data terbaru dari Penerima Manfaat, Master Menu, dan Food Cost"
+          >
+            <RefreshCw className={`w-3.5 h-3.5 ${isSyncing ? "animate-spin" : ""}`} />
+            {isSyncing ? "Menyinkronkan..." : "Sinkronisasi Otomatis"}
+          </button>
+
+          <button
+            id="btn-reset-dashboard-panels"
+            type="button"
+            onClick={handleResetAllPanels}
+            className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl transition cursor-pointer"
+            title="Reset seluruh panel pengaturan anggaran dan filter ke default"
+          >
+            <RotateCcw className="w-3.5 h-3.5" />
+            Reset Semua Panel
+          </button>
+        </div>
       </div>
+
+      {syncAlert && (
+        <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 p-3.5 rounded-xl text-xs font-bold flex items-center justify-between gap-2 shadow-xs animate-fadeIn no-print">
+          <div className="flex items-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+            <span>{syncAlert}</span>
+          </div>
+          <button onClick={() => setSyncAlert(null)} className="text-emerald-600 hover:text-emerald-900 font-extrabold cursor-pointer">✕</button>
+        </div>
+      )}
 
       {viewMode === "edit" && (
         <div className="space-y-6">

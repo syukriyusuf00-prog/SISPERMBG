@@ -22,7 +22,8 @@ import {
   ChevronUp,
   Printer,
   Image as ImageIcon,
-  Eye
+  Eye,
+  Sparkles
 } from "lucide-react";
 import * as XLSX from "xlsx";
 import { downloadElementAsImage, exportToPDF } from "../lib/printUtils";
@@ -193,32 +194,42 @@ export default function PenerimaManfaatTab({
     }
   };
 
-  // Reset to default
-  const handleResetToDefault = () => {
-    if (confirm("Apakah Anda yakin ingin mengatur ulang data Penerima Manfaat untuk Hari ini ke setelan standar?")) {
-      const DEFAULT_SASARAN_LIST: KelompokSasaranPM[] = [
-        { id: "tk_paud_lb", label: "Siswa TK/PAUD/LB", porsiKecil: 191, porsiBesar: 0, alergiKecil: 5, alergiBesar: 0 },
-        { id: "sd_kelas_1_3", label: "Siswa SD/MI/SLB Kelas 1-3", porsiKecil: 350, porsiBesar: 0, alergiKecil: 12, alergiBesar: 0 },
-        { id: "sd_kelas_4_6", label: "Siswa SD/MI/SLB Kelas 4-6", porsiKecil: 0, porsiBesar: 420, alergiKecil: 0, alergiBesar: 15 },
-        { id: "smp_mts_smplb", label: "Siswa SMP/MTS/SMPLB", porsiKecil: 0, porsiBesar: 310, alergiKecil: 0, alergiBesar: 10 },
-        { id: "sma_smk_ma", label: "Siswa SMA/SMK/MK/MASMALB", porsiKecil: 0, porsiBesar: 280, alergiKecil: 0, alergiBesar: 8 },
-        { id: "pendidik", label: "Pendidik", porsiKecil: 0, porsiBesar: 25, alergiKecil: 0, alergiBesar: 1 },
-        { id: "tenaga_kependidikan", label: "Tenaga Pendidikan", porsiKecil: 0, porsiBesar: 15, alergiKecil: 0, alergiBesar: 0 },
-        { id: "anak_balita", label: "Anak Balita", porsiKecil: 75, porsiBesar: 0, alergiKecil: 2, alergiBesar: 0 },
-        { id: "anak_balita_13_59", label: "Anak Balita Usia 13-59 Bulan", porsiKecil: 90, porsiBesar: 0, alergiKecil: 3, alergiBesar: 0 },
-        { id: "balita_6_11", label: "Balita 6-11 Bulan", porsiKecil: 35, porsiBesar: 0, alergiKecil: 1, alergiBesar: 0 },
-        { id: "ibu_hamil", label: "Ibu Hamil", porsiKecil: 0, porsiBesar: 42, alergiKecil: 0, alergiBesar: 1 },
-        { id: "ibu_menyusui", label: "Ibu Menyusui", porsiKecil: 0, porsiBesar: 38, alergiKecil: 0, alergiBesar: 1 }
-      ];
-
+  // Reset jumlah PM data to 0 for current active day
+  const handleResetJumlahPM = () => {
+    if (confirm(`Apakah Anda yakin ingin MENGHAPUS & MERESET SEMUA DATA JUMLAH PM pada tabel Hari Ke-${selectedDay} menjadi 0?`)) {
       const updatedHarian = harianPM.map(day => {
         if (day.hariKe === selectedDay) {
-          return { ...day, sasaran: DEFAULT_SASARAN_LIST.map(item => ({ ...item })) };
+          const clearedSasaran = day.sasaran.map(item => ({
+            ...item,
+            porsiKecil: 0,
+            porsiBesar: 0,
+            alergiKecil: 0,
+            alergiBesar: 0
+          }));
+          return { ...day, sasaran: clearedSasaran };
         }
         return day;
       });
       onChange(updatedHarian);
-      triggerAlert("info", `Format Penerima Manfaat Hari Ke-${selectedDay} telah diatur ulang ke default.`);
+      triggerAlert("info", `Data Jumlah Penerima Manfaat Hari Ke-${selectedDay} telah dibersihkan menjadi 0.`);
+    }
+  };
+
+  // Mulai Baru: Clear PM data for ALL 10 days
+  const handleMulaiBaruPM = () => {
+    if (confirm("✨ MULAI BARU LEMBAR KERJA PENERIMA MANFAAT\n\nApakah Anda yakin ingin mengosongkan SELURUH data jumlah Penerima Manfaat (PM) untuk SEMUA 10 HARI KERJA untuk memulai lembar kerja baru dari awal?")) {
+      const clearedHarian = harianPM.map(day => ({
+        ...day,
+        sasaran: day.sasaran.map(item => ({
+          ...item,
+          porsiKecil: 0,
+          porsiBesar: 0,
+          alergiKecil: 0,
+          alergiBesar: 0
+        }))
+      }));
+      onChange(clearedHarian);
+      triggerAlert("success", "Lembar Kerja Penerima Manfaat untuk seluruh 10 Hari Kerja telah berhasil dibersihkan untuk Mulai Baru.");
     }
   };
 
@@ -536,11 +547,22 @@ export default function PenerimaManfaatTab({
             <button
               id="btn-reset-pm"
               type="button"
-              onClick={handleResetToDefault}
-              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-semibold transition cursor-pointer"
+              onClick={handleResetJumlahPM}
+              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-xl text-xs font-bold transition cursor-pointer"
+              title="Sembuhkan/Reset semua jumlah PM pada tabel hari ini menjadi 0"
             >
               <RotateCcw className="w-3.5 h-3.5" />
-              Sembuhkan Default
+              Reset Jumlah PM
+            </button>
+            <button
+              id="btn-mulai-baru-pm"
+              type="button"
+              onClick={handleMulaiBaruPM}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold transition cursor-pointer shadow-xs"
+              title="Mulai Baru: Mengosongkan seluruh data Penerima Manfaat untuk 10 Hari Kerja"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Mulai Baru
             </button>
           </div>
         </div>

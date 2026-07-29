@@ -323,6 +323,29 @@ export default function MasterMenuTab({
     setShowResetAllConfirm(false);
   };
 
+  // Mulai Baru: Clear ALL Master Menu entries across all categories
+  const handleMulaiBaruMasterMenu = () => {
+    if (confirm("✨ MULAI BARU LEMBAR KERJA MASTER MENU\n\nApakah Anda yakin ingin mengosongkan SELURUH perencanaan Master Menu (semua 10 hari pada kategori Usia Sekolah, 3B, MP-ASI, & Diet Alergi) untuk mulai lembar kerja baru dari awal?")) {
+      const emptyList = () => Array.from({ length: 10 }, () => ({
+        namaMenu: "",
+        karbohidrat: "",
+        laukHewani: "",
+        laukNabati: "",
+        sayur: "",
+        buahSusu: ""
+      }));
+
+      onChange({
+        usiaSekolah: emptyList(),
+        tigaB: emptyList(),
+        mpAsi: emptyList(),
+        usiaSekolahAlergi: emptyList(),
+        tigaBAlergi: emptyList(),
+        mpAsiAlergi: emptyList()
+      });
+    }
+  };
+
   const getCategoryLabel = (cat: typeof activeCategory, alergiMode: boolean) => {
     let base = "";
     switch (cat) {
@@ -610,11 +633,21 @@ export default function MasterMenuTab({
                 type="button"
                 id="btn-reset-all-menu"
                 onClick={resetAllDaysMenu}
-                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0"
-                title="Reset perencanaan untuk semua 10 hari"
+                className="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-600 hover:text-rose-700 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer"
+                title="Reset perencanaan untuk kategori aktif ini"
               >
                 <RotateCcw className="w-3.5 h-3.5" />
-                Reset Semua Hari
+                Reset Kategori Ini
+              </button>
+              <button
+                type="button"
+                id="btn-mulai-baru-master-menu"
+                onClick={handleMulaiBaruMasterMenu}
+                className="px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer"
+                title="Mulai Baru: Mengosongkan seluruh data Master Menu untuk semua kategori"
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                Mulai Baru
               </button>
             </div>
           </div>

@@ -10,7 +10,7 @@ import { calculateDay, getCountsForDay, formatRupiah } from "../utils/calc";
 const formatThousandSeparator = (val: number) => {
   return new Intl.NumberFormat("id-ID").format(Math.round(val || 0));
 };
-import { Printer, Download, RefreshCw, Plus, Trash2, Calendar, FileText, Check, Combine, Eye, EyeOff, Maximize2, Minimize2 } from "lucide-react";
+import { Printer, Download, RefreshCw, Plus, Trash2, Calendar, FileText, Check, Combine, Eye, EyeOff, Maximize2, Minimize2, Sparkles } from "lucide-react";
 import { PriceCalculatorPopover } from "./PriceCalculatorPopover";
 import * as XLSX from "xlsx";
 
@@ -199,6 +199,19 @@ export default function NotaPesananLogistikTab({
   const [tanggal, setTanggal] = useState("");
   const [namaKepala, setNamaKepala] = useState(profile.namaKepala);
   const [jabatanKepala, setJabatanKepala] = useState("Kepala Satuan Pelayanan Pemenuhan Gizi");
+
+  // Mulai Baru: Clear/reset Nota Pesanan Logistik settings and mode
+  const handleMulaiBaruNotaLogistik = () => {
+    if (confirm("✨ MULAI BARU LEMBAR KERJA NOTA PESANAN LOGISTIK\n\nApakah Anda yakin ingin mereset lembar kerja Nota Pesanan Logistik (Gabungan Semua Food Cost) ke kondisi awal?")) {
+      setSelectedDay(1);
+      setMode("harian");
+      setSelectedDays(Array.from({ length: 10 }, (_, i) => i + 1));
+      setKepada("Penyedia Logistik Bahan Makanan");
+      setDari(profile.namaLembaga);
+      setAlamat(profile.alamat);
+      setNamaKepala(profile.namaKepala);
+    }
+  };
 
   // Settings for Target Price and Classifications
   const [settings] = useState(() => {
@@ -1013,12 +1026,12 @@ export default function NotaPesananLogistikTab({
             </p>
           </div>
 
-          {/* Mode Switcher */}
-          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-xs self-start lg:self-center">
+          {/* Mode Switcher & Mulai Baru */}
+          <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-xs self-start lg:self-center items-center gap-1.5">
             <button
               type="button"
               onClick={() => setMode("harian")}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                 mode === "harian" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
               }`}
             >
@@ -1027,11 +1040,21 @@ export default function NotaPesananLogistikTab({
             <button
               type="button"
               onClick={() => setMode("gabungan")}
-              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
                 mode === "gabungan" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
               }`}
             >
               Gabungan 10 Hari
+            </button>
+            <button
+              type="button"
+              id="btn-mulai-baru-nota-logistik"
+              onClick={handleMulaiBaruNotaLogistik}
+              className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer"
+              title="Mulai Baru: Mereset lembar kerja Nota Pesanan Logistik ke kondisi awal"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Mulai Baru
             </button>
           </div>
         </div>

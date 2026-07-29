@@ -167,6 +167,22 @@ export default function FoodCostTab({
     localStorage.setItem("sisper_planning_mode", mode);
   };
 
+  // Mulai Baru: Clear all food cost items across all 10 days
+  const handleMulaiBaruFoodCost = () => {
+    if (confirm("✨ MULAI BARU LEMBAR KERJA FOOD COST\n\nApakah Anda yakin ingin mengosongkan SELURUH perencanaan bahan makanan Food Cost untuk SEMUA 10 HARI KERJA untuk mulai lembar kerja baru dari awal?")) {
+      const resetDays: FoodCostDay[] = Array.from({ length: 10 }).flatMap((_, i) => {
+        const dayNum = i + 1;
+        return [
+          { hariKe: dayNum, jenisMenu: "Basah" as const, porsiBesarBahan: [], porsiKecilBahan: [], bufferPct: 5 },
+          { hariKe: dayNum, jenisMenu: "Alergi" as const, porsiBesarBahan: [], porsiKecilBahan: [], bufferPct: 5 },
+          { hariKe: dayNum, jenisMenu: "Kering" as const, porsiBesarBahan: [], porsiKecilBahan: [], bufferPct: 5 },
+          { hariKe: dayNum, jenisMenu: "MP-ASI" as const, porsiBesarBahan: [], porsiKecilBahan: [], bufferPct: 5 },
+        ];
+      });
+      onFoodCostDaysChange(resetDays);
+    }
+  };
+
   // State for Calculator Modal
   const [confirmModal, setConfirmModal] = useState<{
     isOpen: boolean;
@@ -547,9 +563,15 @@ export default function FoodCostTab({
   const [besarAkgType, setBesarAkgType] = useState<string>("sd_besar");
   const [kecilAkgType, setKecilAkgType] = useState<string>("sd_kecil");
 
-  // Selected AKG reference modes ("min" | "max" | "avg" | "custom")
-  const [besarAkgMode, setBesarAkgMode] = useState<string>(() => localStorage.getItem("sppg_besar_akg_mode") || "avg");
-  const [kecilAkgMode, setKecilAkgMode] = useState<string>(() => localStorage.getItem("sppg_kecil_akg_mode") || "avg");
+  // Selected AKG reference modes ("min" | "max" | "avg" | "custom" | "")
+  const [besarAkgMode, setBesarAkgMode] = useState<string>(() => {
+    const saved = localStorage.getItem("sppg_besar_akg_mode");
+    return saved !== null ? saved : "min";
+  });
+  const [kecilAkgMode, setKecilAkgMode] = useState<string>(() => {
+    const saved = localStorage.getItem("sppg_kecil_akg_mode");
+    return saved !== null ? saved : "min";
+  });
 
   React.useEffect(() => {
     localStorage.setItem("sppg_besar_akg_mode", besarAkgMode);
@@ -593,6 +615,10 @@ export default function FoodCostTab({
     const type = isBesar ? besarAkgType : kecilAkgType;
     const mode = isBesar ? besarAkgMode : kecilAkgMode;
 
+    if (!mode || mode === "") {
+      return 0;
+    }
+
     if (type === "custom" || mode === "custom") {
       const customMap = isBesar ? customBesar : customKecil;
       return customMap[key] || 0;
@@ -611,22 +637,25 @@ export default function FoodCostTab({
       if (key === "energi") return config.energiMax;
       return Math.round(minVal * ratio * 10) / 10;
     }
-    // "avg" mode (default)
-    if (key === "energi") {
-      return (config.energiMin + config.energiMax) / 2;
+    if (mode === "avg") {
+      if (key === "energi") {
+        return (config.energiMin + config.energiMax) / 2;
+      }
+      const maxVal = minVal * ratio;
+      return Math.round(((minVal + maxVal) / 2) * 10) / 10;
     }
-    const maxVal = minVal * ratio;
-    return Math.round(((minVal + maxVal) / 2) * 10) / 10;
+    return 0;
   };
 
   const handleAkgValChange = (
     porsi: "besar" | "kecil",
     key: string,
-    val: number,
+    rawVal: number,
     currentMode: string,
     akgTypeFromTable?: string,
     tableId?: string
   ) => {
+    const val = isNaN(rawVal) ? 0 : rawVal;
     const isBesar = porsi === "besar";
     const setCustom = isBesar ? setCustomBesar : setCustomKecil;
 
@@ -645,7 +674,8 @@ export default function FoodCostTab({
     } else {
       const keys = ["energi", "protein", "lemak", "kh", "serat"];
       const newCustom: Record<string, number> = {};
-      
+      const currentCustomMap = isBesar ? customBesar : customKecil;
+
       keys.forEach(k => {
         if (k === key) {
           newCustom[k] = val;
@@ -653,7 +683,7 @@ export default function FoodCostTab({
           let displayedVal = 0;
           const type = akgTypeFromTable || (isBesar ? besarAkgType : kecilAkgType);
           const config = TARGET_AKG_LIMITS[type];
-          if (config) {
+          if (config && currentMode !== "") {
             const minVal = k === "energi" ? config.energiMin : (config as any)[`${k}Min`] || 0;
             const ratio = config.energiMax / config.energiMin;
 
@@ -662,7 +692,7 @@ export default function FoodCostTab({
             } else if (currentMode === "max") {
               if (k === "energi") displayedVal = config.energiMax;
               else displayedVal = Math.round(minVal * ratio * 10) / 10;
-            } else { // "avg"
+            } else if (currentMode === "avg") {
               if (k === "energi") {
                 displayedVal = (config.energiMin + config.energiMax) / 2;
               } else {
@@ -670,6 +700,8 @@ export default function FoodCostTab({
                 displayedVal = Math.round(((minVal + maxVal) / 2) * 10) / 10;
               }
             }
+          } else {
+            displayedVal = currentCustomMap[k] || 0;
           }
           newCustom[k] = displayedVal;
         }
@@ -1789,24 +1821,26 @@ export default function FoodCostTab({
             <tr className="border border-black">
               {/* Left Part: Rujukan AKG (cols 1-10) */}
               <td colSpan={5} className="p-1.5 border border-black font-extrabold text-black uppercase bg-[#92D050] text-center">
-                <div className="flex items-center justify-center gap-1 flex-wrap">
+                <div className="flex items-center justify-center gap-1.5 flex-wrap">
                   <span>KEBUTUHAN RUJUKAN AKG PORSI {porsi === "besar" ? "BESAR" : "KECIL"}</span>
                   {!isPrint && (
                     <select
                       value={porsi === "besar" ? besarAkgMode : kecilAkgMode}
                       onChange={(e) => {
+                        const newMode = e.target.value;
                         if (porsi === "besar") {
-                          setBesarAkgMode(e.target.value);
+                          setBesarAkgMode(newMode);
                         } else {
-                          setKecilAkgMode(e.target.value);
+                          setKecilAkgMode(newMode);
                         }
                       }}
-                      className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-black rounded px-1.5 py-0.5 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase cursor-pointer"
+                      className="bg-white hover:bg-slate-50 text-slate-900 text-[11px] font-black rounded-lg px-2 py-0.5 border border-indigo-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase cursor-pointer"
                     >
-                      <option value="min">Rujukan MIN</option>
-                      <option value="max">Rujukan MAX</option>
-                      <option value="avg">Rata-rata</option>
-                      <option value="custom">Kustom ✍️</option>
+                      <option value="">-- PILIH RUJUKAN --</option>
+                      <option value="min">RUJUKAN MIN</option>
+                      <option value="max">RUJUKAN MAX</option>
+                      <option value="avg">RUJUKAN RATA-RATA</option>
+                      <option value="custom">KUSTOM (EDIT BEBAS) ✍️</option>
                     </select>
                   )}
                 </div>
@@ -1815,17 +1849,18 @@ export default function FoodCostTab({
               {/* ENERGI */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[54px] min-w-[54px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetEnergi > 0 ? targetEnergi.toFixed(1) : "-"}</span>
+                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetEnergi > 0) ? targetEnergi.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetEnergi > 0 ? Number(targetEnergi.toFixed(1)) : ""}
+                    placeholder=""
+                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetEnergi > 0) ? Number(targetEnergi.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(porsi, "energi", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -1833,17 +1868,18 @@ export default function FoodCostTab({
               {/* PROTEIN */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetProtein > 0 ? targetProtein.toFixed(1) : "-"}</span>
+                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetProtein > 0) ? targetProtein.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetProtein > 0 ? Number(targetProtein.toFixed(1)) : ""}
+                    placeholder=""
+                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetProtein > 0) ? Number(targetProtein.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(porsi, "protein", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -1851,17 +1887,18 @@ export default function FoodCostTab({
               {/* LEMAK */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetLemak > 0 ? targetLemak.toFixed(1) : "-"}</span>
+                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetLemak > 0) ? targetLemak.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetLemak > 0 ? Number(targetLemak.toFixed(1)) : ""}
+                    placeholder=""
+                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetLemak > 0) ? Number(targetLemak.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(porsi, "lemak", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -1869,17 +1906,18 @@ export default function FoodCostTab({
               {/* KH */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetKH > 0 ? targetKH.toFixed(1) : "-"}</span>
+                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetKH > 0) ? targetKH.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetKH > 0 ? Number(targetKH.toFixed(1)) : ""}
+                    placeholder=""
+                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetKH > 0) ? Number(targetKH.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(porsi, "kh", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -1887,17 +1925,18 @@ export default function FoodCostTab({
               {/* SERAT */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetSerat > 0 ? targetSerat.toFixed(1) : "-"}</span>
+                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetSerat > 0) ? targetSerat.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetSerat > 0 ? Number(targetSerat.toFixed(1)) : ""}
+                    placeholder=""
+                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetSerat > 0) ? Number(targetSerat.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(porsi, "serat", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -1945,11 +1984,11 @@ export default function FoodCostTab({
               </td>
               
               {[
-                { val: pctEnergi, active: targetEnergi > 0 },
-                { val: pctProtein, active: targetProtein > 0 },
-                { val: pctLemak, active: targetLemak > 0 },
-                { val: pctKH, active: targetKH > 0 },
-                { val: pctSerat, active: targetSerat > 0 },
+                { val: pctEnergi, active: targetEnergi > 0 && !isNaN(pctEnergi) && isFinite(pctEnergi) },
+                { val: pctProtein, active: targetProtein > 0 && !isNaN(pctProtein) && isFinite(pctProtein) },
+                { val: pctLemak, active: targetLemak > 0 && !isNaN(pctLemak) && isFinite(pctLemak) },
+                { val: pctKH, active: targetKH > 0 && !isNaN(pctKH) && isFinite(pctKH) },
+                { val: pctSerat, active: targetSerat > 0 && !isNaN(pctSerat) && isFinite(pctSerat) },
               ].map((pctInfo, idx) => {
                 const isOk = pctInfo.active && pctInfo.val >= 90 && pctInfo.val <= 110;
                 const cellBg = pctInfo.active ? (isOk ? '#00B050' : '#FF0000') : '#FF0000';
@@ -2470,18 +2509,19 @@ export default function FoodCostTab({
             <tr className="border border-black">
               {/* Left Part: Rujukan AKG (cols 1-10) */}
               <td colSpan={5} className="p-1.5 border border-black font-extrabold text-black uppercase bg-[#92D050] text-center">
-                <div className="flex items-center justify-center gap-1 flex-wrap">
+                <div className="flex items-center justify-center gap-1.5 flex-wrap">
                   <span>KEBUTUHAN RUJUKAN AKG PORSI {table.porsi === "besar" ? "BESAR" : "KECIL"}</span>
                   {!isPrint && (
                     <select
-                      value={akgMode}
+                      value={akgMode || ""}
                       onChange={(e) => editCustomTableMeta(table.id, "akgMode", e.target.value)}
-                      className="bg-white/90 hover:bg-white text-slate-800 text-[10px] font-black rounded px-1.5 py-0.5 border border-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 uppercase cursor-pointer"
+                      className="bg-white hover:bg-slate-50 text-slate-900 text-[11px] font-black rounded-lg px-2 py-0.5 border border-indigo-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase cursor-pointer"
                     >
-                      <option value="min">Rujukan MIN</option>
-                      <option value="max">Rujukan MAX</option>
-                      <option value="avg">Rata-rata</option>
-                      <option value="custom">Kustom ✍️</option>
+                      <option value="">-- PILIH RUJUKAN --</option>
+                      <option value="min">RUJUKAN MIN</option>
+                      <option value="max">RUJUKAN MAX</option>
+                      <option value="avg">RUJUKAN RATA-RATA</option>
+                      <option value="custom">KUSTOM (EDIT BEBAS) ✍️</option>
                     </select>
                   )}
                 </div>
@@ -2490,17 +2530,18 @@ export default function FoodCostTab({
               {/* ENERGI */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[54px] min-w-[54px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetEnergi > 0 ? targetEnergi.toFixed(1) : "-"}</span>
+                  <span>{(akgMode && targetEnergi > 0) ? targetEnergi.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetEnergi > 0 ? Number(targetEnergi.toFixed(1)) : ""}
+                    placeholder=""
+                    value={(akgMode && targetEnergi > 0) ? Number(targetEnergi.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(table.porsi, "energi", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -2508,17 +2549,18 @@ export default function FoodCostTab({
               {/* PROTEIN */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetProtein > 0 ? targetProtein.toFixed(1) : "-"}</span>
+                  <span>{(akgMode && targetProtein > 0) ? targetProtein.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetProtein > 0 ? Number(targetProtein.toFixed(1)) : ""}
+                    placeholder=""
+                    value={(akgMode && targetProtein > 0) ? Number(targetProtein.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(table.porsi, "protein", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -2526,17 +2568,18 @@ export default function FoodCostTab({
               {/* LEMAK */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetLemak > 0 ? targetLemak.toFixed(1) : "-"}</span>
+                  <span>{(akgMode && targetLemak > 0) ? targetLemak.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetLemak > 0 ? Number(targetLemak.toFixed(1)) : ""}
+                    placeholder=""
+                    value={(akgMode && targetLemak > 0) ? Number(targetLemak.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(table.porsi, "lemak", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -2544,17 +2587,18 @@ export default function FoodCostTab({
               {/* KH */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetKH > 0 ? targetKH.toFixed(1) : "-"}</span>
+                  <span>{(akgMode && targetKH > 0) ? targetKH.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetKH > 0 ? Number(targetKH.toFixed(1)) : ""}
+                    placeholder=""
+                    value={(akgMode && targetKH > 0) ? Number(targetKH.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(table.porsi, "kh", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -2562,17 +2606,18 @@ export default function FoodCostTab({
               {/* SERAT */}
               <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
                 {isPrint ? (
-                  <span>{targetSerat > 0 ? targetSerat.toFixed(1) : "-"}</span>
+                  <span>{(akgMode && targetSerat > 0) ? targetSerat.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
-                    value={targetSerat > 0 ? Number(targetSerat.toFixed(1)) : ""}
+                    placeholder=""
+                    value={(akgMode && targetSerat > 0) ? Number(targetSerat.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
                       handleAkgValChange(table.porsi, "serat", val, akgMode, table.akgType, table.id);
                     }}
-                    className="w-full text-center bg-white/40 focus:bg-white border-0 focus:ring-1 focus:ring-indigo-500 font-mono font-bold px-0 py-0.5 rounded text-black text-xs [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -2620,11 +2665,11 @@ export default function FoodCostTab({
               </td>
               
               {[
-                { val: pctEnergi, active: targetEnergi > 0 },
-                { val: pctProtein, active: targetProtein > 0 },
-                { val: pctLemak, active: targetLemak > 0 },
-                { val: pctKH, active: targetKH > 0 },
-                { val: pctSerat, active: targetSerat > 0 },
+                { val: pctEnergi, active: targetEnergi > 0 && !isNaN(pctEnergi) && isFinite(pctEnergi) },
+                { val: pctProtein, active: targetProtein > 0 && !isNaN(pctProtein) && isFinite(pctProtein) },
+                { val: pctLemak, active: targetLemak > 0 && !isNaN(pctLemak) && isFinite(pctLemak) },
+                { val: pctKH, active: targetKH > 0 && !isNaN(pctKH) && isFinite(pctKH) },
+                { val: pctSerat, active: targetSerat > 0 && !isNaN(pctSerat) && isFinite(pctSerat) },
               ].map((pctInfo, idx) => {
                 const isOk = pctInfo.active && pctInfo.val >= 90 && pctInfo.val <= 110;
                 const cellBg = pctInfo.active ? (isOk ? '#00B050' : '#FF0000') : '#FF0000';
@@ -2775,12 +2820,12 @@ export default function FoodCostTab({
             Kalkulasi unit cost, kecukupan gizi rujukan AKG, penyusutan (buffer), dan ekspor A4 Landscape presisi.
           </p>
         </div>
-        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-xs shrink-0 self-end sm:self-center">
+        <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 shadow-xs shrink-0 self-end sm:self-center items-center gap-1.5">
           <button
             type="button"
             id="btn-mode-fc-edit"
             onClick={() => setViewMode("edit")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
               viewMode === "edit" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
             }`}
           >
@@ -2791,12 +2836,22 @@ export default function FoodCostTab({
             type="button"
             id="btn-mode-fc-print"
             onClick={() => setViewMode("print")}
-            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${
+            className={`px-4 py-2 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 cursor-pointer ${
               viewMode === "print" ? "bg-white text-indigo-600 shadow-sm" : "text-slate-500 hover:text-slate-800"
             }`}
           >
             <Printer className="w-3.5 h-3.5" />
             Pratinjau Cetak A4 / Ekspor
+          </button>
+          <button
+            type="button"
+            id="btn-mulai-baru-food-cost"
+            onClick={handleMulaiBaruFoodCost}
+            className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-extrabold flex items-center gap-1.5 transition-all shadow-xs shrink-0 cursor-pointer"
+            title="Mulai Baru: Mengosongkan seluruh perencanaan bahan makanan Food Cost untuk 10 Hari Kerja"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            Mulai Baru
           </button>
         </div>
       </div>
