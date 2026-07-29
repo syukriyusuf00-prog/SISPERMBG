@@ -573,6 +573,16 @@ export default function FoodCostTab({
     return saved !== null ? saved : "min";
   });
 
+  // Per-Nutrient AKG reference modes (energi, protein, lemak, kh, serat)
+  const [besarNutrientModes, setBesarNutrientModes] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem("sppg_besar_nutrient_modes");
+    return saved ? JSON.parse(saved) : { energi: "min", protein: "min", lemak: "min", kh: "min", serat: "min" };
+  });
+  const [kecilNutrientModes, setKecilNutrientModes] = useState<Record<string, string>>(() => {
+    const saved = localStorage.getItem("sppg_kecil_nutrient_modes");
+    return saved ? JSON.parse(saved) : { energi: "min", protein: "min", lemak: "min", kh: "min", serat: "min" };
+  });
+
   React.useEffect(() => {
     localStorage.setItem("sppg_besar_akg_mode", besarAkgMode);
   }, [besarAkgMode]);
@@ -580,6 +590,22 @@ export default function FoodCostTab({
   React.useEffect(() => {
     localStorage.setItem("sppg_kecil_akg_mode", kecilAkgMode);
   }, [kecilAkgMode]);
+
+  React.useEffect(() => {
+    localStorage.setItem("sppg_besar_nutrient_modes", JSON.stringify(besarNutrientModes));
+  }, [besarNutrientModes]);
+
+  React.useEffect(() => {
+    localStorage.setItem("sppg_kecil_nutrient_modes", JSON.stringify(kecilNutrientModes));
+  }, [kecilNutrientModes]);
+
+  const updateIndividualNutrientMode = (porsi: "besar" | "kecil", key: string, mode: string) => {
+    if (porsi === "besar") {
+      setBesarNutrientModes(prev => ({ ...prev, [key]: mode }));
+    } else {
+      setKecilNutrientModes(prev => ({ ...prev, [key]: mode }));
+    }
+  };
 
   // Custom values for "Custom" option
   const [customBesar, setCustomBesar] = useState<Record<string, number>>(() => {
@@ -613,7 +639,8 @@ export default function FoodCostTab({
   const getAkgTarget = (porsi: "besar" | "kecil", key: string): number => {
     const isBesar = porsi === "besar";
     const type = isBesar ? besarAkgType : kecilAkgType;
-    const mode = isBesar ? besarAkgMode : kecilAkgMode;
+    const modesMap = isBesar ? besarNutrientModes : kecilNutrientModes;
+    const mode = modesMap[key] || (isBesar ? besarAkgMode : kecilAkgMode) || "min";
 
     if (!mode || mode === "") {
       return 0;
@@ -1445,18 +1472,18 @@ export default function FoodCostTab({
         <table className={`w-full border-collapse border border-black font-sans text-center ${isPrint ? "table-fixed text-[9px] leading-tight" : "text-xs"}`} style={isPrint ? { tableLayout: 'fixed', width: '100%' } : { fontSize: '12px' }}>
           <thead className="bg-[#92D050] text-black font-bold uppercase border border-black text-center">
             <tr>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>KRITERIA PM</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>MENU</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[160px] min-w-[160px]"}`} style={isPrint ? { width: '10%' } : undefined}>BAHAN MAKANAN</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BERAT (BB)</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>URT</th>
-              <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-extrabold bg-[#76933C] print:text-black">KOMPOSISI ZAT GIZI MAKANAN</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BDD (%)</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>BK (g)</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>Jumlah Manfaat</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[72px] min-w-[72px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Gram (g)</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[72px] min-w-[72px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Kg (kg)</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[48px] min-w-[48px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>KRITERIA PM</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>MENU</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[160px] min-w-[160px]"}`} style={isPrint ? { width: '10%' } : undefined}>BAHAN MAKANAN</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[58px] min-w-[58px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BERAT (BB)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[58px] min-w-[58px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>URT</th>
+              <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#76933C] print:text-black">KOMPOSISI ZAT GIZI MAKANAN</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[58px] min-w-[58px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BDD (%)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>BK (g)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>Jumlah Manfaat</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[76px] min-w-[76px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Gram (g)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[76px] min-w-[76px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Kg (kg)</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#92D050] ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>
                 {isPrint ? (
                   headerPotong
                 ) : (
@@ -1467,12 +1494,12 @@ export default function FoodCostTab({
                       setHeaderPotong(e.target.value);
                       localStorage.setItem("fc_header_potong", e.target.value);
                     }}
-                    className="w-full text-center bg-[#92D050] border-0 hover:bg-[#86c145] focus:bg-white font-extrabold p-0.5 rounded text-slate-950 uppercase text-[11px] focus:ring-1 focus:ring-slate-600"
+                    className="w-full text-center bg-[#92D050] border-0 hover:bg-[#86c145] focus:bg-white font-black p-0.5 rounded text-slate-950 uppercase text-[11px] focus:ring-1 focus:ring-slate-600"
                     title="Ubah judul kolom Potong"
                   />
                 )}
               </th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[48px] min-w-[48px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#92D050] ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>
                 {isPrint ? (
                   headerEkor
                 ) : (
@@ -1483,15 +1510,15 @@ export default function FoodCostTab({
                       setHeaderEkor(e.target.value);
                       localStorage.setItem("fc_header_ekor", e.target.value);
                     }}
-                    className="w-full text-center bg-[#92D050] border-0 hover:bg-[#86c145] focus:bg-white font-extrabold p-0.5 rounded text-slate-950 uppercase text-[11px] focus:ring-1 focus:ring-slate-600"
+                    className="w-full text-center bg-[#92D050] border-0 hover:bg-[#86c145] focus:bg-white font-black p-0.5 rounded text-slate-950 uppercase text-[11px] focus:ring-1 focus:ring-slate-600"
                     title="Ubah judul kolom Ekor"
                   />
                 )}
               </th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[115px] min-w-[115px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#92D050] text-[11px] select-none ${isPrint ? "" : "w-[115px] min-w-[115px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>
                 Buffer ({currentDayData.bufferPct}%)
               </th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[155px] min-w-[155px]"}`} style={isPrint ? { width: '6.5%' } : undefined}>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#92D050] text-[11px] select-none ${isPrint ? "" : "w-[155px] min-w-[155px]"}`} style={isPrint ? { width: '6.5%' } : undefined}>
                 Jumlah+Buffer
               </th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[130px] min-w-[130px]"}`} style={isPrint ? { width: '7.5%' } : undefined}>Harga Satuan</th>
@@ -1830,113 +1857,185 @@ export default function FoodCostTab({
                         const newMode = e.target.value;
                         if (porsi === "besar") {
                           setBesarAkgMode(newMode);
+                          setBesarNutrientModes({ energi: newMode, protein: newMode, lemak: newMode, kh: newMode, serat: newMode });
                         } else {
                           setKecilAkgMode(newMode);
+                          setKecilNutrientModes({ energi: newMode, protein: newMode, lemak: newMode, kh: newMode, serat: newMode });
                         }
                       }}
                       className="bg-white hover:bg-slate-50 text-slate-900 text-[11px] font-black rounded-lg px-2 py-0.5 border border-indigo-400 shadow-xs focus:outline-none focus:ring-2 focus:ring-indigo-500 uppercase cursor-pointer"
                     >
-                      <option value="">-- PILIH RUJUKAN --</option>
-                      <option value="min">RUJUKAN MIN</option>
-                      <option value="max">RUJUKAN MAX</option>
-                      <option value="avg">RUJUKAN RATA-RATA</option>
-                      <option value="custom">KUSTOM (EDIT BEBAS) ✍️</option>
+                      <option value="">-- SEMUA RUJUKAN --</option>
+                      <option value="min">SEMUA MIN</option>
+                      <option value="max">SEMUA MAX</option>
+                      <option value="avg">SEMUA RATA-RATA</option>
+                      <option value="custom">SEMUA KUSTOM ✍️</option>
                     </select>
                   )}
                 </div>
               </td>
               
               {/* ENERGI */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[54px] min-w-[54px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[58px] min-w-[58px] bg-[#92D050]">
+                {!isPrint && (
+                  <select
+                    value={porsi === "besar" ? besarNutrientModes.energi : kecilNutrientModes.energi}
+                    onChange={(e) => updateIndividualNutrientMode(porsi, "energi", e.target.value)}
+                    className="w-full text-[8.5px] font-black uppercase bg-white border border-emerald-700/50 rounded px-0.5 py-0.5 mb-1 text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-600 shadow-2xs cursor-pointer"
+                    title="Pilih rujukan Energi"
+                  >
+                    <option value="min">MIN</option>
+                    <option value="max">MAX</option>
+                    <option value="avg">RATA2</option>
+                    <option value="custom">KUST</option>
+                  </select>
+                )}
                 {isPrint ? (
-                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetEnergi > 0) ? targetEnergi.toFixed(1) : "-"}</span>
+                  <span>{targetEnergi > 0 ? targetEnergi.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
                     placeholder=""
-                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetEnergi > 0) ? Number(targetEnergi.toFixed(1)) : ""}
+                    value={targetEnergi > 0 ? Number(targetEnergi.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      handleAkgValChange(porsi, "energi", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
+                      updateIndividualNutrientMode(porsi, "energi", "custom");
+                      handleAkgValChange(porsi, "energi", val, "custom");
                     }}
-                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-0.5 rounded-md text-slate-900 text-[11px] shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* PROTEIN */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[58px] min-w-[58px] bg-[#92D050]">
+                {!isPrint && (
+                  <select
+                    value={porsi === "besar" ? besarNutrientModes.protein : kecilNutrientModes.protein}
+                    onChange={(e) => updateIndividualNutrientMode(porsi, "protein", e.target.value)}
+                    className="w-full text-[8.5px] font-black uppercase bg-white border border-emerald-700/50 rounded px-0.5 py-0.5 mb-1 text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-600 shadow-2xs cursor-pointer"
+                    title="Pilih rujukan Protein"
+                  >
+                    <option value="min">MIN</option>
+                    <option value="max">MAX</option>
+                    <option value="avg">RATA2</option>
+                    <option value="custom">KUST</option>
+                  </select>
+                )}
                 {isPrint ? (
-                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetProtein > 0) ? targetProtein.toFixed(1) : "-"}</span>
+                  <span>{targetProtein > 0 ? targetProtein.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
                     placeholder=""
-                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetProtein > 0) ? Number(targetProtein.toFixed(1)) : ""}
+                    value={targetProtein > 0 ? Number(targetProtein.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      handleAkgValChange(porsi, "protein", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
+                      updateIndividualNutrientMode(porsi, "protein", "custom");
+                      handleAkgValChange(porsi, "protein", val, "custom");
                     }}
-                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-0.5 rounded-md text-slate-900 text-[11px] shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* LEMAK */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[58px] min-w-[58px] bg-[#92D050]">
+                {!isPrint && (
+                  <select
+                    value={porsi === "besar" ? besarNutrientModes.lemak : kecilNutrientModes.lemak}
+                    onChange={(e) => updateIndividualNutrientMode(porsi, "lemak", e.target.value)}
+                    className="w-full text-[8.5px] font-black uppercase bg-white border border-emerald-700/50 rounded px-0.5 py-0.5 mb-1 text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-600 shadow-2xs cursor-pointer"
+                    title="Pilih rujukan Lemak"
+                  >
+                    <option value="min">MIN</option>
+                    <option value="max">MAX</option>
+                    <option value="avg">RATA2</option>
+                    <option value="custom">KUST</option>
+                  </select>
+                )}
                 {isPrint ? (
-                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetLemak > 0) ? targetLemak.toFixed(1) : "-"}</span>
+                  <span>{targetLemak > 0 ? targetLemak.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
                     placeholder=""
-                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetLemak > 0) ? Number(targetLemak.toFixed(1)) : ""}
+                    value={targetLemak > 0 ? Number(targetLemak.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      handleAkgValChange(porsi, "lemak", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
+                      updateIndividualNutrientMode(porsi, "lemak", "custom");
+                      handleAkgValChange(porsi, "lemak", val, "custom");
                     }}
-                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-0.5 rounded-md text-slate-900 text-[11px] shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* KH */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[58px] min-w-[58px] bg-[#92D050]">
+                {!isPrint && (
+                  <select
+                    value={porsi === "besar" ? besarNutrientModes.kh : kecilNutrientModes.kh}
+                    onChange={(e) => updateIndividualNutrientMode(porsi, "kh", e.target.value)}
+                    className="w-full text-[8.5px] font-black uppercase bg-white border border-emerald-700/50 rounded px-0.5 py-0.5 mb-1 text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-600 shadow-2xs cursor-pointer"
+                    title="Pilih rujukan Karbohidrat (KH)"
+                  >
+                    <option value="min">MIN</option>
+                    <option value="max">MAX</option>
+                    <option value="avg">RATA2</option>
+                    <option value="custom">KUST</option>
+                  </select>
+                )}
                 {isPrint ? (
-                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetKH > 0) ? targetKH.toFixed(1) : "-"}</span>
+                  <span>{targetKH > 0 ? targetKH.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
                     placeholder=""
-                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetKH > 0) ? Number(targetKH.toFixed(1)) : ""}
+                    value={targetKH > 0 ? Number(targetKH.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      handleAkgValChange(porsi, "kh", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
+                      updateIndividualNutrientMode(porsi, "kh", "custom");
+                      handleAkgValChange(porsi, "kh", val, "custom");
                     }}
-                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-0.5 rounded-md text-slate-900 text-[11px] shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
 
               {/* SERAT */}
-              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[56px] min-w-[56px] bg-[#92D050]">
+              <td className="p-1 border border-black text-center font-mono font-bold text-black w-[58px] min-w-[58px] bg-[#92D050]">
+                {!isPrint && (
+                  <select
+                    value={porsi === "besar" ? besarNutrientModes.serat : kecilNutrientModes.serat}
+                    onChange={(e) => updateIndividualNutrientMode(porsi, "serat", e.target.value)}
+                    className="w-full text-[8.5px] font-black uppercase bg-white border border-emerald-700/50 rounded px-0.5 py-0.5 mb-1 text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-600 shadow-2xs cursor-pointer"
+                    title="Pilih rujukan Serat"
+                  >
+                    <option value="min">MIN</option>
+                    <option value="max">MAX</option>
+                    <option value="avg">RATA2</option>
+                    <option value="custom">KUST</option>
+                  </select>
+                )}
                 {isPrint ? (
-                  <span>{( (porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetSerat > 0) ? targetSerat.toFixed(1) : "-"}</span>
+                  <span>{targetSerat > 0 ? targetSerat.toFixed(1) : "-"}</span>
                 ) : (
                   <input
                     type="number"
                     step="any"
                     placeholder=""
-                    value={((porsi === "besar" ? besarAkgMode : kecilAkgMode) && targetSerat > 0) ? Number(targetSerat.toFixed(1)) : ""}
+                    value={targetSerat > 0 ? Number(targetSerat.toFixed(1)) : ""}
                     onChange={(e) => {
                       const val = Number(e.target.value);
-                      handleAkgValChange(porsi, "serat", val, porsi === "besar" ? besarAkgMode : kecilAkgMode);
+                      updateIndividualNutrientMode(porsi, "serat", "custom");
+                      handleAkgValChange(porsi, "serat", val, "custom");
                     }}
-                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-1 rounded-md text-slate-900 text-xs shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                    className="w-full text-center bg-[#C6E0B4] hover:bg-white focus:bg-white border border-emerald-700/40 focus:ring-2 focus:ring-indigo-600 font-mono font-extrabold px-0.5 py-0.5 rounded-md text-slate-900 text-[11px] shadow-2xs transition-all [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                   />
                 )}
               </td>
@@ -2859,6 +2958,98 @@ export default function FoodCostTab({
       {/* --- VIEW MODE: EDIT INTERAKTIF --- */}
       {viewMode === "edit" && (
         <div className="space-y-6 no-print">
+          {/* Summary Cards Grid (Penerima Manfaat & RAB Harian) */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+            {/* Card 1: PORSI KECIL */}
+            <div className="bg-[#EEF2FF]/80 border border-indigo-200/70 rounded-2xl p-4 flex flex-col justify-between shadow-xs transition-all hover:shadow-md">
+              <div>
+                <span className="text-[10px] font-black text-indigo-700 uppercase tracking-wider block">
+                  PORSI KECIL (H-{selectedDay})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-indigo-950 tracking-tight">
+                    {dayCounts.totalPorsiKecilAll}
+                  </span>
+                  <span className="text-xs text-indigo-600 font-bold ml-1">Jiwa</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-indigo-600/90 font-medium leading-tight mt-3 line-clamp-2" title={porsiKecilLabels}>
+                {porsiKecilLabels || "Siswa TK/PAUD/LB, Siswa SD/MI/SLB Kelas 1-3, Anak Balita, Anak Balita Usia 13-59 Bulan, Balita 6-11 Bulan"}
+              </p>
+            </div>
+
+            {/* Card 2: PORSI BESAR */}
+            <div className="bg-[#ECFEFF]/80 border border-cyan-200/70 rounded-2xl p-4 flex flex-col justify-between shadow-xs transition-all hover:shadow-md">
+              <div>
+                <span className="text-[10px] font-black text-cyan-800 uppercase tracking-wider block">
+                  PORSI BESAR (H-{selectedDay})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-cyan-950 tracking-tight">
+                    {dayCounts.totalPorsiBesarAll}
+                  </span>
+                  <span className="text-xs text-cyan-600 font-bold ml-1">Jiwa</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-cyan-700/90 font-medium leading-tight mt-3 line-clamp-2" title={porsiBesarLabels}>
+                {porsiBesarLabels || "Siswa SD/MI/SLB Kelas 4-6, Siswa SMP/MTS/SMPLB, Siswa SMA/SMK/MA, Pendidik, Tenaga Kependidikan, Ibu Hamil, Ibu Menyusui"}
+              </p>
+            </div>
+
+            {/* Card 3: PM ALERGI */}
+            <div className="bg-[#FEF3C7]/80 border border-amber-200/70 rounded-2xl p-4 flex flex-col justify-between shadow-xs transition-all hover:shadow-md">
+              <div>
+                <span className="text-[10px] font-black text-amber-800 uppercase tracking-wider block">
+                  PM ALERGI (H-{selectedDay})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-amber-950 tracking-tight">
+                    {dayCounts.totalAlergiKecilAll + dayCounts.totalAlergiBesarAll}
+                  </span>
+                  <span className="text-xs text-amber-600 font-bold ml-1">Jiwa</span>
+                </div>
+              </div>
+              <div className="text-[10px] text-amber-700 font-semibold mt-3">
+                Kecil: {dayCounts.totalAlergiKecilAll} | Besar: {dayCounts.totalAlergiBesarAll}
+              </div>
+            </div>
+
+            {/* Card 4: TOTAL PM */}
+            <div className="bg-[#1E1B4B] border border-indigo-950 text-white rounded-2xl p-4 flex flex-col justify-between shadow-sm transition-all hover:shadow-md">
+              <div>
+                <span className="text-[10px] font-black text-indigo-200 uppercase tracking-wider block">
+                  TOTAL PM (H-{selectedDay})
+                </span>
+                <div className="mt-2 flex items-baseline gap-1">
+                  <span className="text-3xl font-black text-white tracking-tight">
+                    {dayCounts.totalPorsiKecilAll + dayCounts.totalPorsiBesarAll + dayCounts.totalAlergiKecilAll + dayCounts.totalAlergiBesarAll}
+                  </span>
+                  <span className="text-xs text-indigo-300 font-bold ml-1">Jiwa</span>
+                </div>
+              </div>
+              <p className="text-[10px] text-indigo-200/80 font-medium leading-tight mt-3">
+                Seluruh kelompok penerima gabungan
+              </p>
+            </div>
+
+            {/* Card 5: TOTAL RAB HARIAN */}
+            <div className="bg-gradient-to-br from-emerald-600 to-teal-700 border border-emerald-800 text-white rounded-2xl p-4 flex flex-col justify-between shadow-sm transition-all hover:shadow-md">
+              <div>
+                <span className="text-[10px] font-black text-emerald-100 uppercase tracking-wider block">
+                  TOTAL RAB HARIAN (H-{selectedDay})
+                </span>
+                <div className="mt-2">
+                  <span className="text-2xl font-black text-white tracking-tight block">
+                    Rp {formatThousandSeparator(dayCounts.totalPorsiKecilAll * settings.porsiKecilHarga + dayCounts.totalPorsiBesarAll * settings.porsiBesarHarga)}
+                  </span>
+                </div>
+              </div>
+              <div className="text-[10px] text-emerald-100/90 font-medium leading-tight mt-3 pt-2 border-t border-emerald-500/40">
+                Kecil: Rp {formatThousandSeparator(dayCounts.totalPorsiKecilAll * settings.porsiKecilHarga)} | Besar: Rp {formatThousandSeparator(dayCounts.totalPorsiBesarAll * settings.porsiBesarHarga)}
+              </div>
+            </div>
+          </div>
+
           {/* Interactive Filters Panel */}
           <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-xs flex flex-col xl:flex-row xl:items-center justify-between gap-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4 flex-grow">
@@ -4377,12 +4568,12 @@ export default function FoodCostTab({
                   Tentukan basis perhitungan untuk menentukan nilai penyusutan (Buffer):
                 </p>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                   {/* Option: Total Kilogram */}
                   <label
                     onClick={() => setActiveBufferConfig({ ...activeBufferConfig, bufferBase: "kg" })}
                     className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.bufferBase === "kg"
+                      activeBufferConfig.bufferBase === "kg" || activeBufferConfig.bufferBase === "custom" || !activeBufferConfig.bufferBase
                         ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
                         : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
@@ -4390,16 +4581,16 @@ export default function FoodCostTab({
                     <input
                       type="radio"
                       name="bufferBase"
-                      checked={activeBufferConfig.bufferBase === "kg"}
+                      checked={activeBufferConfig.bufferBase === "kg" || activeBufferConfig.bufferBase === "custom" || !activeBufferConfig.bufferBase}
                       onChange={() => {}}
                       className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
                     />
                     <div className="space-y-0.5 leading-snug">
                       <span className="text-xs font-extrabold text-slate-800 block">
-                        Total kilogram
+                        Total Kilogram (KG)
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Penyusutan dihitung berdasarkan total berat kebutuhan bersih (KG)
+                        Otomatis dari total kebutuhan bersih (KG)
                       </span>
                     </div>
                   </label>
@@ -4422,10 +4613,10 @@ export default function FoodCostTab({
                     />
                     <div className="space-y-0.5 leading-snug">
                       <span className="text-xs font-extrabold text-slate-800 block">
-                        Total potongan
+                        Total Potongan
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Penyusutan dihitung berdasarkan total jumlah potong porsi PM
+                        Penyusutan dari jumlah potong porsi PM
                       </span>
                     </div>
                   </label>
@@ -4448,56 +4639,14 @@ export default function FoodCostTab({
                     />
                     <div className="space-y-0.5 leading-snug">
                       <span className="text-xs font-extrabold text-slate-800 block">
-                        Total ekor
+                        Total Ekor
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Penyusutan dihitung berdasarkan total jumlah ekor porsi PM
-                      </span>
-                    </div>
-                  </label>
-
-                  {/* Option: Custom Manual Input */}
-                  <label
-                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, bufferBase: "custom" })}
-                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.bufferBase === "custom"
-                        ? "bg-rose-50/50 border-rose-400 ring-2 ring-rose-100 shadow-xs"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="bufferBase"
-                      checked={activeBufferConfig.bufferBase === "custom"}
-                      onChange={() => {}}
-                      className="mt-1 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer shrink-0"
-                    />
-                    <div className="space-y-0.5 leading-snug">
-                      <span className="text-xs font-extrabold text-rose-800 block">
-                        Gunakan Manual (Custom)
-                      </span>
-                      <span className="text-[10px] text-rose-500 font-medium block leading-tight">
-                        Gunakan angka kustom manual sebagai basis penyusutan
+                        Penyusutan dari total jumlah ekor porsi PM
                       </span>
                     </div>
                   </label>
                 </div>
-
-                {/* If custom is selected for Buffer */}
-                {activeBufferConfig.bufferBase === "custom" && (
-                  <div className="p-3 bg-rose-50/60 border border-rose-200 rounded-2xl space-y-1 mt-2 animate-in slide-in-from-top-2 duration-150">
-                    <label className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">
-                      Isi Nilai Custom Buffer
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: 15"
-                      value={activeBufferConfig.bufferCustomVal ?? ""}
-                      onChange={(e) => setActiveBufferConfig({ ...activeBufferConfig, bufferCustomVal: e.target.value })}
-                      className="w-full max-w-xs text-xs border border-rose-200 rounded-xl bg-white p-2 text-rose-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-rose-500"
-                    />
-                  </div>
-                )}
               </div>
 
               {/* Bagian 2: JUMLAH & BUFFER */}
@@ -4515,115 +4664,11 @@ export default function FoodCostTab({
                 </p>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {/* Option: Total kilo */}
-                  <label
-                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kg_without" })}
-                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.jumlahBufferChoice === "kg_without"
-                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="jumlahBufferChoice"
-                      checked={activeBufferConfig.jumlahBufferChoice === "kg_without"}
-                      onChange={() => {}}
-                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
-                    />
-                    <div className="space-y-0.5 leading-snug">
-                      <span className="text-xs font-extrabold text-slate-800 block">
-                        Total kilo
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Mengambil nilai berat total (kg) saja tanpa buffer
-                      </span>
-                    </div>
-                  </label>
-
-                  {/* Option: Kilogram */}
-                  <label
-                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kilogram_without" })}
-                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.jumlahBufferChoice === "kilogram_without"
-                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="jumlahBufferChoice"
-                      checked={activeBufferConfig.jumlahBufferChoice === "kilogram_without"}
-                      onChange={() => {}}
-                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
-                    />
-                    <div className="space-y-0.5 leading-snug">
-                      <span className="text-xs font-extrabold text-slate-800 block">
-                        Kilogram
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Mengambil nilai kilogram dasar (kg) saja tanpa buffer
-                      </span>
-                    </div>
-                  </label>
-
-                  {/* Option: Total potong */}
-                  <label
-                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "potong_without" })}
-                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.jumlahBufferChoice === "potong_without"
-                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="jumlahBufferChoice"
-                      checked={activeBufferConfig.jumlahBufferChoice === "potong_without"}
-                      onChange={() => {}}
-                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
-                    />
-                    <div className="space-y-0.5 leading-snug">
-                      <span className="text-xs font-extrabold text-slate-800 block">
-                        Total potong
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Mengambil nilai total potongan porsi saja tanpa buffer
-                      </span>
-                    </div>
-                  </label>
-
-                  {/* Option: Total ekor */}
-                  <label
-                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "ekor_without" })}
-                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.jumlahBufferChoice === "ekor_without"
-                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="jumlahBufferChoice"
-                      checked={activeBufferConfig.jumlahBufferChoice === "ekor_without"}
-                      onChange={() => {}}
-                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
-                    />
-                    <div className="space-y-0.5 leading-snug">
-                      <span className="text-xs font-extrabold text-slate-800 block">
-                        Total ekor
-                      </span>
-                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Mengambil nilai total ekor porsi saja tanpa buffer
-                      </span>
-                    </div>
-                  </label>
-
-                  {/* Option: Total kilo + total nilai buffer */}
+                  {/* Option: Total kilo + Buffer */}
                   <label
                     onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kg_with" })}
                     className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.jumlahBufferChoice === "kg_with"
+                      activeBufferConfig.jumlahBufferChoice === "kg_with" || activeBufferConfig.jumlahBufferChoice === "custom_with" || !activeBufferConfig.jumlahBufferChoice
                         ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
                         : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
@@ -4631,25 +4676,25 @@ export default function FoodCostTab({
                     <input
                       type="radio"
                       name="jumlahBufferChoice"
-                      checked={activeBufferConfig.jumlahBufferChoice === "kg_with"}
+                      checked={activeBufferConfig.jumlahBufferChoice === "kg_with" || activeBufferConfig.jumlahBufferChoice === "custom_with" || !activeBufferConfig.jumlahBufferChoice}
                       onChange={() => {}}
                       className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
                     />
                     <div className="space-y-0.5 leading-snug">
                       <span className="text-xs font-extrabold text-slate-800 block">
-                        Total kilo + total nilai buffer
+                        Total Kilo + Buffer (KG)
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Kebutuhan (kg) ditambah nilai penyusutan (buffer)
+                        Kebutuhan (KG) ditambah nilai penyusutan buffer
                       </span>
                     </div>
                   </label>
 
-                  {/* Option: Kilogram + total nilai buffer */}
+                  {/* Option: Total kilo tanpa buffer */}
                   <label
-                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kilogram_with" })}
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "kg_without" })}
                     className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.jumlahBufferChoice === "kilogram_with"
+                      activeBufferConfig.jumlahBufferChoice === "kg_without" || activeBufferConfig.jumlahBufferChoice === "custom_without"
                         ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
                         : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
@@ -4657,21 +4702,21 @@ export default function FoodCostTab({
                     <input
                       type="radio"
                       name="jumlahBufferChoice"
-                      checked={activeBufferConfig.jumlahBufferChoice === "kilogram_with"}
+                      checked={activeBufferConfig.jumlahBufferChoice === "kg_without" || activeBufferConfig.jumlahBufferChoice === "custom_without"}
                       onChange={() => {}}
                       className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
                     />
                     <div className="space-y-0.5 leading-snug">
                       <span className="text-xs font-extrabold text-slate-800 block">
-                        Kilogram + total nilai buffer
+                        Total Kilo Saja
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Kilogram dasar ditambah nilai penyusutan (buffer)
+                        Mengambil nilai berat total (KG) tanpa buffer
                       </span>
                     </div>
                   </label>
 
-                  {/* Option: Total potong + total nilai buffer */}
+                  {/* Option: Total potong + buffer */}
                   <label
                     onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "potong_with" })}
                     className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
@@ -4689,15 +4734,41 @@ export default function FoodCostTab({
                     />
                     <div className="space-y-0.5 leading-snug">
                       <span className="text-xs font-extrabold text-slate-800 block">
-                        Total potong + total nilai buffer
+                        Total Potong + Buffer
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Total potongan porsi ditambah nilai penyusutan (buffer)
+                        Total potongan porsi ditambah nilai buffer
                       </span>
                     </div>
                   </label>
 
-                  {/* Option: Total ekor + total nilai buffer */}
+                  {/* Option: Total potong tanpa buffer */}
+                  <label
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "potong_without" })}
+                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
+                      activeBufferConfig.jumlahBufferChoice === "potong_without"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
+                        : "bg-white border-slate-200 hover:border-slate-300"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="jumlahBufferChoice"
+                      checked={activeBufferConfig.jumlahBufferChoice === "potong_without"}
+                      onChange={() => {}}
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
+                    />
+                    <div className="space-y-0.5 leading-snug">
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total Potong Saja
+                      </span>
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Mengambil total potongan porsi tanpa buffer
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Option: Total ekor + buffer */}
                   <label
                     onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "ekor_with" })}
                     className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
@@ -4715,82 +4786,40 @@ export default function FoodCostTab({
                     />
                     <div className="space-y-0.5 leading-snug">
                       <span className="text-xs font-extrabold text-slate-800 block">
-                        Total ekor + total nilai buffer
+                        Total Ekor + Buffer
                       </span>
                       <span className="text-[10px] text-slate-500 font-medium block leading-tight">
-                        Total ekor porsi ditambah nilai penyusutan (buffer)
+                        Total ekor porsi ditambah nilai buffer
                       </span>
                     </div>
                   </label>
 
-                  {/* Option: Custom Manual (With Buffer) */}
+                  {/* Option: Total ekor tanpa buffer */}
                   <label
-                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "custom_with" })}
+                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "ekor_without" })}
                     className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.jumlahBufferChoice === "custom_with"
-                        ? "bg-rose-50/50 border-rose-400 ring-2 ring-rose-100 shadow-xs"
+                      activeBufferConfig.jumlahBufferChoice === "ekor_without"
+                        ? "bg-indigo-50/50 border-indigo-400 ring-2 ring-indigo-100 shadow-xs"
                         : "bg-white border-slate-200 hover:border-slate-300"
                     }`}
                   >
                     <input
                       type="radio"
                       name="jumlahBufferChoice"
-                      checked={activeBufferConfig.jumlahBufferChoice === "custom_with"}
+                      checked={activeBufferConfig.jumlahBufferChoice === "ekor_without"}
                       onChange={() => {}}
-                      className="mt-1 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer shrink-0"
+                      className="mt-1 text-indigo-600 focus:ring-indigo-500 h-4 w-4 cursor-pointer shrink-0"
                     />
                     <div className="space-y-0.5 leading-snug">
-                      <span className="text-xs font-extrabold text-rose-800 block">
-                        Manual Custom + Nilai Buffer
+                      <span className="text-xs font-extrabold text-slate-800 block">
+                        Total Ekor Saja
                       </span>
-                      <span className="text-[10px] text-rose-500 font-medium block leading-tight">
-                        Angka kustom manual ditambah nilai penyusutan (buffer)
-                      </span>
-                    </div>
-                  </label>
-
-                  {/* Option: Custom Manual (Without Buffer) */}
-                  <label
-                    onClick={() => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferChoice: "custom_without" })}
-                    className={`p-3 rounded-2xl border flex items-start gap-3 cursor-pointer transition-all ${
-                      activeBufferConfig.jumlahBufferChoice === "custom_without"
-                        ? "bg-rose-50/50 border-rose-400 ring-2 ring-rose-100 shadow-xs"
-                        : "bg-white border-slate-200 hover:border-slate-300"
-                    }`}
-                  >
-                    <input
-                      type="radio"
-                      name="jumlahBufferChoice"
-                      checked={activeBufferConfig.jumlahBufferChoice === "custom_without"}
-                      onChange={() => {}}
-                      className="mt-1 text-rose-600 focus:ring-rose-500 h-4 w-4 cursor-pointer shrink-0"
-                    />
-                    <div className="space-y-0.5 leading-snug">
-                      <span className="text-xs font-extrabold text-rose-800 block">
-                        Hanya Ambil Manual Custom Saja
-                      </span>
-                      <span className="text-[10px] text-rose-500 font-medium block leading-tight">
-                        Angka kustom manual saja tanpa tambahan buffer
+                      <span className="text-[10px] text-slate-500 font-medium block leading-tight">
+                        Mengambil total ekor porsi tanpa buffer
                       </span>
                     </div>
                   </label>
                 </div>
-
-                {/* If custom is selected for Jumlah */}
-                {(activeBufferConfig.jumlahBufferChoice === "custom_with" || activeBufferConfig.jumlahBufferChoice === "custom_without") && (
-                  <div className="p-3 bg-rose-50/60 border border-rose-200 rounded-2xl space-y-1 mt-2 animate-in slide-in-from-top-2 duration-150">
-                    <label className="text-[10px] font-black text-rose-800 uppercase tracking-wider block">
-                      Isi Nilai Custom Jumlah
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="Contoh: 120"
-                      value={activeBufferConfig.jumlahBufferCustomVal ?? ""}
-                      onChange={(e) => setActiveBufferConfig({ ...activeBufferConfig, jumlahBufferCustomVal: e.target.value })}
-                      className="w-full max-w-xs text-xs border border-rose-200 rounded-xl bg-white p-2 text-rose-900 font-mono font-bold focus:outline-none focus:ring-2 focus:ring-rose-500"
-                    />
-                  </div>
-                )}
               </div>
 
             </div>
