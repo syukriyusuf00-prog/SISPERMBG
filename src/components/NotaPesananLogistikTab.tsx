@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { SPPGProfile, HariPM, FoodCostDay, TKPIItem, MasterMenu } from "../types";
 import { calculateDay, getCountsForDay, formatRupiah } from "../utils/calc";
 
@@ -105,6 +105,18 @@ const guessSatuan = (name: string): string => {
   return "Kg";
 };
 
+// Format amount helper: if integer show no decimal, if decimal show 1 decimal place max
+const formatJumlahDisplay = (val: number | string | undefined | null): string => {
+  if (val === undefined || val === null || val === "" || val === 0) return "";
+  const num = typeof val === "number" ? val : parseFloat(String(val));
+  if (isNaN(num) || num === 0) return "";
+  const rounded = Math.round(num * 10) / 10;
+  if (Number.isInteger(rounded)) {
+    return rounded.toString();
+  }
+  return rounded.toFixed(1);
+};
+
 export default function NotaPesananLogistikTab({
   profile,
   foodCostDays,
@@ -202,7 +214,12 @@ export default function NotaPesananLogistikTab({
 
   // Mulai Baru: Clear/reset Nota Pesanan Logistik settings and mode
   const handleMulaiBaruNotaLogistik = () => {
-    if (confirm("✨ MULAI BARU LEMBAR KERJA NOTA PESANAN LOGISTIK\n\nApakah Anda yakin ingin mereset lembar kerja Nota Pesanan Logistik (Gabungan Semua Food Cost) ke kondisi awal?")) {
+    if (confirm("✨ MULAI BARU LEMBAR KERJA NOTA PESANAN LOGISTIK\n\nApakah Anda yakin ingin mereset lembar kerja Nota Pesanan Logistik (Gabungan Semua Food Cost) ke kondisi awal? Seluruh perubahan manual yang tersimpan akan dikembalikan ke kalkulasi otomatis.")) {
+      Object.keys(localStorage).forEach((key) => {
+        if (key.startsWith("sisper_nota_items_")) {
+          localStorage.removeItem(key);
+        }
+      });
       setSelectedDay(1);
       setMode("harian");
       setSelectedDays(Array.from({ length: 10 }, (_, i) => i + 1));
@@ -210,6 +227,7 @@ export default function NotaPesananLogistikTab({
       setDari(profile.namaLembaga);
       setAlamat(profile.alamat);
       setNamaKepala(profile.namaKepala);
+      handleReload(true);
     }
   };
 
@@ -535,8 +553,10 @@ export default function NotaPesananLogistikTab({
     const processItems = (itemsList: any[], pmCount: number, bufferPct: number) => {
       itemsList.forEach((item) => {
         const rawName = item.nama;
-        if (!rawName || rawName.trim() === "") return;
-        const key = rawName.trim().toLowerCase();
+        if (!rawName || rawName.trim() === "" || rawName.trim().toLowerCase() === "ketik bahan...") return;
+        if ((item.butir || 0) <= 0 && (item.totalKebutuhanKg || 0) <= 0) return;
+
+        const key = (item.tkpiId && item.tkpiId !== "unknown") ? item.tkpiId : rawName.trim().toLowerCase();
 
         const addBuffer = !item.jumlahBufferChoice || item.jumlahBufferChoice.endsWith("_with") || item.jumlahBufferChoice === "auto";
         const rowBufferPct = item.bufferBase === "custom" && item.bufferCustomVal !== undefined ? parseVal(item.bufferCustomVal) : bufferPct;
@@ -545,7 +565,7 @@ export default function NotaPesananLogistikTab({
         const kgVal = (item.totalKebutuhanKg || 0) * bufMult;
         const potongVal = parseVal(item.potong) * pmCount * bufMult;
         const ekorVal = parseVal(item.ekor) * pmCount * bufMult;
-        const activeVal = item.butir || 0;
+        const activeVal = typeof item.butir === "number" && item.butir > 0 ? item.butir : ((item.totalKebutuhanKg || 0) * bufMult);
         const { unit: activeUnit } = getFoodCostUnitAndQty(item, pmCount, rowBufferPct);
 
         if (!aggregated[key]) {
@@ -570,22 +590,52 @@ export default function NotaPesananLogistikTab({
       });
     };
 
+    let pmSettings: any = null;
+    try {
+      const savedSettings = localStorage.getItem("sisper_pm_settings");
+      if (savedSettings) pmSettings = JSON.parse(savedSettings);
+    } catch (e) {}
+
+    const besarSasaranIds = pmSettings?.porsiBesarSasaranIds || ["sd_kelas_4_6", "smp_mts_smplb", "sma_smk_ma", "pendidik", "tenaga_kependidikan", "ibu_hamil", "ibu_menyusui"];
+    const kecilSasaranIds = pmSettings?.porsiKecilSasaranIds || ["tk_paud_lb", "sd_kelas_1_3", "anak_balita", "anak_balita_13_59", "balita_6_11"];
+
     // 1. Process standard menus for all specified dayNums
     dayNums.forEach((dayNum) => {
-      const dCounts = getCountsForDay(harianPM, dayNum);
-
-      const pmKecilSch = dCounts.pmKecilSekolah;
-      const pmBesarSch = dCounts.pmBesarSekolah;
-      const pmKecil3 = dCounts.pmKecil3B;
-      const pmBesar3 = dCounts.pmBesar3B;
+      const dayPM = harianPM.find((h) => h.hariKe === dayNum) || harianPM[0] || { sasaran: [] };
 
       // Filter all foodCostDays for this dayNum
       const matchingDays = foodCostDays.filter((d) => d.hariKe === dayNum);
 
       matchingDays.forEach((dayData) => {
-        const isSchool = ["Basah", "Alergi", "Kering"].includes(dayData.jenisMenu);
-        let pmBesar = isSchool ? pmBesarSch : pmBesar3;
-        let pmKecil = isSchool ? pmKecilSch : pmKecil3;
+        let pmBesar = 0;
+        let pmKecil = 0;
+        const isAlergi = dayData.jenisMenu.includes("Alergi");
+
+        besarSasaranIds.forEach((sId: string) => {
+          const sasItem = dayPM.sasaran?.find((item) => item.id === sId);
+          if (sasItem) {
+            if (isAlergi) {
+              const cAlergi = Number(sasItem.alergiBesar) || 0;
+              const cNormal = (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+              pmBesar += cAlergi > 0 ? cAlergi : cNormal;
+            } else {
+              pmBesar += (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+            }
+          }
+        });
+
+        kecilSasaranIds.forEach((sId: string) => {
+          const sasItem = dayPM.sasaran?.find((item) => item.id === sId);
+          if (sasItem) {
+            if (isAlergi) {
+              const cAlergi = Number(sasItem.alergiKecil) || 0;
+              const cNormal = (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+              pmKecil += cAlergi > 0 ? cAlergi : cNormal;
+            } else {
+              pmKecil += (Number(sasItem.porsiKecil) || 0) + (Number(sasItem.porsiBesar) || 0);
+            }
+          }
+        });
 
         if (dayData.customPmBesarCount !== undefined) pmBesar = dayData.customPmBesarCount;
         if (dayData.customPmKecilCount !== undefined) pmKecil = dayData.customPmKecilCount;
@@ -671,8 +721,31 @@ export default function NotaPesananLogistikTab({
     return padded;
   };
 
-  // Populate items when day or calculation inputs change
-  const handleReload = () => {
+  // Helper key to persist manual table edits per mode & selected days
+  const getStorageKey = useCallback((m: string, sDay: number, sDays: number[]) => {
+    if (m === "harian") return `sisper_nota_items_harian_${sDay}`;
+    const sortedDays = [...sDays].sort((a, b) => a - b).join("_");
+    return `sisper_nota_items_gabungan_${sortedDays}`;
+  }, []);
+
+  // Populate items when day or calculation inputs change (persisting manual edits automatically)
+  const handleReload = (forceReset = false) => {
+    const key = getStorageKey(mode, selectedDay, selectedDays);
+    if (!forceReset) {
+      const saved = localStorage.getItem(key);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setItems(parsed);
+            return;
+          }
+        } catch (e) {}
+      }
+    } else {
+      localStorage.removeItem(key);
+    }
+
     const calcItems = mode === "gabungan" 
       ? calculateMergedIngredients(selectedDays) 
       : calculateMergedIngredients([selectedDay]);
@@ -682,6 +755,14 @@ export default function NotaPesananLogistikTab({
   useEffect(() => {
     handleReload();
   }, [selectedDay, selectedDays, mode, foodCostDays, tkpiList, harianPM]);
+
+  // Automatically save any manual edits to localStorage
+  useEffect(() => {
+    if (items && items.length > 0) {
+      const key = getStorageKey(mode, selectedDay, selectedDays);
+      localStorage.setItem(key, JSON.stringify(items));
+    }
+  }, [items, mode, selectedDay, selectedDays, getStorageKey]);
 
   // Table row modifiers
   const handleEditItem = (id: string, field: keyof NotaItem, value: any) => {
@@ -872,7 +953,7 @@ export default function NotaPesananLogistikTab({
         sheetData.push([
           String(idx + 1),
           row.nama,
-          row.jumlah === 0 ? "" : Number(row.jumlah).toFixed(1),
+          row.jumlah === 0 ? "" : formatJumlahDisplay(row.jumlah),
           row.satuan,
           row.hargaSatuan === 0 ? "Rp -" : `Rp ${formatNumber(row.hargaSatuan)}`,
           rowTotal === 0 ? "Rp -" : `Rp ${formatNumber(rowTotal)}`,
@@ -1189,7 +1270,7 @@ export default function NotaPesananLogistikTab({
             <button
               id="btn-nota-logistik-reload"
               type="button"
-              onClick={handleReload}
+              onClick={() => handleReload(true)}
               className="p-2 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 rounded-xl transition text-xs font-bold flex items-center gap-1.5 border border-slate-200"
               title="Reset ke hitungan kalkulasi default"
             >
@@ -2262,19 +2343,17 @@ export default function NotaPesananLogistikTab({
                                 ? editingVal
                                 : row.jumlah === 0
                                 ? ""
-                                : typeof row.jumlah === "number"
-                                ? row.jumlah.toFixed(1)
-                                : row.jumlah
+                                : formatJumlahDisplay(row.jumlah)
                             }
                             placeholder="-"
                             onFocus={() => {
                               setEditingId(row.id);
-                              setEditingVal(row.jumlah === 0 ? "" : String(row.jumlah));
+                              setEditingVal(row.jumlah === 0 ? "" : formatJumlahDisplay(row.jumlah));
                             }}
                             onBlur={() => {
                               setEditingId(null);
                               const num = editingVal === "" ? 0 : parseFloat(editingVal);
-                              handleEditItem(row.id, "jumlah", isNaN(num) ? 0 : parseFloat(num.toFixed(1)));
+                              handleEditItem(row.id, "jumlah", isNaN(num) ? 0 : parseFloat((Math.round(num * 10) / 10).toFixed(1)));
                             }}
                             onChange={(e) => {
                               const val = e.target.value.replace(/[^0-9.]/g, "");
@@ -2288,27 +2367,32 @@ export default function NotaPesananLogistikTab({
                         <td className="border border-black px-1 py-0.5">
                           <div className="flex items-center justify-center gap-1.5">
                             <span className="font-semibold text-center hidden print:inline">{row.satuan}</span>
-                            <div className="flex items-center gap-1.5 no-print">
+                            <div className="flex items-center gap-1 no-print w-full justify-center">
+                              <input
+                                id={`item-unit-input-${row.id}`}
+                                type="text"
+                                placeholder="Satuan..."
+                                value={row.satuan || ""}
+                                onChange={(e) => {
+                                  handleEditItem(row.id, "satuan", e.target.value);
+                                  handleEditItem(row.id, "customUnit", e.target.value);
+                                  handleEditItem(row.id, "selectedUnitType", "custom");
+                                }}
+                                className="w-16 bg-transparent border border-transparent hover:border-slate-200 focus:border-indigo-500 rounded px-1 py-0.5 m-0 text-center focus:outline-none font-semibold text-slate-900 text-xs"
+                              />
                               <select
+                                id={`item-unit-select-${row.id}`}
                                 value={row.selectedUnitType || "foodcost"}
                                 onChange={(e) => handleUnitTypeChange(row.id, e.target.value as any)}
-                                className="text-[10px] py-0.5 px-1 border border-slate-200 rounded bg-white text-slate-755 font-sans cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+                                className="text-[10px] py-0.5 px-1 border border-slate-200 rounded bg-white text-slate-700 font-sans cursor-pointer focus:outline-none focus:ring-1 focus:ring-indigo-500 font-semibold"
+                                title="Pilih Opsi Satuan Cepat"
                               >
                                 <option value="foodcost">Asli ({row.defaultUnit || "Kg"})</option>
                                 <option value="kg">Kg</option>
                                 <option value="ekor">Ekor</option>
                                 <option value="potong">Potong</option>
-                                <option value="custom">Kustom...</option>
+                                <option value="custom">Kustom</option>
                               </select>
-                              {(row.selectedUnitType === "custom") && (
-                                <input
-                                  type="text"
-                                  placeholder="Unit"
-                                  value={row.customUnit || ""}
-                                  onChange={(e) => handleUnitTypeChange(row.id, "custom", e.target.value)}
-                                  className="text-[10px] py-0.5 px-1 border border-slate-200 rounded bg-white text-slate-800 font-mono text-center w-[50px] focus:outline-none"
-                                />
-                              )}
                             </div>
                           </div>
                         </td>
