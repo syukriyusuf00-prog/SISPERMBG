@@ -30,7 +30,8 @@ import {
   Mail,
   User,
   Briefcase,
-  Building
+  Building,
+  Key
 } from "lucide-react";
 
 interface AdminPanelProps {
@@ -120,7 +121,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     localStorage.setItem("sisper_admin_tab", activeTab);
   }, [activeTab]);
 
-  // Load all users combining instant local cache + real-time Firestore
+  // Load all users combining instant local cache + real-time Firestore + registration event listener
   useEffect(() => {
     setLoading(true);
 
@@ -158,7 +159,7 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
           }
         });
 
-        // Overlay Firestore remote docs (remote status takes precedence)
+        // Overlay Firestore remote docs
         remoteDocs.forEach((u) => {
           const userEmail = (u.email || "").toLowerCase().trim();
           if (
@@ -169,7 +170,16 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
             !deletedEmails.has(userEmail)
           ) {
             const existing = map.get(u.uid) || {};
-            map.set(u.uid, { ...existing, ...u });
+            
+            // Preserve local approval status ("aktif" or "diblokir") if remote doc is lagging on "menunggu"
+            let finalStatus = u.statusPersetujuan;
+            if (existing.statusPersetujuan === "aktif" && u.statusPersetujuan === "menunggu") {
+              finalStatus = "aktif";
+            } else if (existing.statusPersetujuan === "diblokir" && u.statusPersetujuan === "menunggu") {
+              finalStatus = "diblokir";
+            }
+
+            map.set(u.uid, { ...existing, ...u, statusPersetujuan: finalStatus });
           }
         });
       } else {
@@ -224,7 +234,16 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       setLoading(false);
     });
 
-    return () => unsubscribe();
+    // Event listener to instantly add newly registered users to admin list
+    const handleRegistered = () => {
+      mergeAndSetUsers([], false);
+    };
+    window.addEventListener("sisper_user_registered", handleRegistered);
+
+    return () => {
+      unsubscribe();
+      window.removeEventListener("sisper_user_registered", handleRegistered);
+    };
   }, [refreshTrigger]);
 
   // Handle setting explicit approval status (ACC / Menunggu / Blokir)
@@ -257,29 +276,40 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       const keysToUpdate = Array.from(new Set([
         `offline_user_${userId}`,
         `offline_user_${customUid}`,
-        userObj?.uid ? `offline_user_${userObj.uid}` : ''
+        userObj?.uid ? `offline_user_${userObj.uid}` : '',
+        emailSlug ? `offline_user_custom_user_${emailSlug}` : ''
       ].filter(Boolean)));
 
       keysToUpdate.forEach((k) => {
         const savedStr = localStorage.getItem(k);
-        if (savedStr) {
-          try {
-            const parsed = JSON.parse(savedStr);
-            localStorage.setItem(k, JSON.stringify({ ...parsed, ...updates }));
-          } catch (e) {}
-        }
+        const parsed = savedStr ? (JSON.parse(savedStr) || {}) : (userObj || {});
+        localStorage.setItem(k, JSON.stringify({ ...parsed, ...updates }));
       });
 
-      // 3. Fast background cloud sync to Firestore
+      // Also update currently active user session if this is the active user
+      const currentActiveUid = localStorage.getItem("custom_logged_in_uid");
+      if (currentActiveUid === userId || currentActiveUid === customUid || currentActiveUid === userObj?.uid) {
+        const activeProfile = localStorage.getItem("sisper_user_profile");
+        if (activeProfile) {
+          try {
+            const parsed = JSON.parse(activeProfile);
+            localStorage.setItem("sisper_user_profile", JSON.stringify({ ...parsed, ...updates }));
+          } catch (e) {}
+        }
+      }
+
+      // 3. Reliable background cloud sync to Firestore
       const docIdsToUpdate = Array.from(new Set([userId, customUid, userObj?.uid].filter(Boolean)));
       for (const docId of docIdsToUpdate) {
         try {
           const userRef = doc(db, "users", docId);
-          await fetchWithTimeout(setDoc(userRef, updates, { merge: true }), 1500, null);
-        } catch (e) {}
+          await setDoc(userRef, updates, { merge: true });
+        } catch (e) {
+          console.warn("Notice setDoc status:", e);
+        }
       }
     } catch (err) {
-      console.warn("Status persetujuan diperbarui secara lokal (cloud sync tertunda):", err);
+      console.warn("Status persetujuan diperbarui secara lokal:", err);
     }
   };
 
@@ -376,6 +406,53 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       } catch (err) {
         console.error("Gagal memutuskan akses:", err);
       }
+    }
+  };
+
+  const handleAdminResetPassword = async (userId: string, email: string) => {
+    const userObj = users.find(u => u.uid === userId || u.id === userId);
+    const currentSandi = userObj?.sandi || "";
+    const promptMsg = currentSandi 
+      ? `Kata sandi saat ini untuk ${email} adalah: "${currentSandi}"\n\nMasukkan kata sandi baru (minimal 6 karakter):`
+      : `Masukkan kata sandi baru untuk ${email} (minimal 6 karakter):`;
+    const input = prompt(promptMsg, currentSandi);
+    if (!input) return;
+    if (input.trim().length < 6) {
+      alert("Kata sandi minimal 6 karakter demi keamanan.");
+      return;
+    }
+    const newSandi = input.trim();
+    try {
+      const updates = { sandi: newSandi, updatedAt: new Date().toISOString() };
+      setUsers(prev => prev.map(u => (u.uid === userId || u.id === userId) ? { ...u, ...updates } : u));
+      
+      const userEmail = (email || "").toLowerCase().trim();
+      const emailSlug = userEmail.replace(/[@.]/g, '_');
+      const customUid = `custom_user_${emailSlug}`;
+
+      const keysToUpdate = Array.from(new Set([
+        `offline_user_${userId}`,
+        `offline_user_${customUid}`,
+        userObj?.uid ? `offline_user_${userObj.uid}` : '',
+        emailSlug ? `offline_user_custom_user_${emailSlug}` : ''
+      ].filter(Boolean)));
+
+      keysToUpdate.forEach((k) => {
+        const savedStr = localStorage.getItem(k);
+        const parsed = savedStr ? (JSON.parse(savedStr) || {}) : (userObj || {});
+        localStorage.setItem(k, JSON.stringify({ ...parsed, ...updates }));
+      });
+
+      const docIdsToUpdate = Array.from(new Set([userId, customUid, userObj?.uid].filter(Boolean)));
+      for (const docId of docIdsToUpdate) {
+        try {
+          const userRef = doc(db, "users", docId);
+          await setDoc(userRef, updates, { merge: true });
+        } catch (e) {}
+      }
+      alert(`Kata sandi untuk ${email} berhasil diperbarui menjadi: "${newSandi}"`);
+    } catch (err: any) {
+      alert("Gagal memperbarui kata sandi: " + err.message);
     }
   };
 
@@ -958,15 +1035,24 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
                           {formatTimestamp(item.loginTerakhir)}
                         </td>
 
-                        {/* Actions (Delete) */}
+                        {/* Actions (Reset Sandi & Delete) */}
                         <td className="p-4 text-center">
-                          <button
-                            onClick={() => handleDeleteUser(item.uid, item.email)}
-                            className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
-                            title="Hapus Pengguna Permanen"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
+                          <div className="flex items-center justify-center gap-1.5">
+                            <button
+                              onClick={() => handleAdminResetPassword(item.uid || item.id, item.email)}
+                              className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg transition"
+                              title="Lihat / Reset Kata Sandi Pengguna"
+                            >
+                              <Key className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteUser(item.uid, item.email)}
+                              className="p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-600 rounded-lg transition"
+                              title="Hapus Pengguna Permanen"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))

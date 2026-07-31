@@ -41,6 +41,7 @@ interface AuthContextType {
     roles: Array<{ namaLengkap: string; email: string; noHp: string; profesi: string }>;
   }) => Promise<void>;
   loginWithEmailPassword: (email: string, sandi?: string) => Promise<void>;
+  resetUserPassword: (email: string, newSandi: string) => Promise<void>;
   refreshUserProfile: () => Promise<void>;
   authError: string | null;
   setAuthError: (error: string | null) => void;
@@ -522,6 +523,7 @@ const removeDeletedTenantEmail = (email: string) => {
       if (data.sandi && data.sandi.length < 6) {
         throw new Error("Kata sandi minimal 6 karakter demi keamanan akun Anda.");
       }
+      const nowIso = new Date().toISOString();
       const promises = data.roles.map(async (r) => {
         const lowerEmail = r.email.toLowerCase().trim();
         removeDeletedTenantEmail(lowerEmail);
@@ -530,7 +532,7 @@ const removeDeletedTenantEmail = (email: string) => {
         
         const profileData = {
           uid: customUid,
-          email: r.email.toLowerCase().trim(),
+          email: lowerEmail,
           namaLengkap: r.namaLengkap,
           profesi: r.profesi,
           namaSPPG: data.namaSPPG,
@@ -539,24 +541,23 @@ const removeDeletedTenantEmail = (email: string) => {
           peran: "USER" as const,
           statusPersetujuan: "menunggu" as const, // Default waiting list until Admin approves
           berakhirPada: "2027-12-31",
-          createdAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
+          createdAt: nowIso,
+          updatedAt: nowIso,
           loginTerakhir: null
         };
 
         // Always save locally immediately for instant responsiveness
-        localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
-          ...profileData,
-          createdAt: new Date().toISOString(),
-          updatedAt: new Date().toISOString(),
-          loginTerakhir: new Date().toISOString()
-        }));
+        localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(profileData));
 
         try {
-          await fetchWithTimeout(setDoc(userRef, profileData), 8000, null);
+          await setDoc(userRef, profileData, { merge: true });
         } catch (dbErr: any) {
-          console.warn(`Latar belakang setDoc untuk ${r.profesi} tertunda/gagal:`, dbErr);
+          console.warn(`Peringatan setDoc untuk ${r.profesi}:`, dbErr);
         }
+
+        try {
+          window.dispatchEvent(new CustomEvent("sisper_user_registered", { detail: profileData }));
+        } catch (e) {}
       });
 
       await Promise.all(promises);
@@ -610,6 +611,7 @@ const removeDeletedTenantEmail = (email: string) => {
       localStorage.removeItem(`offline_user_${customUid}`);
       localStorage.removeItem(`offline_user_custom_user_${lowerEmail.replace(/[@.]/g, "_")}`);
 
+      const nowIso = new Date().toISOString();
       const profileData = {
         uid: customUid,
         email: isAdminEmail ? "syukriyusuf82@gmail.com" : lowerEmail,
@@ -620,22 +622,24 @@ const removeDeletedTenantEmail = (email: string) => {
         peran: isAdminEmail ? ("ADMIN" as const) : ("USER" as const),
         statusPersetujuan: isAdminEmail ? ("aktif" as const) : ("menunggu" as const), // Waiting list for non-admin
         berakhirPada: isAdminEmail ? "2035-12-31" : "2027-12-31",
-        createdAt: serverTimestamp(),
-        updatedAt: serverTimestamp(),
+        createdAt: nowIso,
+        updatedAt: nowIso,
         loginTerakhir: null
       };
 
       // 3. Store in local storage so registration is instant and durable
-      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify({
-        ...profileData,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      }));
+      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(profileData));
 
       // 4. Fire Firestore write with extended timeout to ensure persistent save
-      fetchWithTimeout(setDoc(userRef, profileData), 8000, null).catch((dbErr) => {
+      try {
+        await setDoc(userRef, profileData, { merge: true });
+      } catch (dbErr) {
         console.warn("Operasi setDoc Firestore di latar belakang tertunda:", dbErr);
-      });
+      }
+
+      try {
+        window.dispatchEvent(new CustomEvent("sisper_user_registered", { detail: profileData }));
+      } catch (e) {}
     } catch (error: any) {
       console.error("Gagal melakukan registrasi:", error);
       setAuthError(error?.message || String(error));
@@ -737,12 +741,37 @@ const removeDeletedTenantEmail = (email: string) => {
         }
       }
 
+      const localSandi = data?.sandi ? data.sandi.trim() : "";
+      let remoteSandi = "";
+
       // 2. Remote check to verify document status or sync from Firestore
       try {
         const timeoutMs = data ? 3500 : 8000;
         const userSnap: any = await fetchWithTimeout(getDoc(userRef), timeoutMs, null);
         if (userSnap && userSnap.exists()) {
-          data = userSnap.data();
+          const remoteData = userSnap.data();
+          remoteSandi = remoteData.sandi ? remoteData.sandi.trim() : "";
+          
+          // Preserve approved status ("aktif" or "diblokir") if remote is lagging on "menunggu"
+          let finalStatus = remoteData.statusPersetujuan || data?.statusPersetujuan || "menunggu";
+          if (data?.statusPersetujuan === "aktif" && remoteData.statusPersetujuan === "menunggu") {
+            finalStatus = "aktif";
+          } else if (data?.statusPersetujuan === "diblokir" && remoteData.statusPersetujuan === "menunggu") {
+            finalStatus = "diblokir";
+          }
+
+          data = {
+            ...data,
+            ...remoteData,
+            statusPersetujuan: finalStatus,
+            sandi: localSandi || remoteSandi
+          };
+
+          // Keep remote Firestore synced with approved status if Firestore was lagging
+          if (remoteData.statusPersetujuan !== finalStatus) {
+            setDoc(userRef, { statusPersetujuan: finalStatus }, { merge: true }).catch(() => {});
+          }
+
           localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
         } else if (userSnap && !userSnap.exists() && data) {
           // Sync local data up to Firestore if missing on remote
@@ -757,11 +786,27 @@ const removeDeletedTenantEmail = (email: string) => {
         throw new Error(`Email "${lowerEmail}" belum terdaftar di sistem. Silakan lakukan pendaftaran akun baru terlebih dahulu.`);
       }
 
-      // 4. Strict Password Validation
+      // 4. Multi-source Password Validation (Matches local, remote, or initial registration)
       const enteredSandi = sandi ? sandi.trim() : "";
-      const storedSandi = data.sandi ? data.sandi.trim() : "";
-      if (storedSandi && enteredSandi !== storedSandi) {
-        throw new Error("Kata sandi salah. Silakan masukkan kata sandi yang sesuai saat Anda mendaftar.");
+      
+      const hasStoredPassword = Boolean(localSandi || remoteSandi);
+      const isMatch = !hasStoredPassword || (
+        enteredSandi && (
+          enteredSandi === localSandi || 
+          enteredSandi === remoteSandi
+        )
+      );
+
+      if (!isMatch) {
+        throw new Error("Kata sandi salah. Silakan masukkan kata sandi yang sesuai saat Anda mendaftar atau gunakan fitur Reset Kata Sandi.");
+      } else if (enteredSandi) {
+        // Auto-heal and sync verified password across local storage and remote Firestore
+        data.sandi = enteredSandi;
+        localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
+        if (data.uid) {
+          localStorage.setItem(`offline_user_${data.uid}`, JSON.stringify(data));
+        }
+        setDoc(userRef, { sandi: enteredSandi }, { merge: true }).catch(() => {});
       }
 
       // 5. Status Validation (Waiting List / Blocked / Expired)
@@ -801,6 +846,64 @@ const removeDeletedTenantEmail = (email: string) => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const resetUserPassword = async (email: string, newSandi: string) => {
+    const lowerEmail = email.toLowerCase().trim();
+    if (!newSandi || newSandi.trim().length < 6) {
+      throw new Error("Kata sandi baru minimal 6 karakter.");
+    }
+    const cleanSandi = newSandi.trim();
+    const customUid = `custom_user_${lowerEmail.replace(/[@.]/g, "_")}`;
+    const userRef = doc(db, "users", customUid);
+
+    let data: any = null;
+    const offlineSavedUser = localStorage.getItem(`offline_user_${customUid}`);
+    if (offlineSavedUser) {
+      try { data = JSON.parse(offlineSavedUser); } catch(e) {}
+    }
+
+    if (!data) {
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("offline_user_")) {
+          try {
+            const item = JSON.parse(localStorage.getItem(key) || "");
+            if (item && item.email && item.email.toLowerCase().trim() === lowerEmail) {
+              data = item;
+              break;
+            }
+          } catch(e) {}
+        }
+      }
+    }
+
+    if (!data && !isMainAdminEmail(lowerEmail)) {
+      throw new Error(`Email "${lowerEmail}" tidak ditemukan di sistem.`);
+    }
+
+    const updates = { 
+      sandi: cleanSandi, 
+      updatedAt: new Date().toISOString() 
+    };
+
+    if (data) {
+      const updatedData = { ...data, ...updates };
+      localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(updatedData));
+      if (data.uid) {
+        localStorage.setItem(`offline_user_${data.uid}`, JSON.stringify(updatedData));
+      }
+    }
+
+    try {
+      await setDoc(userRef, updates, { merge: true });
+    } catch (e) {
+      console.warn("Sinkronkan Firestore reset sandi tertunda:", e);
+    }
+
+    try {
+      window.dispatchEvent(new CustomEvent("sisper_user_registered", { detail: updates }));
+    } catch(e) {}
   };
 
   const refreshUserProfile = async () => {
@@ -889,6 +992,7 @@ const removeDeletedTenantEmail = (email: string) => {
       registerCustomUser,
       registerThreeRoles,
       loginWithEmailPassword,
+      resetUserPassword,
       refreshUserProfile,
       authError,
       setAuthError,

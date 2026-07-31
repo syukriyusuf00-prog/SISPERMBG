@@ -73,6 +73,7 @@ import {
   Tags,
   RotateCcw,
   MessageCircle,
+  Key,
   X
 } from "lucide-react";
 import * as XLSX from "xlsx";
@@ -223,6 +224,7 @@ export default function App() {
     registerCustomUser,
     registerThreeRoles,
     loginWithEmailPassword,
+    resetUserPassword,
     refreshUserProfile,
     authError,
     setAuthError,
@@ -231,6 +233,27 @@ export default function App() {
 
   const isAdminUser = user ? (isMainAdminEmail(user.email) || userProfile?.peran === "ADMIN" || user.uid === "admin_syukriyusuf82" || user.uid === "admin_sukriyusuf82") : false;
 
+  const getDefaultTabForProfesi = (profesi?: string, peran?: string) => {
+    if (peran === "ADMIN") return "dashboard";
+    const p = (profesi || "").toLowerCase();
+    if (p.includes("gizi") || p.includes("nutrisi")) return "dashboard";
+    if (p.includes("keuangan") || p.includes("akuntan") || p.includes("bendahara") || p.includes("finance")) return "notalogistik";
+    if (p.includes("chef") || p.includes("masak") || p.includes("koki") || p.includes("logistik")) return "menu";
+    if (p.includes("kepala") || p.includes("pimpinan") || p.includes("manager") || p.includes("direktur")) return "sppg";
+    if (p.includes("kesehatan") || p.includes("pengawas") || p.includes("lapangan")) return "penerima";
+    return "dashboard";
+  };
+
+  useEffect(() => {
+    if (userProfile?.profesi) {
+      const hasChosen = sessionStorage.getItem("sisper_user_tab_chosen");
+      if (!hasChosen) {
+        const roleTab = getDefaultTabForProfesi(userProfile.profesi, userProfile.peran);
+        setActiveTab(roleTab);
+      }
+    }
+  }, [userProfile]);
+
   // Authentication Tab & Form States
   const [authTab, setAuthTab] = useState<"masuk" | "daftar">("masuk");
   const [loginEmail, setLoginEmail] = useState("");
@@ -238,6 +261,12 @@ export default function App() {
   const [showLoginSandi, setShowLoginSandi] = useState(false);
   const [showRegSandi, setShowRegSandi] = useState(false);
   const [showRegConfirmSandi, setShowRegConfirmSandi] = useState(false);
+
+  // Reset Password Modal States
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmailInput, setResetEmailInput] = useState("");
+  const [resetNewSandi, setResetNewSandi] = useState("");
+  const [isResettingSandi, setIsResettingSandi] = useState(false);
 
   // Registration Single User Form States
   const [regNamaSingle, setRegNamaSingle] = useState("");
@@ -1325,10 +1354,39 @@ export default function App() {
     }
   };
 
+  const handleCustomResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!resetEmailInput || !resetNewSandi) {
+      alert("Mohon isi Email dan Kata Sandi baru!");
+      return;
+    }
+    if (resetNewSandi.trim().length < 6) {
+      alert("Kata sandi baru minimal 6 karakter demi keamanan akun Anda.");
+      return;
+    }
+    setIsResettingSandi(true);
+    try {
+      await resetUserPassword(resetEmailInput, resetNewSandi);
+      alert(`Kata sandi untuk "${resetEmailInput}" berhasil diperbarui!\n\nSilakan masuk menggunakan kata sandi baru Anda.`);
+      setLoginEmail(resetEmailInput);
+      setLoginSandi(resetNewSandi);
+      setShowResetModal(false);
+      setResetNewSandi("");
+    } catch (err: any) {
+      alert("Gagal memperbarui kata sandi: " + (err?.message || String(err)));
+    } finally {
+      setIsResettingSandi(false);
+    }
+  };
+
   const handleCustomRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!regNamaSingle || !regEmailSingle || !regPekerjaanSingle || !regInstansiSingle || !regSandiSingle || !regConfirmSandiSingle) {
       alert("Mohon isi seluruh kolom pendaftaran!");
+      return;
+    }
+    if (regSandiSingle.length < 6) {
+      alert("Kata sandi minimal 6 karakter demi keamanan akun Anda.");
       return;
     }
     if (regSandiSingle !== regConfirmSandiSingle) {
@@ -1372,6 +1430,10 @@ export default function App() {
     e.preventDefault();
     if (!regInstansi || !regSandiShared) {
       alert("Mohon lengkapi Nama Instansi dan Kata Sandi!");
+      return;
+    }
+    if (regSandiShared.length < 6) {
+      alert("Kata sandi minimal 6 karakter demi keamanan akun Anda.");
       return;
     }
     if (!regGiziNama || !regGiziEmail || !regGiziNoHp) {
@@ -1576,6 +1638,18 @@ export default function App() {
                         {showLoginSandi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                       </button>
                     </div>
+                    <div className="flex justify-end pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResetEmailInput(loginEmail);
+                          setShowResetModal(true);
+                        }}
+                        className="text-blue-600 hover:text-blue-800 font-bold text-[11px] underline transition-colors cursor-pointer"
+                      >
+                        Lupa / Reset Kata Sandi?
+                      </button>
+                    </div>
                   </div>
 
                   <button
@@ -1594,73 +1668,76 @@ export default function App() {
                   </button>
                 </form>
               ) : (
-                /* SINGLE USER REGISTRATION FORM */
+                /* SINGLE USER REGISTRATION FORM MATCHING REFERENCE IMAGE FORMAT */
                 <form onSubmit={handleCustomRegister} className="space-y-4 text-left text-xs text-slate-700">
-                  <div className="space-y-3 bg-slate-50 p-4 rounded-2xl border border-slate-200 space-y-4">
+                  <div className="bg-[#F4F7FC] p-5 md:p-6 rounded-2xl border border-slate-200/80 space-y-4 shadow-2xs">
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Nama Lengkap:</label>
+                      <label className="font-bold text-slate-700 text-xs block">Nama Lengkap:</label>
                       <input
                         type="text"
                         required
                         value={regNamaSingle}
                         onChange={(e) => setRegNamaSingle(e.target.value)}
-                        placeholder="Contoh: Syukri Yusuf"
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="ESSE MAISHORAH"
+                        className="w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Email:</label>
+                      <label className="font-bold text-slate-700 text-xs block">Email:</label>
                       <input
                         type="email"
                         required
                         value={regEmailSingle}
                         onChange={(e) => setRegEmailSingle(e.target.value)}
-                        placeholder="Contoh: syukriyusuf82@gmail.com"
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="essemaisyorara@gmail.com"
+                        className="w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Pekerjaan / Profesi:</label>
+                      <label className="font-bold text-slate-700 text-xs block">Pekerjaan / Profesi:</label>
                       <input
                         type="text"
                         required
                         value={regPekerjaanSingle}
                         onChange={(e) => setRegPekerjaanSingle(e.target.value)}
-                        placeholder="Contoh: Ahli Gizi / Pengawas Lapangan"
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="AHLI GIZI"
+                        className="w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Instansi / SPPG:</label>
+                      <label className="font-bold text-slate-700 text-xs block">Instansi / SPPG:</label>
                       <input
                         type="text"
                         required
                         value={regInstansiSingle}
                         onChange={(e) => setRegInstansiSingle(e.target.value)}
-                        placeholder="Contoh: SPPG Muna Barat Sawerigadi"
-                        className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                        placeholder="SPPG KAYUAPAK"
+                        className="w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal"
                       />
                     </div>
 
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="font-bold text-slate-600">Kata Sandi:</label>
+                        <label className="font-bold text-slate-700 text-xs block">
+                          Kata Sandi <span className="text-[10px] text-slate-400 font-normal">(Min. 6 karakter)</span>:
+                        </label>
                         <div className="relative">
                           <input
                             type={showRegSandi ? "text" : "password"}
                             required
+                            minLength={6}
                             value={regSandiSingle}
                             onChange={(e) => setRegSandiSingle(e.target.value)}
-                            placeholder="Masukkan kata sandi"
-                            className="w-full pl-3 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            placeholder="Esse@123"
+                            className="w-full pl-4 pr-11 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal"
                           />
                           <button
                             type="button"
                             onClick={() => setShowRegSandi(!showRegSandi)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
                             title={showRegSandi ? "Sembunyikan Kata Sandi" : "Tampilkan Kata Sandi"}
                           >
                             {showRegSandi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -1668,20 +1745,21 @@ export default function App() {
                         </div>
                       </div>
                       <div className="space-y-1">
-                        <label className="font-bold text-slate-600">Konfirmasi Kata Sandi:</label>
+                        <label className="font-bold text-slate-700 text-xs block">Konfirmasi Kata Sandi:</label>
                         <div className="relative">
                           <input
                             type={showRegConfirmSandi ? "text" : "password"}
                             required
+                            minLength={6}
                             value={regConfirmSandiSingle}
                             onChange={(e) => setRegConfirmSandiSingle(e.target.value)}
-                            placeholder="Ulangi kata sandi"
-                            className="w-full pl-3 pr-10 py-2 bg-white border border-slate-200 rounded-xl text-slate-900 font-medium focus:outline-none focus:ring-1 focus:ring-blue-500"
+                            placeholder="Esse@123"
+                            className="w-full pl-4 pr-11 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal"
                           />
                           <button
                             type="button"
                             onClick={() => setShowRegConfirmSandi(!showRegConfirmSandi)}
-                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors p-1"
                             title={showRegConfirmSandi ? "Sembunyikan Kata Sandi" : "Tampilkan Kata Sandi"}
                           >
                             {showRegConfirmSandi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -1691,20 +1769,27 @@ export default function App() {
                     </div>
                   </div>
 
-                  <div className="flex justify-end gap-3 pt-2">
+                  <div className="flex justify-end items-center gap-3 pt-3">
                     <button
                       type="button"
                       onClick={() => setAuthTab("masuk")}
-                      className="px-5 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold rounded-xl transition cursor-pointer text-xs"
+                      className="px-6 py-2.5 bg-[#EEF2F7] hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition cursor-pointer text-xs"
                     >
                       Batal
                     </button>
                     <button
                       type="submit"
                       disabled={isRegistering}
-                      className="px-6 py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-extrabold rounded-xl transition cursor-pointer shadow-md shadow-blue-500/10 disabled:opacity-50 text-xs"
+                      className="px-6 py-2.5 bg-[#6B9EFF] hover:bg-blue-600 active:scale-98 text-white font-extrabold rounded-xl shadow-xs transition-all cursor-pointer text-xs flex items-center justify-center gap-2 disabled:opacity-80 disabled:cursor-not-allowed"
                     >
-                      {isRegistering ? "Memproses Registrasi..." : "Daftar & Ajukan Akses"}
+                      {isRegistering ? (
+                        <>
+                          <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                          <span>Memproses Registrasi...</span>
+                        </>
+                      ) : (
+                        "Daftar & Ajukan Akses"
+                      )}
                     </button>
                   </div>
                 </form>
@@ -2112,6 +2197,7 @@ export default function App() {
                   id={`tab-nav-${tab.id}`}
                   onClick={() => {
                     setActiveTab(tab.id);
+                    sessionStorage.setItem("sisper_user_tab_chosen", "true");
                     setIsAdminPanelOpen(false);
                   }}
                   className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition duration-150 ${
@@ -2164,6 +2250,57 @@ export default function App() {
           <AdminPanel onClose={() => setIsAdminPanelOpen(false)} />
         ) : (
           <>
+            {/* PERSONALIZED ROLE-BASED DASHBOARD BANNER FOR USERS */}
+            {userProfile && (
+              <div className="mb-6 bg-gradient-to-r from-blue-900 via-indigo-900 to-slate-900 rounded-3xl p-5 md:p-6 text-white shadow-md relative overflow-hidden no-print">
+                <div className="absolute right-0 top-0 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
+                <div className="flex flex-col md:flex-row md:items-center justify-between gap-5 relative z-10">
+                  <div className="space-y-1.5">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-3 py-1 rounded-full text-[11px] font-black uppercase tracking-wider flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                        DASBOR {userProfile.profesi?.toUpperCase() || "PENGAWAS GIZI"}
+                      </span>
+                      <span className="bg-white/10 text-slate-200 px-3 py-1 rounded-full text-[11px] font-bold">
+                        {userProfile.namaSPPG || profile.namaLembaga}
+                      </span>
+                      <span className="bg-blue-500/20 text-blue-300 px-2.5 py-0.5 rounded-full text-[10px] font-semibold border border-blue-400/30">
+                        Status: {userProfile.statusPersetujuan === "aktif" ? "Akses Disetujui (Aktif)" : "Menunggu Persetujuan Admin"}
+                      </span>
+                    </div>
+                    <h2 className="text-xl md:text-2xl font-black text-white tracking-tight">
+                      Selamat Datang, {userProfile.namaLengkap || user?.email}
+                    </h2>
+                    <p className="text-xs text-slate-300 leading-relaxed max-w-3xl">
+                      {userProfile.profesi?.toLowerCase().includes("keuangan") || userProfile.profesi?.toLowerCase().includes("akuntan")
+                        ? "Dasbor Anda dikustomisasi khusus untuk Manajemen Keuangan, Rekapitulasi Food Cost, Anggaran Belanja, dan Verifikasi Nota Logistik SPPG."
+                        : userProfile.profesi?.toLowerCase().includes("chef") || userProfile.profesi?.toLowerCase().includes("masak") || userProfile.profesi?.toLowerCase().includes("koki")
+                        ? "Dasbor Anda dikustomisasi khusus untuk Operasional Dapur, Master Resep Siklus 10 Hari, Pembagian Gramatur Porsi, dan Nota Pesanan Bahan Baku."
+                        : userProfile.profesi?.toLowerCase().includes("kepala") || userProfile.profesi?.toLowerCase().includes("pimpinan") || userProfile.profesi?.toLowerCase().includes("manager")
+                        ? "Dasbor Pengawasan Executive SPPG: Monitoring Realisasi Anggaran, Kepatuhan Juknis BGN 2025, dan Status Penerima Manfaat."
+                        : userProfile.profesi?.toLowerCase().includes("kesehatan") || userProfile.profesi?.toLowerCase().includes("pengawas")
+                        ? "Dasbor Pengawasan Lapangan & Kesehatan: Tracking kecukupan nutrisi penerima manfaat (Siswa SD/SMP/SMA, Ibu Hamil & Balita)."
+                        : "Dasbor Utama Perencanaan Gizi: Analisis Kecukupan Standar AKG 2025, Penyusunan Menu Siklus, dan Sandbox Formulasi Nutrisi."}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        const targetTab = getDefaultTabForProfesi(userProfile.profesi, userProfile.peran);
+                        setActiveTab(targetTab);
+                        sessionStorage.setItem("sisper_user_tab_chosen", "true");
+                      }}
+                      className="px-4 py-2.5 bg-blue-500 hover:bg-blue-400 active:scale-98 text-white font-extrabold text-xs rounded-xl shadow-sm transition-all flex items-center gap-2 cursor-pointer"
+                    >
+                      <Layers className="w-4 h-4" />
+                      <span>Fokus Dasbor Peranku ({userProfile.profesi || "Gizi"})</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {activeTab === "dashboard" && (
               <div className="space-y-6">
                 <DashboardOutputs
@@ -3263,6 +3400,85 @@ export default function App() {
                 <span>Simpan & Terapkan</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* RESET PASSWORD MODAL */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-150">
+            <div className="p-5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <Key className="w-5 h-5 text-amber-300" />
+                <h3 className="font-extrabold text-sm">Reset Kata Sandi Akun</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="text-white/80 hover:text-white text-lg font-bold p-1 cursor-pointer"
+              >
+                ✕
+              </button>
+            </div>
+            
+            <form onSubmit={handleCustomResetPassword} className="p-5 space-y-4 text-xs">
+              <p className="text-slate-600 text-[11px]">
+                Masukkan email terdaftar dan kata sandi baru Anda. Kata sandi akan diperbarui secara langsung di sistem.
+              </p>
+
+              <div className="space-y-1 text-left">
+                <label className="font-bold text-slate-700">Email Akun:</label>
+                <input
+                  type="email"
+                  required
+                  value={resetEmailInput}
+                  onChange={(e) => setResetEmailInput(e.target.value)}
+                  placeholder="Masukkan email terdaftar Anda"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="space-y-1 text-left">
+                <label className="font-bold text-slate-700">Kata Sandi Baru (Min. 6 Karakter):</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={resetNewSandi}
+                  onChange={(e) => setResetNewSandi(e.target.value)}
+                  placeholder="Masukkan kata sandi baru (min. 6 karakter)"
+                  className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-medium focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 focus:outline-none"
+                />
+              </div>
+
+              <div className="pt-2 flex justify-end gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition cursor-pointer"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  disabled={isResettingSandi}
+                  className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl shadow-md transition cursor-pointer flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {isResettingSandi ? (
+                    <>
+                      <span className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                      <span>Memperbarui...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Key className="w-3.5 h-3.5" />
+                      <span>Perbarui Kata Sandi</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
