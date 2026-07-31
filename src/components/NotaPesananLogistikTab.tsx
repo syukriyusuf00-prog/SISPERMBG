@@ -2335,6 +2335,7 @@ export default function NotaPesananLogistikTab({
                                 onApply={(val) => handleEditItem(row.id, "hargaSatuan", val)}
                                 placeholder="Hitung Harga Satuan"
                                 className="no-print custom-btn"
+                                ingredientName={row.namaBahan || row.nama}
                               />
                             </div>
                           </div>

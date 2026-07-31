@@ -113,7 +113,7 @@ export function calculateIngredient(
   if (!tkpi) {
     tkpi = {
       id: "unknown",
-      nama: "Bahan Tidak Diketahui",
+      nama: input.nama || "",
       sumber: "Umum",
       bdd: 100,
       energi: 0,
@@ -169,26 +169,31 @@ export function calculateIngredient(
   const ekorVal = parseVal(input.ekor);
 
   // 1. Base quantity from which buffer is calculated
-  let baseQty = totalKebutuhanKg;
   const selectedBase = input.bufferBase || "auto";
+  const totalPotong = potongVal > 0 ? potongVal : 0;
+  const totalEkor = ekorVal > 0 ? ekorVal : 0;
+
+  let baseQty = totalKebutuhanKg;
   if (selectedBase === "kg") {
     baseQty = totalKebutuhanKg;
   } else if (selectedBase === "potong") {
-    baseQty = potongVal > 0 ? (potongVal * jumlahPM) : totalKebutuhanKg;
+    baseQty = totalPotong;
   } else if (selectedBase === "ekor") {
-    baseQty = ekorVal > 0 ? (ekorVal * jumlahPM) : totalKebutuhanKg;
+    baseQty = totalEkor;
   } else {
-    // "auto" defaults to KG unless potong or ekor is explicitly chosen
+    // "auto" defaults to KG
     baseQty = totalKebutuhanKg;
   }
 
   // Calculate Buffer Amount dynamically based on selected bufferPct
   const bufferAmount = baseQty * (bufferPct / 100);
 
-  // 2. Calculate Jumlah + Buffer based on user choice
+  // Buffer in KG (for pricing calculation)
+  const bufferInKg = totalKebutuhanKg * (bufferPct / 100);
+  const totalKgWithBuffer = totalKebutuhanKg + bufferInKg;
+
+  // 2. Calculate Jumlah + Buffer displayed value based on user choice
   const jChoice = input.jumlahBufferChoice || "auto";
-  const totalPotong = potongVal > 0 ? potongVal * jumlahPM : totalKebutuhanKg;
-  const totalEkor = ekorVal > 0 ? ekorVal * jumlahPM : totalKebutuhanKg;
   
   let effectiveJChoice = jChoice;
   if (jChoice === "auto") {
@@ -203,44 +208,42 @@ export function calculateIngredient(
     }
   }
 
-  let jumlahPlusBuffer = totalKebutuhanKg + bufferAmount;
+  let jumlahPlusBuffer = totalKgWithBuffer;
   const netKg = (input.beratBB * jumlahPM) / 1000;
 
   if (effectiveJChoice === "kg_with") {
-    jumlahPlusBuffer = totalKebutuhanKg + bufferAmount;
+    jumlahPlusBuffer = selectedBase === "kg" ? totalKebutuhanKg + bufferAmount : totalKgWithBuffer;
   } else if (effectiveJChoice === "kilogram_with") {
-    jumlahPlusBuffer = netKg + bufferAmount;
+    jumlahPlusBuffer = netKg + bufferInKg;
   } else if (effectiveJChoice === "potong_with") {
-    jumlahPlusBuffer = totalPotong + bufferAmount;
+    const potongBase = totalPotong > 0 ? totalPotong : totalKebutuhanKg;
+    const addBuf = selectedBase === "potong" ? bufferAmount : potongBase * (bufferPct / 100);
+    jumlahPlusBuffer = potongBase + addBuf;
   } else if (effectiveJChoice === "ekor_with") {
-    jumlahPlusBuffer = totalEkor + bufferAmount;
+    const ekorBase = totalEkor > 0 ? totalEkor : totalKebutuhanKg;
+    const addBuf = selectedBase === "ekor" ? bufferAmount : ekorBase * (bufferPct / 100);
+    jumlahPlusBuffer = ekorBase + addBuf;
   } else if (effectiveJChoice === "kg_without") {
     jumlahPlusBuffer = totalKebutuhanKg;
   } else if (effectiveJChoice === "kilogram_without") {
     jumlahPlusBuffer = netKg;
   } else if (effectiveJChoice === "potong_without") {
-    jumlahPlusBuffer = totalPotong;
+    jumlahPlusBuffer = totalPotong > 0 ? totalPotong : totalKebutuhanKg;
   } else if (effectiveJChoice === "ekor_without") {
-    jumlahPlusBuffer = totalEkor;
+    jumlahPlusBuffer = totalEkor > 0 ? totalEkor : totalKebutuhanKg;
   } else {
-    jumlahPlusBuffer = totalKebutuhanKg + bufferAmount;
+    jumlahPlusBuffer = totalKgWithBuffer;
   }
 
-  // Calculate Harga Total based on chosen formula
+  const displayJumlahPlusBuffer = Number(jumlahPlusBuffer.toFixed(1));
+  const displayBufferAmount = Number(bufferAmount.toFixed(1));
+
+  // Calculate Harga Total based on chosen formula (Jumlah + Buffer x Harga Satuan)
   const formula = input.formula || "kg";
-  let multiplier = totalKebutuhanKg;
-  if (formula === "potong") {
-    multiplier = potongVal * jumlahPM;
-  } else if (formula === "ekor") {
-    multiplier = ekorVal * jumlahPM;
-  } else if (formula === "buah") {
-    multiplier = bufferAmount;
-  } else if (formula === "butir") {
-    multiplier = jumlahPlusBuffer;
+  let hargaTotal = displayJumlahPlusBuffer * input.hargaSatuan;
+  if (formula === "buah") {
+    hargaTotal = displayBufferAmount * input.hargaSatuan;
   }
-  
-  // As requested: harga total mengambil harga satuan x nilai pada tabel (jumlah+buffer)
-  const hargaTotal = jumlahPlusBuffer * input.hargaSatuan;
 
   // Nutritional values per single portion (BB / 100 * value per 100g)
   const factor = input.beratBB / 100;
@@ -261,8 +264,8 @@ export function calculateIngredient(
     
     potong: input.potong,
     ekor: input.ekor,
-    buah: bufferAmount, // b.buah is now Buffer amount
-    butir: jumlahPlusBuffer, // b.butir is now Jumlah + Buffer
+    buah: displayBufferAmount, // b.buah is now Buffer amount
+    butir: displayJumlahPlusBuffer, // b.butir is now Jumlah + Buffer
     bufferBase: input.bufferBase,
     bufferCustomVal: input.bufferCustomVal,
     jumlahBufferChoice: input.jumlahBufferChoice,

@@ -12,6 +12,7 @@ interface PriceCalculatorPopoverProps {
   onApply: (value: number) => void;
   className?: string;
   placeholder?: string;
+  ingredientName?: string;
 }
 
 export function PriceCalculatorPopover({
@@ -19,6 +20,7 @@ export function PriceCalculatorPopover({
   onApply,
   className = "",
   placeholder = "Kalkulator",
+  ingredientName,
 }: PriceCalculatorPopoverProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [expression, setExpression] = useState("");
@@ -208,23 +210,37 @@ export function PriceCalculatorPopover({
       className="bg-white rounded-2xl shadow-2xl border border-slate-200/90 p-4 w-[240px] animate-in fade-in zoom-in duration-100 font-sans"
     >
       <div className="flex items-center justify-between mb-2">
-        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider flex items-center gap-1">
-          <Calculator className="w-3 h-3" /> Alat Hitung Harga
+        <span className="text-[10px] font-black text-indigo-600 uppercase tracking-wider flex items-center gap-1 truncate max-w-[180px]" title={ingredientName || "Alat Hitung Harga"}>
+          <Calculator className="w-3 h-3 shrink-0" /> {ingredientName ? `Hitung: ${ingredientName}` : "Alat Hitung Harga"}
         </span>
         <button
           type="button"
           onClick={() => setIsOpen(false)}
-          className="text-slate-400 hover:text-slate-600 transition p-0.5 rounded hover:bg-slate-50"
+          className="text-slate-400 hover:text-slate-600 transition p-0.5 rounded hover:bg-slate-50 shrink-0"
         >
           <X className="w-4 h-4" />
         </button>
       </div>
 
       {/* Screen Display */}
-      <div className="bg-slate-900 rounded-xl p-3 text-right mb-3 min-h-[64px] flex flex-col justify-between overflow-hidden shadow-inner border border-slate-850">
-        <div className="text-[10px] text-slate-400 font-mono font-medium truncate tracking-tight h-4">
-          {expression || "0"}
-        </div>
+      <div className="bg-slate-900 rounded-xl p-2.5 text-right mb-3 flex flex-col justify-between overflow-hidden shadow-inner border border-slate-800">
+        <input
+          type="text"
+          autoFocus
+          value={expression}
+          onChange={(e) => setExpression(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              handleApply();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              setIsOpen(false);
+            }
+          }}
+          placeholder="0"
+          className="w-full bg-slate-950 border border-slate-800 focus:border-indigo-500 rounded-lg px-2 py-1 text-right font-mono text-white text-xs font-semibold focus:outline-none placeholder:text-slate-600 mb-1"
+        />
         <div className="text-sm font-extrabold text-emerald-400 font-mono tracking-wide truncate">
           {result !== null ? `Rp ${new Intl.NumberFormat("id-ID").format(result)}` : "Rp 0"}
         </div>

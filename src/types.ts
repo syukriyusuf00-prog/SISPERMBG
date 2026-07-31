@@ -99,6 +99,7 @@ export interface TKPIItem {
 export interface BahanMakananInput {
   id: string;
   tkpiId: string;
+  nama?: string;
   beratBB: number; // gram
   urt: string;     // e.g. "1 gls", "1 ptg"
   hargaSatuan: number; // per Kg atau per Satuan

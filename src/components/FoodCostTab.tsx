@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { TKPIItem, BahanMakananInput, FoodCostDay, MasterMenu, HariPM } from "../types";
 import { calculateDay, formatRupiah, getCountsForDay } from "../utils/calc";
 import SearchableTkpiDropdown from "./SearchableTkpiDropdown";
@@ -233,6 +233,7 @@ export default function FoodCostTab({
     rowIndex: number;
     field: "potong" | "ekor" | "buah" | "butir";
     initialValue: string;
+    ingredientName?: string;
   } | null>(null);
 
   const [calcExpr, setCalcExpr] = useState<string>("");
@@ -302,9 +303,10 @@ export default function FoodCostTab({
     porsi: "besar" | "kecil" | string,
     rowIndex: number,
     field: "potong" | "ekor" | "buah" | "butir",
-    currentVal: string
+    currentVal: string,
+    ingredientName?: string
   ) => {
-    setActiveCalcField({ porsi, rowIndex, field, initialValue: currentVal });
+    setActiveCalcField({ porsi, rowIndex, field, initialValue: currentVal, ingredientName });
     setCalcExpr(currentVal || "");
     const initialRes = safeEvalMath(currentVal);
     setCalcResult(initialRes || currentVal || "");
@@ -345,6 +347,54 @@ export default function FoodCostTab({
     }
     setActiveCalcField(null);
   };
+
+  // Keyboard support for Food Cost calculator modal (laptop/tablet keyboard typing)
+  useEffect(() => {
+    if (!activeCalcField) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const targetTag = (e.target as HTMLElement)?.tagName?.toLowerCase();
+      if (targetTag === "input" || targetTag === "textarea") {
+        if (e.key === "Escape") {
+          setActiveCalcField(null);
+          e.preventDefault();
+        } else if (e.key === "Enter") {
+          saveCalculatorResult(calcResult || calcExpr);
+          e.preventDefault();
+        }
+        return;
+      }
+
+      const key = e.key;
+      if (key >= "0" && key <= "9") {
+        handleCalcKeyPress(key);
+        e.preventDefault();
+      } else if (key === "+" || key === "-" || key === "*" || key === "/" || key === "(" || key === ")" || key === ".") {
+        handleCalcKeyPress(key);
+        e.preventDefault();
+      } else if (key === "Enter") {
+        saveCalculatorResult(calcResult || calcExpr);
+        e.preventDefault();
+      } else if (key === "=") {
+        handleCalcKeyPress("=");
+        e.preventDefault();
+      } else if (key === "Backspace") {
+        handleCalcKeyPress("Del");
+        e.preventDefault();
+      } else if (key === "Escape") {
+        setActiveCalcField(null);
+        e.preventDefault();
+      } else if (key.toLowerCase() === "c") {
+        handleCalcKeyPress("C");
+        e.preventDefault();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [activeCalcField, calcExpr, calcResult]);
 
   // New States for PM Selection Modes & Custom Target Prices per Sasaran
   const [sasaranTargets, setSasaranTargets] = useState<Record<string, number>>(() => {
@@ -474,13 +524,12 @@ export default function FoodCostTab({
 
   // Custom tables action handlers
   const addIngredientToCustomTable = (tableId: string) => {
-    const defaultTkpiId = tkpiList[0]?.id || "beras_giling";
     const newBahan: BahanMakananInput = {
       id: `custom_row_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      tkpiId: defaultTkpiId,
-      beratBB: 50,
-      urt: "1 porsi",
-      hargaSatuan: 20000
+      tkpiId: "",
+      beratBB: 0,
+      urt: "",
+      hargaSatuan: 0
     };
     setCustomTables(prev => prev.map(t => {
       if (t.id === tableId) {
@@ -1105,13 +1154,12 @@ export default function FoodCostTab({
   };
 
   const addIngredientRow = (porsi: "besar" | "kecil") => {
-    const defaultTkpiId = tkpiList[0]?.id || "beras_giling";
     const newBahan: BahanMakananInput = {
       id: `${porsi}_${Date.now()}_${Math.random().toString(36).substr(2, 4)}`,
-      tkpiId: defaultTkpiId,
-      beratBB: porsi === "besar" ? 60 : 40,
-      urt: "1 porsi",
-      hargaSatuan: 20000
+      tkpiId: "",
+      beratBB: 0,
+      urt: "",
+      hargaSatuan: 0
     };
 
     if (porsi === "besar") {
@@ -1480,7 +1528,7 @@ export default function FoodCostTab({
               <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#76933C] print:text-black">KOMPOSISI ZAT GIZI MAKANAN</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[58px] min-w-[58px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BDD (%)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>BK (g)</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[110px] min-w-[110px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>Jumlah Manfaat</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black leading-tight ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>Jumlah<br/>Manfaat</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[76px] min-w-[76px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Gram (g)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap ${isPrint ? "" : "w-[76px] min-w-[76px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Kg (kg)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#92D050] ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>
@@ -1515,11 +1563,11 @@ export default function FoodCostTab({
                   />
                 )}
               </th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#92D050] text-[11px] select-none ${isPrint ? "" : "w-[115px] min-w-[115px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>
-                Buffer ({currentDayData.bufferPct}%)
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black bg-[#92D050] text-[11px] leading-tight select-none ${isPrint ? "" : "w-[80px] min-w-[80px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>
+                Buffer<br/><span className="text-[10px] font-bold">({currentDayData.bufferPct}%)</span>
               </th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black whitespace-nowrap bg-[#92D050] text-[11px] select-none ${isPrint ? "" : "w-[155px] min-w-[155px]"}`} style={isPrint ? { width: '6.5%' } : undefined}>
-                Jumlah+Buffer
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-black bg-[#92D050] text-[11px] leading-tight select-none ${isPrint ? "" : "w-[90px] min-w-[90px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>
+                Jumlah +<br/>Buffer
               </th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[130px] min-w-[130px]"}`} style={isPrint ? { width: '7.5%' } : undefined}>Harga Satuan</th>
               <th rowSpan={2} className={`p-1 border border-black border-r-2 border-r-slate-950 text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[136px] min-w-[136px]"}`} style={isPrint ? { width: '8.5%' } : undefined}>Harga Total</th>
@@ -1663,9 +1711,9 @@ export default function FoodCostTab({
                   )}
                   
                   <td className="p-1 border border-black text-center font-mono text-slate-950 w-[72px] min-w-[72px] font-semibold text-xs">{b.totalKebutuhanGram.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono font-bold text-slate-950 w-[72px] min-w-[72px] text-xs">{b.totalKebutuhanKg.toFixed(3)}</td>
+                  <td className="p-1 border border-black text-center font-mono font-bold text-slate-950 w-[72px] min-w-[72px] text-xs">{b.totalKebutuhanKg.toFixed(1)}</td>
                   
-                   <td className="p-1 border border-black text-center w-[48px] min-w-[48px]">
+                   <td className="p-1 border border-black text-center w-[68px] min-w-[68px]">
                     {isPrint ? (
                       <span className="font-mono text-slate-950">{b.potong || "-"}</span>
                     ) : (
@@ -1674,20 +1722,20 @@ export default function FoodCostTab({
                           type="text"
                           value={currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.potong ?? ""}
                           onChange={(e) => handleRowChange(porsi, idx, "potong", e.target.value)}
-                          className="w-full text-center bg-transparent border-0 font-mono p-0 text-slate-950 text-xs focus:ring-1 focus:ring-rose-500 rounded"
+                          className="w-full text-center bg-white border border-slate-900 rounded-lg font-mono font-bold text-xs p-1 focus:ring-2 focus:ring-indigo-600 focus:outline-none shadow-2xs"
                         />
                         <button
                           type="button"
-                          onClick={() => openCalculator(porsi, idx, "potong", String(currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.potong ?? ""))}
-                          className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/calc:opacity-100 focus:opacity-100 bg-white hover:bg-slate-100 border border-slate-200 shadow-xs px-0.5 rounded text-[10px] text-slate-500 z-10 transition-opacity"
-                          title="Buka Kalkulator"
+                          onClick={() => openCalculator(porsi, idx, "potong", String(currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.potong ?? ""), b.nama)}
+                          className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/calc:opacity-100 focus:opacity-100 bg-white hover:bg-slate-100 border border-slate-300 shadow-xs px-1 py-0.5 rounded text-[10px] text-slate-600 z-10 transition-opacity"
+                          title={`Hitung Potong - ${b.nama}`}
                         >
                           🧮
                         </button>
                       </div>
                     )}
                   </td>
-                  <td className="p-1 border border-black text-center w-[48px] min-w-[48px]">
+                  <td className="p-1 border border-black text-center w-[68px] min-w-[68px]">
                     {isPrint ? (
                       <span className="font-mono text-slate-950">{b.ekor || "-"}</span>
                     ) : (
@@ -1696,13 +1744,13 @@ export default function FoodCostTab({
                           type="text"
                           value={currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.ekor ?? ""}
                           onChange={(e) => handleRowChange(porsi, idx, "ekor", e.target.value)}
-                          className="w-full text-center bg-transparent border-0 font-mono p-0 text-slate-950 text-xs focus:ring-1 focus:ring-rose-500 rounded"
+                          className="w-full text-center bg-white border border-slate-900 rounded-lg font-mono font-bold text-xs p-1 focus:ring-2 focus:ring-indigo-600 focus:outline-none shadow-2xs"
                         />
                         <button
                           type="button"
-                          onClick={() => openCalculator(porsi, idx, "ekor", String(currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.ekor ?? ""))}
-                          className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/calc:opacity-100 focus:opacity-100 bg-white hover:bg-slate-100 border border-slate-200 shadow-xs px-0.5 rounded text-[10px] text-slate-500 z-10 transition-opacity"
-                          title="Buka Kalkulator"
+                          onClick={() => openCalculator(porsi, idx, "ekor", String(currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.ekor ?? ""), b.nama)}
+                          className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/calc:opacity-100 focus:opacity-100 bg-white hover:bg-slate-100 border border-slate-300 shadow-xs px-1 py-0.5 rounded text-[10px] text-slate-600 z-10 transition-opacity"
+                          title={`Hitung Ekor - ${b.nama}`}
                         >
                           🧮
                         </button>
@@ -1711,12 +1759,12 @@ export default function FoodCostTab({
                   </td>
                   <td
                     onClick={() => !isPrint && openBufferConfig(porsi, idx, b)}
-                    className={`p-1 border border-black text-center w-[115px] min-w-[115px] bg-slate-50/50 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/buffer" : ""}`}
+                    className={`p-1 border border-black text-center w-[80px] min-w-[80px] bg-slate-50/50 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/buffer" : ""}`}
                     title={!isPrint ? "Klik untuk memilih basis Buffer (Kg, Potong, Ekor)" : undefined}
                   >
                     <div className="flex flex-col items-center justify-center h-full min-h-[36px]">
                       <span className="font-mono text-slate-950 text-xs font-semibold">
-                        {typeof b.buah === "number" && b.buah >= 0 ? b.buah.toFixed(3) : "-"}
+                        {typeof b.buah === "number" && b.buah >= 0 ? b.buah.toFixed(1) : "-"}
                       </span>
                       {!isPrint && (
                         <span className="text-[8px] text-indigo-600 font-extrabold uppercase tracking-wider block leading-none mt-0.5 opacity-70 group-hover/buffer:opacity-100 transition-opacity">
@@ -1727,12 +1775,12 @@ export default function FoodCostTab({
                   </td>
                   <td
                     onClick={() => !isPrint && openBufferConfig(porsi, idx, b)}
-                    className={`p-1 border border-black text-center w-[155px] min-w-[155px] bg-[#E6F0FA]/30 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/jumlah" : ""}`}
+                    className={`p-1 border border-black text-center w-[90px] min-w-[90px] bg-[#E6F0FA]/30 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/jumlah" : ""}`}
                     title={!isPrint ? "Klik untuk mengatur rumus Jumlah + Buffer" : undefined}
                   >
                     <div className="flex flex-col items-center justify-center h-full min-h-[36px]">
                       <span className="font-mono text-slate-950 text-xs font-bold text-indigo-950">
-                        {typeof b.butir === "number" && b.butir >= 0 ? b.butir.toFixed(3) : "-"}
+                        {typeof b.butir === "number" && b.butir >= 0 ? b.butir.toFixed(1) : "-"}
                       </span>
                       {!isPrint && (
                         <span className="text-[8px] text-indigo-700 font-extrabold uppercase tracking-wider block leading-none mt-0.5 opacity-70 group-hover/jumlah:opacity-100 transition-opacity">
@@ -1777,6 +1825,7 @@ export default function FoodCostTab({
                           initialValue={currentDayData[porsi === "besar" ? "porsiBesarBahan" : "porsiKecilBahan"][idx]?.hargaSatuan || 0}
                           onApply={(val) => handleRowChange(porsi, idx, "hargaSatuan", val)}
                           placeholder="Hitung Harga Satuan"
+                          ingredientName={b.nama}
                         />
                       </div>
                     )}
@@ -2264,10 +2313,10 @@ export default function FoodCostTab({
               <th colSpan={5} className="p-1 border border-black text-center text-slate-950 font-extrabold bg-[#76933C] print:text-black">KOMPOSISI ZAT GIZI MAKANAN</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[56px] min-w-[56px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>BDD (%)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>BK (g)</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[64px] min-w-[64px]"}`} style={isPrint ? { width: '4%' } : undefined}>Jumlah Manfaat</th>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold leading-tight ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>Jumlah<br/>Manfaat</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[72px] min-w-[72px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Gram (g)</th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[72px] min-w-[72px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>Kg (kg)</th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[48px] min-w-[48px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>
                 {isPrint ? (
                   headerPotong
                 ) : (
@@ -2283,7 +2332,7 @@ export default function FoodCostTab({
                   />
                 )}
               </th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[48px] min-w-[48px]"}`} style={isPrint ? { width: '3.5%' } : undefined}>
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] ${isPrint ? "" : "w-[68px] min-w-[68px]"}`} style={isPrint ? { width: '4%' } : undefined}>
                 {isPrint ? (
                   headerEkor
                 ) : (
@@ -2299,11 +2348,11 @@ export default function FoodCostTab({
                   />
                 )}
               </th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[115px] min-w-[115px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>
-                Buffer ({customBufferPct}%)
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[80px] min-w-[80px]"}`} style={isPrint ? { width: '4.5%' } : undefined}>
+                Buffer<br/><span className="text-[10px] font-bold">({customBufferPct}%)</span>
               </th>
-              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[155px] min-w-[155px]"}`} style={isPrint ? { width: '6.5%' } : undefined}>
-                Jumlah+Buffer
+              <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold bg-[#92D050] text-[10px] leading-tight select-none ${isPrint ? "" : "w-[90px] min-w-[90px]"}`} style={isPrint ? { width: '5.5%' } : undefined}>
+                Jumlah +<br/>Buffer
               </th>
               <th rowSpan={2} className={`p-1 border border-black text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[130px] min-w-[130px]"}`} style={isPrint ? { width: '7.5%' } : undefined}>Harga Satuan</th>
               <th rowSpan={2} className={`p-1 border border-black border-r-2 border-r-slate-950 text-center text-slate-950 font-extrabold ${isPrint ? "" : "w-[136px] min-w-[136px]"}`} style={isPrint ? { width: '8.5%' } : undefined}>Harga Total</th>
@@ -2425,9 +2474,9 @@ export default function FoodCostTab({
                   )}
                   
                   <td className="p-1 border border-black text-center font-mono text-slate-950 w-[72px] min-w-[72px] font-semibold text-xs">{b.totalKebutuhanGram.toFixed(1)}</td>
-                  <td className="p-1 border border-black text-center font-mono font-bold text-slate-950 w-[72px] min-w-[72px] text-xs">{b.totalKebutuhanKg.toFixed(3)}</td>
+                  <td className="p-1 border border-black text-center font-mono font-bold text-slate-950 w-[72px] min-w-[72px] text-xs">{b.totalKebutuhanKg.toFixed(1)}</td>
                   
-                  <td className="p-1 border border-black text-center w-[48px] min-w-[48px]">
+                  <td className="p-1 border border-black text-center w-[68px] min-w-[68px]">
                     {isPrint ? (
                       <span className="font-mono text-slate-950">{b.potong || "-"}</span>
                     ) : (
@@ -2436,20 +2485,20 @@ export default function FoodCostTab({
                           type="text"
                           value={b.potong ?? ""}
                           onChange={(e) => editIngredientInCustomTable(table.id, idx, "potong", e.target.value)}
-                          className="w-full text-center bg-transparent border-0 font-mono p-0 text-slate-950 text-xs focus:ring-1 focus:ring-rose-500 rounded"
+                          className="w-full text-center bg-white border border-slate-900 rounded-lg font-mono font-bold text-xs p-1 focus:ring-2 focus:ring-indigo-600 focus:outline-none shadow-2xs"
                         />
                         <button
                           type="button"
-                          onClick={() => openCalculator(table.id, idx, "potong", String(b.potong ?? ""))}
-                          className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/calc:opacity-100 focus:opacity-100 bg-white hover:bg-slate-100 border border-slate-200 shadow-xs px-0.5 rounded text-[10px] text-slate-500 z-10 transition-opacity"
-                          title="Buka Kalkulator"
+                          onClick={() => openCalculator(table.id, idx, "potong", String(b.potong ?? ""), b.nama)}
+                          className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/calc:opacity-100 focus:opacity-100 bg-white hover:bg-slate-100 border border-slate-300 shadow-xs px-1 py-0.5 rounded text-[10px] text-slate-600 z-10 transition-opacity"
+                          title={`Hitung Potong - ${b.nama}`}
                         >
                           🧮
                         </button>
                       </div>
                     )}
                   </td>
-                  <td className="p-1 border border-black text-center w-[48px] min-w-[48px]">
+                  <td className="p-1 border border-black text-center w-[68px] min-w-[68px]">
                     {isPrint ? (
                       <span className="font-mono text-slate-950">{b.ekor || "-"}</span>
                     ) : (
@@ -2458,13 +2507,13 @@ export default function FoodCostTab({
                           type="text"
                           value={b.ekor ?? ""}
                           onChange={(e) => editIngredientInCustomTable(table.id, idx, "ekor", e.target.value)}
-                          className="w-full text-center bg-transparent border-0 font-mono p-0 text-slate-950 text-xs focus:ring-1 focus:ring-rose-500 rounded"
+                          className="w-full text-center bg-white border border-slate-900 rounded-lg font-mono font-bold text-xs p-1 focus:ring-2 focus:ring-indigo-600 focus:outline-none shadow-2xs"
                         />
                         <button
                           type="button"
-                          onClick={() => openCalculator(table.id, idx, "ekor", String(b.ekor ?? ""))}
-                          className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/calc:opacity-100 focus:opacity-100 bg-white hover:bg-slate-100 border border-slate-200 shadow-xs px-0.5 rounded text-[10px] text-slate-500 z-10 transition-opacity"
-                          title="Buka Kalkulator"
+                          onClick={() => openCalculator(table.id, idx, "ekor", String(b.ekor ?? ""), b.nama)}
+                          className="absolute right-0.5 top-1/2 -translate-y-1/2 opacity-0 group-hover/calc:opacity-100 focus:opacity-100 bg-white hover:bg-slate-100 border border-slate-300 shadow-xs px-1 py-0.5 rounded text-[10px] text-slate-600 z-10 transition-opacity"
+                          title={`Hitung Ekor - ${b.nama}`}
                         >
                           🧮
                         </button>
@@ -2473,12 +2522,12 @@ export default function FoodCostTab({
                   </td>
                   <td
                     onClick={() => !isPrint && openBufferConfig(table.id, idx, b)}
-                    className={`p-1 border border-black text-center w-[115px] min-w-[115px] bg-slate-50/50 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/buffer" : ""}`}
+                    className={`p-1 border border-black text-center w-[80px] min-w-[80px] bg-slate-50/50 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/buffer" : ""}`}
                     title={!isPrint ? "Klik untuk memilih basis Buffer (Kg, Potong, Ekor)" : undefined}
                   >
                     <div className="flex flex-col items-center justify-center h-full min-h-[36px]">
                       <span className="font-mono text-slate-950 text-xs font-semibold">
-                        {typeof b.buah === "number" && b.buah >= 0 ? b.buah.toFixed(3) : "-"}
+                        {typeof b.buah === "number" && b.buah >= 0 ? b.buah.toFixed(1) : "-"}
                       </span>
                       {!isPrint && (
                         <span className="text-[8px] text-indigo-600 font-extrabold uppercase tracking-wider block leading-none mt-0.5 opacity-70 group-hover/buffer:opacity-100 transition-opacity">
@@ -2489,12 +2538,12 @@ export default function FoodCostTab({
                   </td>
                   <td
                     onClick={() => !isPrint && openBufferConfig(table.id, idx, b)}
-                    className={`p-1 border border-black text-center w-[155px] min-w-[155px] bg-[#E6F0FA]/30 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/jumlah" : ""}`}
+                    className={`p-1 border border-black text-center w-[90px] min-w-[90px] bg-[#E6F0FA]/30 ${!isPrint ? "cursor-pointer hover:bg-indigo-50/70 transition-all group/jumlah" : ""}`}
                     title={!isPrint ? "Klik untuk mengatur rumus Jumlah + Buffer" : undefined}
                   >
                     <div className="flex flex-col items-center justify-center h-full min-h-[36px]">
                       <span className="font-mono text-slate-950 text-xs font-bold text-indigo-950">
-                        {typeof b.butir === "number" && b.butir >= 0 ? b.butir.toFixed(3) : "-"}
+                        {typeof b.butir === "number" && b.butir >= 0 ? b.butir.toFixed(1) : "-"}
                       </span>
                       {!isPrint && (
                         <span className="text-[8px] text-indigo-700 font-extrabold uppercase tracking-wider block leading-none mt-0.5 opacity-70 group-hover/jumlah:opacity-100 transition-opacity">
@@ -2538,6 +2587,7 @@ export default function FoodCostTab({
                           initialValue={b.hargaSatuan || 0}
                           onApply={(val) => editIngredientInCustomTable(table.id, idx, "hargaSatuan", val)}
                           placeholder="Hitung Harga Satuan"
+                          ingredientName={b.nama}
                         />
                       </div>
                     )}
@@ -3951,10 +4001,10 @@ export default function FoodCostTab({
                         bahanList: [
                           {
                             id: `custom_row_${Date.now()}_1`,
-                            tkpiId: defaultTkpiId,
-                            beratBB: 50,
-                            urt: "1 porsi",
-                            hargaSatuan: 20000
+                            tkpiId: "",
+                            beratBB: 0,
+                            urt: "",
+                            hargaSatuan: 0
                           }
                         ]
                       };
@@ -4330,29 +4380,54 @@ export default function FoodCostTab({
         <div className="fixed inset-0 bg-black/55 backdrop-blur-xs flex items-center justify-center z-50 animate-fade-in no-print">
           <div className="bg-slate-900 border border-slate-700 rounded-3xl p-6 shadow-2xl w-full max-w-sm overflow-hidden flex flex-col relative text-white">
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-2">
-                <Calculator className="w-5 h-5 text-indigo-400" />
-                <span className="font-sans font-bold text-sm tracking-wide text-indigo-200">
-                  Kalkulator: {activeCalcField.field.toUpperCase()}
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2 overflow-hidden">
+                <Calculator className="w-5 h-5 text-indigo-400 shrink-0" />
+                <span className="font-sans font-bold text-sm tracking-wide text-indigo-200 truncate">
+                  Hitung {activeCalcField.field.toUpperCase()}: {activeCalcField.ingredientName || "Bahan Makanan"}
                 </span>
               </div>
               <button
                 type="button"
                 onClick={() => setActiveCalcField(null)}
-                className="text-slate-400 hover:text-white hover:bg-slate-800 p-1 rounded-full transition-colors"
+                className="text-slate-400 hover:text-white hover:bg-slate-800 p-1 rounded-full transition-colors shrink-0"
               >
                 ✕
               </button>
             </div>
 
             {/* Display Screen */}
-            <div className="bg-slate-950 p-4 rounded-2xl mb-4 border border-slate-800 text-right font-mono flex flex-col justify-between min-h-[84px]">
-              <div className="text-slate-400 text-sm overflow-x-auto whitespace-nowrap scrollbar-none min-h-[20px]">
-                {calcExpr || "0"}
-              </div>
-              <div className="text-white text-2xl font-bold truncate">
-                {calcResult || "0"}
+            <div className="bg-slate-950 p-3 rounded-2xl mb-4 border border-slate-800 flex flex-col justify-between shadow-inner">
+              <label className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider mb-1 block">
+                Ketik / Keyboard:
+              </label>
+              <input
+                type="text"
+                autoFocus
+                value={calcExpr}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setCalcExpr(val);
+                  const res = safeEvalMath(val);
+                  setCalcResult(res || val || "");
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    saveCalculatorResult(calcResult || calcExpr);
+                  } else if (e.key === "Escape") {
+                    e.preventDefault();
+                    setActiveCalcField(null);
+                  }
+                }}
+                placeholder="0"
+                className="w-full bg-slate-900 border border-slate-700 focus:border-indigo-500 rounded-xl px-3 py-1.5 text-right font-mono text-white text-base font-semibold focus:ring-2 focus:ring-indigo-500/50 focus:outline-none transition-all placeholder:text-slate-600 mb-2"
+              />
+              <div className="text-right font-mono">
+                <span className="text-[10px] text-slate-500 block">Hasil:</span>
+                <span className="text-emerald-400 text-2xl font-black truncate block">
+                  {calcResult || "0"}
+                </span>
               </div>
             </div>
 

@@ -30,22 +30,39 @@ export default function SearchableTkpiDropdown({
     return tkpiList.find((t) => t.id === selectedValue);
   }, [tkpiList, selectedValue]);
 
-  // Sync state when selection changes
+  const prevSelectedValueRef = useRef(selectedValue);
+
+  // Sync state ONLY when selectedValue actually changes or on initial load
   useEffect(() => {
-    if (selectedItem) {
-      setSearchQuery(selectedItem.nama || "");
-    } else {
-      setSearchQuery("");
+    if (prevSelectedValueRef.current !== selectedValue) {
+      prevSelectedValueRef.current = selectedValue;
+      const item = tkpiList.find((t) => t.id === selectedValue);
+      if (item) {
+        setSearchQuery(item.nama || "");
+      } else {
+        setSearchQuery("");
+      }
     }
-  }, [selectedValue, selectedItem]);
+  }, [selectedValue, tkpiList]);
+
+  // Initial sync on mount if searchQuery is empty but selectedValue exists
+  useEffect(() => {
+    if (!searchQuery && selectedValue) {
+      const item = tkpiList.find((t) => t.id === selectedValue);
+      if (item) {
+        setSearchQuery(item.nama || "");
+      }
+    }
+  }, [tkpiList]);
 
   // Handle click outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsOpen(false);
-        if (selectedItem) {
-          setSearchQuery(selectedItem.nama || "");
+        const item = tkpiList.find((t) => t.id === selectedValue);
+        if (item) {
+          setSearchQuery(item.nama || "");
         } else {
           setSearchQuery("");
         }
@@ -55,7 +72,7 @@ export default function SearchableTkpiDropdown({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [selectedItem]);
+  }, [selectedValue, tkpiList]);
 
   // Filter list based on search input efficiently using useMemo
   const filteredList = useMemo(() => {
