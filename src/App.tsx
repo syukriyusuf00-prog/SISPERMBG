@@ -254,6 +254,46 @@ export default function App() {
     }
   }, [userProfile]);
 
+  // Real-time listener in App component to monitor statusPersetujuan in current user's Firestore profile document
+  useEffect(() => {
+    const activeUid = userProfile?.uid || user?.uid || localStorage.getItem("custom_logged_in_uid");
+    if (!activeUid) return;
+
+    const email = (userProfile?.email || user?.email || "").toLowerCase().trim();
+    if (activeUid === "admin_sukriyusuf82" || activeUid === "admin_syukriyusuf82" || isMainAdminEmail(email)) {
+      return;
+    }
+
+    try {
+      const userRef = doc(db, "users", activeUid);
+      const unsubscribe = onSnapshot(userRef, (snap) => {
+        if (snap.exists()) {
+          const freshData = snap.data();
+          const newStatus = freshData.statusPersetujuan;
+
+          if (newStatus === "aktif") {
+            const currentStatus = userProfile?.statusPersetujuan;
+            if (currentStatus !== "aktif") {
+              const updated = { ...userProfile, ...freshData, statusPersetujuan: "aktif", uid: activeUid };
+              localStorage.setItem("sisper_user_profile", JSON.stringify(updated));
+              localStorage.setItem(`offline_user_${activeUid}`, JSON.stringify(updated));
+              
+              if (typeof refreshUserProfile === "function") {
+                refreshUserProfile();
+              }
+            }
+          }
+        }
+      }, (err) => {
+        console.warn("App statusPersetujuan real-time listener notice:", err);
+      });
+
+      return () => unsubscribe();
+    } catch (e) {
+      console.warn("Could not set up App statusPersetujuan listener:", e);
+    }
+  }, [userProfile?.uid, user?.uid, userProfile?.statusPersetujuan, refreshUserProfile]);
+
   // Authentication Tab & Form States
   const [authTab, setAuthTab] = useState<"masuk" | "daftar">("masuk");
   const [loginEmail, setLoginEmail] = useState("");

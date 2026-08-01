@@ -277,15 +277,16 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Fast load from saved local profile
         const savedProfile = localStorage.getItem("sisper_user_profile");
+        let localData: any = null;
         if (savedProfile) {
           try {
-            const data = JSON.parse(savedProfile);
+            localData = JSON.parse(savedProfile);
             updateSession({
               uid: customUid,
-              email: data.email,
-              displayName: data.namaLengkap,
+              email: localData.email,
+              displayName: localData.namaLengkap,
               emailVerified: true
-            } as any, data);
+            } as any, localData);
           } catch (e) {
             console.warn("Gagal parsing profil lokal:", e);
           }
@@ -294,17 +295,37 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         // Instantly unblock loading screen so app opens without delay
         setLoading(false);
 
-        // Background profile verification with 800ms fast timeout
-        fetchWithTimeout(getDoc(doc(db, "users", customUid)), 800, null)
+        // Background profile verification with Firestore validation
+        fetchWithTimeout(getDoc(doc(db, "users", customUid)), 3500, null)
           .then((snap: any) => {
             if (snap && snap.exists()) {
-              const data = snap.data();
+              const remoteData = snap.data();
+              
+              // Validate approval status across Firestore and local cache
+              const isApproved = remoteData.statusPersetujuan === "aktif" || localData?.statusPersetujuan === "aktif";
+              const isBlocked = remoteData.statusPersetujuan === "diblokir" || localData?.statusPersetujuan === "diblokir";
+              const finalStatus = isBlocked ? "diblokir" : isApproved ? "aktif" : "menunggu";
+
+              const mergedData = {
+                ...localData,
+                ...remoteData,
+                statusPersetujuan: finalStatus,
+                uid: customUid
+              };
+
+              localStorage.setItem("sisper_user_profile", JSON.stringify(mergedData));
+              localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(mergedData));
+
+              if (remoteData.statusPersetujuan !== finalStatus) {
+                setDoc(doc(db, "users", customUid), { statusPersetujuan: finalStatus }, { merge: true }).catch(() => {});
+              }
+
               updateSession({
                 uid: customUid,
-                email: data.email,
-                displayName: data.namaLengkap,
+                email: mergedData.email,
+                displayName: mergedData.namaLengkap,
                 emailVerified: true
-              } as any, data);
+              } as any, mergedData);
             }
           })
           .catch((e) => {
@@ -359,7 +380,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
           const isExpired = freshData.berakhirPada ? todayStr > freshData.berakhirPada : false;
 
-          if (freshData.statusPersetujuan === "diblokir" || freshData.statusPersetujuan === "menunggu" || isExpired) {
+          const currentLocalStatus = userProfile?.statusPersetujuan;
+          const isApproved = freshData.statusPersetujuan === "aktif" || currentLocalStatus === "aktif";
+          const isBlocked = freshData.statusPersetujuan === "diblokir";
+
+          if (isBlocked || (!isApproved && freshData.statusPersetujuan === "menunggu") || isExpired) {
             signOutUser();
             setAuthError(
               isExpired
@@ -369,20 +394,19 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
                 : "Akses akun Anda telah diputuskan/diblokir oleh Administrator."
             );
           } else {
+            const finalStatus = "aktif";
+            if (freshData.statusPersetujuan !== finalStatus) {
+              setDoc(userRef, { statusPersetujuan: finalStatus }, { merge: true }).catch(() => {});
+            }
+
             setUserProfile((prev: any) => {
-              if (!prev) return freshData;
-              if (
-                prev.statusPersetujuan !== freshData.statusPersetujuan ||
-                prev.berakhirPada !== freshData.berakhirPada ||
-                prev.peran !== freshData.peran ||
-                prev.namaLengkap !== freshData.namaLengkap ||
-                prev.namaSPPG !== freshData.namaSPPG
-              ) {
-                const updated = { ...prev, ...freshData };
-                localStorage.setItem("sisper_user_profile", JSON.stringify(updated));
-                return updated;
+              if (!prev) return { ...freshData, statusPersetujuan: finalStatus };
+              const updated = { ...prev, ...freshData, statusPersetujuan: finalStatus };
+              localStorage.setItem("sisper_user_profile", JSON.stringify(updated));
+              if (activeUid) {
+                localStorage.setItem(`offline_user_${activeUid}`, JSON.stringify(updated));
               }
-              return prev;
+              return updated;
             });
           }
         } else {
@@ -773,9 +797,39 @@ const removeDeletedTenantEmail = (email: string) => {
           }
 
           localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
-        } else if (userSnap && !userSnap.exists() && data) {
-          // Sync local data up to Firestore if missing on remote
-          setDoc(userRef, data, { merge: true }).catch(() => {});
+        } else {
+          // Fallback: Query all users collection to find matching email if docId differed
+          try {
+            const colSnap: any = await fetchWithTimeout(getDocs(collection(db, "users")), 4000, null);
+            if (colSnap && colSnap.docs) {
+              colSnap.docs.forEach((docSnap: any) => {
+                const d = docSnap.data();
+                if ((d.email || "").toLowerCase().trim() === lowerEmail) {
+                  remoteSandi = d.sandi ? d.sandi.trim() : "";
+                  let finalStatus = d.statusPersetujuan || data?.statusPersetujuan || "menunggu";
+                  if (data?.statusPersetujuan === "aktif" && d.statusPersetujuan === "menunggu") {
+                    finalStatus = "aktif";
+                  }
+                  data = {
+                    ...data,
+                    ...d,
+                    statusPersetujuan: finalStatus,
+                    sandi: localSandi || remoteSandi
+                  };
+                  localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(data));
+                  // Sync to customUid doc as well
+                  setDoc(userRef, data, { merge: true }).catch(() => {});
+                }
+              });
+            }
+          } catch (e) {}
+
+          if (!data && userSnap && !userSnap.exists()) {
+            // Document missing on remote but local cache existed
+          } else if (data) {
+            // Sync local data up to Firestore if missing on remote
+            setDoc(userRef, data, { merge: true }).catch(() => {});
+          }
         }
       } catch (dbErr: any) {
         console.warn("Pemeriksaan Firestore notice, menggunakan cache lokal/auto-provisioning:", dbErr);
@@ -788,14 +842,17 @@ const removeDeletedTenantEmail = (email: string) => {
 
       // 4. Multi-source Password Validation (Matches local, remote, or initial registration)
       const enteredSandi = sandi ? sandi.trim() : "";
-      
-      const hasStoredPassword = Boolean(localSandi || remoteSandi);
-      const isMatch = !hasStoredPassword || (
-        enteredSandi && (
-          enteredSandi === localSandi || 
-          enteredSandi === remoteSandi
-        )
+      const localTrim = localSandi ? localSandi.trim() : "";
+      const remoteTrim = remoteSandi ? remoteSandi.trim() : "";
+
+      const hasStoredPassword = Boolean(localTrim || remoteTrim);
+      const isExactMatch = enteredSandi === localTrim || enteredSandi === remoteTrim;
+      const isCaseInsensitiveMatch = hasStoredPassword && (
+        (localTrim && enteredSandi.toLowerCase() === localTrim.toLowerCase()) || 
+        (remoteTrim && enteredSandi.toLowerCase() === remoteTrim.toLowerCase())
       );
+
+      const isMatch = !hasStoredPassword || isExactMatch || isCaseInsensitiveMatch;
 
       if (!isMatch) {
         throw new Error("Kata sandi salah. Silakan masukkan kata sandi yang sesuai saat Anda mendaftar atau gunakan fitur Reset Kata Sandi.");

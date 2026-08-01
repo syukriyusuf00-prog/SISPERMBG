@@ -143,60 +143,63 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       map.set("admin_syukriyusuf82", mainAdminDoc);
       const deletedEmails = getDeletedTenantEmails();
 
-      if (isFromFirestore) {
-        // First merge all offline users so new registrations show immediately
-        const offlineList = getOfflineUsers();
-        offlineList.forEach((u) => {
-          const userEmail = (u.email || "").toLowerCase().trim();
-          if (
-            u.uid &&
-            u.uid !== "admin_sukriyusuf82" &&
-            u.uid !== "admin_syukriyusuf82" &&
-            !isMainAdminEmail(u.email) &&
-            !deletedEmails.has(userEmail)
-          ) {
-            map.set(u.uid, u);
-          }
-        });
+      const addToMap = (u: any, isRemote = false) => {
+        if (!u) return;
+        const userEmail = (u.email || "").toLowerCase().trim();
+        if (
+          u.uid === "admin_sukriyusuf82" ||
+          u.uid === "admin_syukriyusuf82" ||
+          (userEmail && isMainAdminEmail(userEmail)) ||
+          (userEmail && deletedEmails.has(userEmail))
+        ) {
+          return;
+        }
 
-        // Overlay Firestore remote docs
-        remoteDocs.forEach((u) => {
-          const userEmail = (u.email || "").toLowerCase().trim();
-          if (
-            u.uid &&
-            u.uid !== "admin_sukriyusuf82" &&
-            u.uid !== "admin_syukriyusuf82" &&
-            !isMainAdminEmail(u.email) &&
-            !deletedEmails.has(userEmail)
-          ) {
-            const existing = map.get(u.uid) || {};
-            
-            // Preserve local approval status ("aktif" or "diblokir") if remote doc is lagging on "menunggu"
-            let finalStatus = u.statusPersetujuan;
-            if (existing.statusPersetujuan === "aktif" && u.statusPersetujuan === "menunggu") {
-              finalStatus = "aktif";
-            } else if (existing.statusPersetujuan === "diblokir" && u.statusPersetujuan === "menunggu") {
-              finalStatus = "diblokir";
+        const primaryKey = u.uid || u.id || (userEmail ? `custom_user_${userEmail.replace(/[@.]/g, "_")}` : null);
+        if (!primaryKey && !userEmail) return;
+
+        // Try finding existing map entry by key or email
+        let existingKey: string | null = null;
+        if (primaryKey && map.has(primaryKey)) {
+          existingKey = primaryKey;
+        } else if (userEmail) {
+          for (const [k, v] of map.entries()) {
+            if ((v.email || "").toLowerCase().trim() === userEmail) {
+              existingKey = k;
+              break;
             }
+          }
+        }
 
-            map.set(u.uid, { ...existing, ...u, statusPersetujuan: finalStatus });
-          }
-        });
-      } else {
-        // Fallback or initial offline load
-        const offlineList = getOfflineUsers();
-        offlineList.forEach((u) => {
-          const userEmail = (u.email || "").toLowerCase().trim();
-          if (
-            u.uid &&
-            u.uid !== "admin_sukriyusuf82" &&
-            u.uid !== "admin_syukriyusuf82" &&
-            !isMainAdminEmail(u.email) &&
-            !deletedEmails.has(userEmail)
-          ) {
-            map.set(u.uid, u);
-          }
-        });
+        const existing = existingKey ? map.get(existingKey) : {};
+        const keyToUse = existingKey || primaryKey || `custom_user_${userEmail.replace(/[@.]/g, "_")}`;
+
+        // Preserve local approved status ("aktif" or "diblokir") if remote is lagging on "menunggu"
+        let finalStatus = isRemote ? (u.statusPersetujuan || existing.statusPersetujuan || "menunggu") : (existing.statusPersetujuan || u.statusPersetujuan || "menunggu");
+        if (existing.statusPersetujuan === "aktif" && u.statusPersetujuan === "menunggu") {
+          finalStatus = "aktif";
+        } else if (existing.statusPersetujuan === "diblokir" && u.statusPersetujuan === "menunggu") {
+          finalStatus = "diblokir";
+        }
+
+        const merged = {
+          ...existing,
+          ...u,
+          uid: keyToUse,
+          id: keyToUse,
+          statusPersetujuan: finalStatus
+        };
+
+        map.set(keyToUse, merged);
+      };
+
+      // 1. First populate from offline localStorage cache
+      const offlineList = getOfflineUsers();
+      offlineList.forEach((u) => addToMap(u, false));
+
+      // 2. Overlay remote docs from Firestore
+      if (isFromFirestore && remoteDocs.length > 0) {
+        remoteDocs.forEach((u) => addToMap(u, true));
       }
 
       const userList = Array.from(map.values());
@@ -222,10 +225,11 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         if (docSnap.id === "admin_sukriyusuf82" || docSnap.id === "admin_syukriyusuf82" || (data.email && isMainAdminEmail(data.email))) {
           return;
         }
+        const userUid = data.uid || docSnap.id;
         remoteList.push({ 
+          ...data,
           id: docSnap.id, 
-          uid: data.uid || docSnap.id, 
-          ...data 
+          uid: userUid 
         });
       });
       mergeAndSetUsers(remoteList, true);
@@ -235,8 +239,31 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     });
 
     // Event listener to instantly add newly registered users to admin list
-    const handleRegistered = () => {
-      mergeAndSetUsers([], false);
+    const handleRegistered = (e: any) => {
+      if (e?.detail) {
+        const newUser = e.detail;
+        const newUserEmail = (newUser.email || "").toLowerCase().trim();
+        const emailSlug = newUserEmail.replace(/[@.]/g, "_");
+        const customUid = newUser.uid || `custom_user_${emailSlug}`;
+
+        localStorage.setItem(`offline_user_${customUid}`, JSON.stringify(newUser));
+
+        setUsers((prev) => {
+          const exists = prev.some(
+            (u) => u.uid === customUid || (u.email || "").toLowerCase().trim() === newUserEmail
+          );
+          if (exists) {
+            return prev.map((u) =>
+              u.uid === customUid || (u.email || "").toLowerCase().trim() === newUserEmail
+                ? { ...u, ...newUser }
+                : u
+            );
+          }
+          return [newUser, ...prev];
+        });
+      } else {
+        mergeAndSetUsers([], false);
+      }
     };
     window.addEventListener("sisper_user_registered", handleRegistered);
 
@@ -251,7 +278,11 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
     try {
       const now = new Date();
       const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-      const userObj = users.find(u => u.uid === userId || u.id === userId);
+      const userObj = users.find(u => u.uid === userId || u.id === userId || (u.email && u.email.toLowerCase().trim() === userId.toLowerCase().trim()));
+
+      const userEmail = (userObj?.email || "").toLowerCase().trim();
+      const emailSlug = userEmail.replace(/[@.]/g, '_');
+      const customUid = `custom_user_${emailSlug}`;
 
       const updates: any = {
         statusPersetujuan: newStatus,
@@ -265,14 +296,21 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         updates.berakhirPada = defaultExp;
       }
 
+      const fullUserData = {
+        ...(userObj || {}),
+        ...updates,
+        uid: customUid,
+        email: userEmail || userObj?.email || ""
+      };
+
       // 1. Instant local state update (0ms UI latency)
-      setUsers(prev => prev.map(u => (u.uid === userId || u.id === userId) ? { ...u, ...updates } : u));
+      setUsers(prev => prev.map(u => 
+        (u.uid === userId || u.id === userId || (u.email && (u.email || "").toLowerCase().trim() === userEmail)) 
+          ? { ...u, ...fullUserData } 
+          : u
+      ));
 
       // 2. Instant offline storage persistence across all key variations
-      const userEmail = (userObj?.email || "").toLowerCase().trim();
-      const emailSlug = userEmail.replace(/[@.]/g, '_');
-      const customUid = `custom_user_${emailSlug}`;
-
       const keysToUpdate = Array.from(new Set([
         `offline_user_${userId}`,
         `offline_user_${customUid}`,
@@ -283,8 +321,25 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
       keysToUpdate.forEach((k) => {
         const savedStr = localStorage.getItem(k);
         const parsed = savedStr ? (JSON.parse(savedStr) || {}) : (userObj || {});
-        localStorage.setItem(k, JSON.stringify({ ...parsed, ...updates }));
+        localStorage.setItem(k, JSON.stringify({ ...parsed, ...fullUserData }));
       });
+
+      if (userEmail) {
+        try {
+          for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (key && key.startsWith("offline_user_")) {
+              const val = localStorage.getItem(key);
+              if (val) {
+                const parsed = JSON.parse(val);
+                if ((parsed.email || "").toLowerCase().trim() === userEmail) {
+                  localStorage.setItem(key, JSON.stringify({ ...parsed, ...fullUserData }));
+                }
+              }
+            }
+          }
+        } catch (e) {}
+      }
 
       // Also update currently active user session if this is the active user
       const currentActiveUid = localStorage.getItem("custom_logged_in_uid");
@@ -293,17 +348,17 @@ export default function AdminPanel({ onClose }: AdminPanelProps) {
         if (activeProfile) {
           try {
             const parsed = JSON.parse(activeProfile);
-            localStorage.setItem("sisper_user_profile", JSON.stringify({ ...parsed, ...updates }));
+            localStorage.setItem("sisper_user_profile", JSON.stringify({ ...parsed, ...fullUserData }));
           } catch (e) {}
         }
       }
 
-      // 3. Reliable background cloud sync to Firestore
-      const docIdsToUpdate = Array.from(new Set([userId, customUid, userObj?.uid].filter(Boolean)));
+      // 3. Reliable background cloud sync to Firestore with complete user document
+      const docIdsToUpdate = Array.from(new Set([userId, customUid, userObj?.uid, userObj?.id].filter(Boolean)));
       for (const docId of docIdsToUpdate) {
         try {
           const userRef = doc(db, "users", docId);
-          await setDoc(userRef, updates, { merge: true });
+          await setDoc(userRef, fullUserData, { merge: true });
         } catch (e) {
           console.warn("Notice setDoc status:", e);
         }
