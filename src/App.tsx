@@ -67,6 +67,7 @@ import {
   Lock,
   LogOut,
   AlertCircle,
+  CheckCircle2,
   Zap,
   Eye,
   EyeOff,
@@ -1517,6 +1518,14 @@ export default function App() {
 
   // If user is not logged in, show beautiful GiziSync / SISPERMBG Login screen
   if (!user) {
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    const isRegNamaValid = regNamaSingle.trim().length >= 2;
+    const isRegEmailValid = emailRegex.test(regEmailSingle.trim());
+    const isRegPekerjaanValid = regPekerjaanSingle.trim().length >= 2;
+    const isRegInstansiValid = regInstansiSingle.trim().length >= 2;
+    const isRegSandiValid = regSandiSingle.length >= 6;
+    const isRegConfirmSandiValid = regConfirmSandiSingle.length >= 6 && regConfirmSandiSingle === regSandiSingle;
+
     return (
       <div className="min-h-screen bg-[#F1F3F9] text-slate-700 flex items-center justify-center p-4 md:p-8 font-sans">
         {/* Main responsive container card matching picture structure */}
@@ -1711,59 +1720,149 @@ export default function App() {
                 /* SINGLE USER REGISTRATION FORM MATCHING REFERENCE IMAGE FORMAT */
                 <form onSubmit={handleCustomRegister} className="space-y-4 text-left text-xs text-slate-700">
                   <div className="bg-[#F4F7FC] p-5 md:p-6 rounded-2xl border border-slate-200/80 space-y-4 shadow-2xs">
+                    {/* Nama Lengkap */}
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-700 text-xs block">Nama Lengkap:</label>
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-slate-700 text-xs block">Nama Lengkap:</label>
+                        {regNamaSingle.length > 0 && (
+                          <span className="text-[10px] font-bold">
+                            {isRegNamaValid ? (
+                              <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Sesuai</span>
+                            ) : (
+                              <span className="text-rose-500 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Min. 2 Karakter</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required
                         value={regNamaSingle}
                         onChange={(e) => setRegNamaSingle(e.target.value)}
                         placeholder="ESSE MAISHORAH"
-                        className="w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal"
+                        className={`w-full px-4 py-3 bg-white border rounded-2xl text-slate-900 font-bold focus:outline-none transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal shadow-2xs ${
+                          regNamaSingle.length === 0
+                            ? "border-slate-200/90 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
+                            : isRegNamaValid
+                            ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
+                            : "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/10"
+                        }`}
                       />
                     </div>
 
+                    {/* Email */}
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-700 text-xs block">Email:</label>
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-slate-700 text-xs block">Email:</label>
+                        {regEmailSingle.length > 0 && (
+                          <span className="text-[10px] font-bold">
+                            {isRegEmailValid ? (
+                              <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Format Valid</span>
+                            ) : (
+                              <span className="text-rose-500 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Format Tidak Valid</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="email"
                         required
                         value={regEmailSingle}
                         onChange={(e) => setRegEmailSingle(e.target.value)}
                         placeholder="essemaisyorara@gmail.com"
-                        className="w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal"
+                        className={`w-full px-4 py-3 bg-white border rounded-2xl text-slate-900 font-bold focus:outline-none transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal shadow-2xs ${
+                          regEmailSingle.length === 0
+                            ? "border-slate-200/90 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
+                            : isRegEmailValid
+                            ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
+                            : "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/10"
+                        }`}
                       />
+                      {regEmailSingle.length > 0 && !isRegEmailValid && (
+                        <p className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 pt-0.5">
+                          <AlertCircle className="w-3 h-3 shrink-0" />
+                          Masukkan format email yang benar (contoh: user@gmail.com)
+                        </p>
+                      )}
                     </div>
 
+                    {/* Pekerjaan / Profesi */}
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-700 text-xs block">Pekerjaan / Profesi:</label>
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-slate-700 text-xs block">Pekerjaan / Profesi:</label>
+                        {regPekerjaanSingle.length > 0 && (
+                          <span className="text-[10px] font-bold">
+                            {isRegPekerjaanValid ? (
+                              <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Sesuai</span>
+                            ) : (
+                              <span className="text-rose-500 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Min. 2 Karakter</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required
                         value={regPekerjaanSingle}
                         onChange={(e) => setRegPekerjaanSingle(e.target.value)}
                         placeholder="AHLI GIZI"
-                        className="w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal"
+                        className={`w-full px-4 py-3 bg-white border rounded-2xl text-slate-900 font-bold focus:outline-none transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal shadow-2xs ${
+                          regPekerjaanSingle.length === 0
+                            ? "border-slate-200/90 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
+                            : isRegPekerjaanValid
+                            ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
+                            : "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/10"
+                        }`}
                       />
                     </div>
 
+                    {/* Instansi / SPPG */}
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-700 text-xs block">Instansi / SPPG:</label>
+                      <div className="flex items-center justify-between">
+                        <label className="font-bold text-slate-700 text-xs block">Instansi / SPPG:</label>
+                        {regInstansiSingle.length > 0 && (
+                          <span className="text-[10px] font-bold">
+                            {isRegInstansiValid ? (
+                              <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Sesuai</span>
+                            ) : (
+                              <span className="text-rose-500 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Min. 2 Karakter</span>
+                            )}
+                          </span>
+                        )}
+                      </div>
                       <input
                         type="text"
                         required
                         value={regInstansiSingle}
                         onChange={(e) => setRegInstansiSingle(e.target.value)}
                         placeholder="SPPG KAYUAPAK"
-                        className="w-full px-4 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal"
+                        className={`w-full px-4 py-3 bg-white border rounded-2xl text-slate-900 font-bold focus:outline-none transition-all text-xs tracking-wide uppercase placeholder:text-slate-400 placeholder:normal-case placeholder:font-normal shadow-2xs ${
+                          regInstansiSingle.length === 0
+                            ? "border-slate-200/90 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
+                            : isRegInstansiValid
+                            ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
+                            : "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/10"
+                        }`}
                       />
                     </div>
 
+                    {/* Kata Sandi & Konfirmasi Kata Sandi */}
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-1">
-                        <label className="font-bold text-slate-700 text-xs block">
-                          Kata Sandi <span className="text-[10px] text-slate-400 font-normal">(Min. 6 karakter)</span>:
-                        </label>
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-slate-700 text-xs block">
+                            Kata Sandi <span className="text-[10px] text-slate-400 font-normal">(Min. 6)</span>:
+                          </label>
+                          {regSandiSingle.length > 0 && (
+                            <span className="text-[10px] font-bold">
+                              {isRegSandiValid ? (
+                                <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Valid ({regSandiSingle.length})</span>
+                              ) : (
+                                <span className="text-rose-500 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> {regSandiSingle.length}/6 Karakter</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                         <div className="relative">
                           <input
                             type={showRegSandi ? "text" : "password"}
@@ -1772,7 +1871,13 @@ export default function App() {
                             value={regSandiSingle}
                             onChange={(e) => setRegSandiSingle(e.target.value)}
                             placeholder="Esse@123"
-                            className="w-full pl-4 pr-11 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal"
+                            className={`w-full pl-4 pr-11 py-3 bg-white border rounded-2xl text-slate-900 font-bold focus:outline-none transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal shadow-2xs ${
+                              regSandiSingle.length === 0
+                                ? "border-slate-200/90 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
+                                : isRegSandiValid
+                                ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
+                                : "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/10"
+                            }`}
                           />
                           <button
                             type="button"
@@ -1783,9 +1888,27 @@ export default function App() {
                             {showRegSandi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
+                        {regSandiSingle.length > 0 && !isRegSandiValid && (
+                          <p className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 pt-0.5">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            Kata sandi minimal 6 karakter
+                          </p>
+                        )}
                       </div>
+
                       <div className="space-y-1">
-                        <label className="font-bold text-slate-700 text-xs block">Konfirmasi Kata Sandi:</label>
+                        <div className="flex items-center justify-between">
+                          <label className="font-bold text-slate-700 text-xs block">Konfirmasi Kata Sandi:</label>
+                          {regConfirmSandiSingle.length > 0 && (
+                            <span className="text-[10px] font-bold">
+                              {isRegConfirmSandiValid ? (
+                                <span className="text-emerald-600 flex items-center gap-1"><CheckCircle2 className="w-3 h-3"/> Cocok</span>
+                              ) : (
+                                <span className="text-rose-500 flex items-center gap-1"><AlertCircle className="w-3 h-3"/> Tidak Cocok</span>
+                              )}
+                            </span>
+                          )}
+                        </div>
                         <div className="relative">
                           <input
                             type={showRegConfirmSandi ? "text" : "password"}
@@ -1794,7 +1917,13 @@ export default function App() {
                             value={regConfirmSandiSingle}
                             onChange={(e) => setRegConfirmSandiSingle(e.target.value)}
                             placeholder="Esse@123"
-                            className="w-full pl-4 pr-11 py-3 bg-white border border-slate-200/90 rounded-2xl text-slate-900 font-bold focus:outline-none focus:ring-2 focus:ring-blue-400/30 focus:border-blue-500 shadow-2xs transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal"
+                            className={`w-full pl-4 pr-11 py-3 bg-white border rounded-2xl text-slate-900 font-bold focus:outline-none transition-all text-xs tracking-wide placeholder:text-slate-400 placeholder:font-normal shadow-2xs ${
+                              regConfirmSandiSingle.length === 0
+                                ? "border-slate-200/90 focus:border-blue-500 focus:ring-2 focus:ring-blue-400/30"
+                                : isRegConfirmSandiValid
+                                ? "border-emerald-500 ring-2 ring-emerald-500/20 bg-emerald-50/10"
+                                : "border-rose-500 ring-2 ring-rose-500/20 bg-rose-50/10"
+                            }`}
                           />
                           <button
                             type="button"
@@ -1805,6 +1934,14 @@ export default function App() {
                             {showRegConfirmSandi ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                           </button>
                         </div>
+                        {regConfirmSandiSingle.length > 0 && !isRegConfirmSandiValid && (
+                          <p className="text-[10px] text-rose-600 font-semibold flex items-center gap-1 pt-0.5">
+                            <AlertCircle className="w-3 h-3 shrink-0" />
+                            {regConfirmSandiSingle !== regSandiSingle
+                              ? "Konfirmasi kata sandi tidak cocok"
+                              : "Kata sandi minimal 6 karakter"}
+                          </p>
+                        )}
                       </div>
                     </div>
                   </div>
